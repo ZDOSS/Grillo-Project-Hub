@@ -1,4 +1,4 @@
-import { type MouseEvent, useMemo, useState } from "react";
+import { type MouseEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import DOMPurify, { type Config as DOMPurifyConfig } from "dompurify";
 import { useProjectStore } from "../../store/project-store";
@@ -87,6 +87,11 @@ function DocEditor({ doc, backlinks }: { doc: Document; backlinks: Document[] })
   const [tab, setTab] = useState<"edit" | "preview">("preview");
 
   if (!bundle) return null;
+
+  useEffect(() => {
+    setTitle(doc.title);
+    setBody(doc.body);
+  }, [doc.id, doc.title, doc.body]);
 
   const save = () => {
     applyCommand({ type: "doc.update", projectId: bundle.project.id, docId: doc.id, patch: { title, body } });

@@ -100,27 +100,51 @@ async function listDesktopProjectsInFolder(folder: string): Promise<string[]> {
   return Array.isArray(result) ? result.filter((name): name is string => typeof name === "string") : [];
 }
 
+async function listAdapterFolderProjects(adapter: ProjectStoreAdapter | null): Promise<string[]> {
+  if (!adapter?.listFolderProjects) return [];
+  return adapter.listFolderProjects();
+}
+
 /**
  * Workspace launcher: shows recent projects and the app's storage/open options.
  */
 export function ProjectsListView() {
   const navigate = useNavigate();
+  const adapter = useMemo(() => getActiveAdapter(), []);
   const recents = useWorkspaceStore((s) => s.recents);
   const removeRecent = useWorkspaceStore((s) => s.removeRecent);
   const [showNew, setShowNew] = useState(recents.length === 0);
   const [newName, setNewName] = useState("My Project");
   const [templateId, setTemplateId] = useState<TemplateId>("software-project");
   const [folderPath, setFolderPath] = useState(getDesktopFolderPath());
+  const [browserFolderLabel, setBrowserFolderLabel] = useState("");
   const [busyRecentKey, setBusyRecentKey] = useState<string | null>(null);
   const [pendingDeleteRecentKey, setPendingDeleteRecentKey] = useState<string | null>(null);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
   const setBundle = useProjectStore((s) => s.setBundle);
   const recordRecent = useWorkspaceStore((s) => s.recordRecent);
   const desktopRuntime = useMemo(() => isDesktopRuntime(), []);
+  const browserFolderCapable = !desktopRuntime && Boolean(adapter?.chooseFolder);
 
   useEffect(() => {
     if (recents.length === 0) setShowNew(true);
   }, [recents.length]);
+
+  useEffect(() => {
+    if (!adapter?.getCurrentFolderDisplay) return;
+    void adapter.getCurrentFolderDisplay().then((label) => setBrowserFolderLabel(label ?? ""));
+  }, [adapter]);
+
+  const chooseBrowserFolder = async () => {
+    if (!adapter?.chooseFolder) return;
+    setWorkspaceError(null);
+    try {
+      const label = await adapter.chooseFolder();
+      setBrowserFolderLabel(label ?? "");
+    } catch (error) {
+      setWorkspaceError((error as Error).message);
+    }
+  };
 
   const create = () => {
     const bundle = buildProjectFromTemplate(templateId, newName.trim() || "Untitled");
@@ -128,10 +152,13 @@ export function ProjectsListView() {
     if (desktopRuntime && normalizedFolder) {
       setDesktopFolderPath(normalizedFolder);
     }
-    const storagePath = desktopRuntime && normalizedFolder
-      ? `${normalizedFolder.replace(/[\\/]$/, "")}/.pm-suite/${bundle.project.id}.pms.json`
+    const folderDisplay = desktopRuntime
+      ? normalizedFolder
+      : browserFolderLabel.trim();
+    const storagePath = folderDisplay
+      ? `${folderDisplay.replace(/[\\/]$/, "")}/.pm-suite/${bundle.project.id}.pms.json`
       : null;
-    const storageTrust = desktopRuntime && normalizedFolder ? "folder" : "browser";
+    const storageTrust = folderDisplay ? "folder" : "browser";
     setBundle(bundle, { storageKey: bundle.project.id, storagePath, storageTrust });
     recordRecent({
       key: bundle.project.id,
@@ -179,6 +206,8 @@ export function ProjectsListView() {
           <p className="text-sm text-secondary" style={{ margin: 0, maxWidth: 760 }}>
             {desktopRuntime
               ? "Desktop mode can keep projects browser-local or save them to a folder you choose. Reopen recents directly from here instead of hunting for a JSON file."
+              : browserFolderCapable
+              ? "The PWA can keep projects browser-local or save them into a local folder you choose. Reopen saved projects here instead of relying on manual JSON imports."
               : "The PWA keeps projects in browser storage. You can reopen saved browser projects here or import/export JSON bundles when you need to move data around."}
           </p>
         </div>
@@ -258,6 +287,8 @@ export function ProjectsListView() {
               <p className="text-sm text-secondary" style={{ margin: 0 }}>
                 {desktopRuntime
                   ? "Create a new project with a folder path, or use Open / import to connect an existing `.pm-suite` folder. Once saved, it will show up in recents for one-click reopen."
+                  : browserFolderCapable
+                  ? "The PWA can save in browser storage or into a local folder selected with the browser file-system picker. Use recents to reopen either mode after reloads."
                   : "The PWA saves projects inside this browser. Use export/import when you want to move them somewhere else, and use recents to reopen them after reloads."}
               </p>
             </div>
@@ -309,6 +340,20 @@ export function ProjectsListView() {
                       Leave blank to keep the project browser-local inside the desktop shell. Add a folder path to save `.pm-suite/project-id.pms.json` there.
                     </span>
                   </label>
+                ) : browserFolderCapable ? (
+                  <div className="workspace-source">
+                    <strong>Local folder (optional)</strong>
+                    <p className="text-xs text-muted" style={{ margin: "6px 0 0" }}>
+                      {browserFolderLabel
+                        ? `Selected folder: ${browserFolderLabel}. New projects will save into .pm-suite there.`
+                        : "Leave this unset to keep the project browser-local, or choose a folder so the PWA writes real .pm-suite files there."}
+                    </p>
+                    <div className="row" style={{ marginTop: 8 }}>
+                      <button className="btn btn-sm" type="button" onClick={() => void chooseBrowserFolder()}>
+                        {browserFolderLabel ? "Change folder" : "Choose folder"}
+                      </button>
+                    </div>
+                  </div>
                 ) : (
                   <div className="workspace-inline-note">
                     The PWA stores this project in browser storage. Use export/import later if you want a portable file.
@@ -331,11 +376,19 @@ export function OpenProjectView() {
   const setBundle = useProjectStore((s) => s.setBundle);
   const recordRecent = useWorkspaceStore((s) => s.recordRecent);
   const navigate = useNavigate();
+  const adapter = useMemo(() => getActiveAdapter(), []);
   const [busy, setBusy] = useState(false);
   const [folderPath, setFolderPath] = useState(getDesktopFolderPath());
+  const [browserFolderLabel, setBrowserFolderLabel] = useState("");
   const [folderFiles, setFolderFiles] = useState<string[]>([]);
   const [openError, setOpenError] = useState<string | null>(null);
   const desktopRuntime = useMemo(() => isDesktopRuntime(), []);
+  const browserFolderCapable = !desktopRuntime && Boolean(adapter?.chooseFolder && adapter?.listFolderProjects);
+
+  useEffect(() => {
+    if (!adapter?.getCurrentFolderDisplay) return;
+    void adapter.getCurrentFolderDisplay().then((label) => setBrowserFolderLabel(label ?? ""));
+  }, [adapter]);
 
   const onFile = async (file: File) => {
     setBusy(true);
@@ -357,10 +410,15 @@ export function OpenProjectView() {
     setBusy(true);
     setOpenError(null);
     try {
-      const files = await listDesktopProjectsInFolder(folderPath);
+      const files = desktopRuntime
+        ? await listDesktopProjectsInFolder(folderPath)
+        : await listAdapterFolderProjects(adapter);
       setFolderFiles(files);
-      if (folderPath.trim()) {
+      if (desktopRuntime && folderPath.trim()) {
         setDesktopFolderPath(folderPath.trim());
+      }
+      if (!desktopRuntime && adapter?.getCurrentFolderDisplay) {
+        setBrowserFolderLabel((await adapter.getCurrentFolderDisplay()) ?? "");
       }
     } catch (error) {
       setOpenError(`Folder scan failed: ${(error as Error).message}`);
@@ -369,9 +427,9 @@ export function OpenProjectView() {
     }
   };
 
-  const openDesktopProject = async (filename: string) => {
-    const adapter = getActiveAdapter();
-    if (!adapter) {
+  const openFolderProject = async (filename: string) => {
+    const activeAdapter = getActiveAdapter();
+    if (!activeAdapter) {
       setOpenError("No storage adapter is available in this runtime.");
       return;
     }
@@ -379,9 +437,11 @@ export function OpenProjectView() {
     setOpenError(null);
     try {
       const normalizedFolder = folderPath.trim();
-      setDesktopFolderPath(normalizedFolder);
+      if (desktopRuntime) {
+        setDesktopFolderPath(normalizedFolder);
+      }
       const key = filename.replace(/\.pms\.json$/i, "");
-      const loaded = await adapter.load(key);
+      const loaded = await activeAdapter.load(key);
       if (!loaded) {
         throw new Error(`No saved project found for ${filename}.`);
       }
@@ -406,27 +466,59 @@ export function OpenProjectView() {
     }
   };
 
+  const chooseBrowserFolder = async () => {
+    if (!adapter?.chooseFolder) return;
+    setBusy(true);
+    setOpenError(null);
+    try {
+      const label = await adapter.chooseFolder();
+      setBrowserFolderLabel(label ?? "");
+      setFolderFiles([]);
+    } catch (error) {
+      setOpenError(`Folder access failed: ${(error as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="workspace-page">
       <div className="workspace-grid">
-        {desktopRuntime ? (
+        {desktopRuntime || browserFolderCapable ? (
           <section className="workspace-card">
-            <h2 style={{ marginTop: 0 }}>Open a folder-backed project</h2>
+            <h2 style={{ marginTop: 0 }}>{desktopRuntime ? "Open a folder-backed project" : "Open a local-folder project"}</h2>
             <p className="text-sm text-secondary">
-              Enter the project folder path, list the saved `.pm-suite` project files inside it, then open the one you want.
+              {desktopRuntime
+                ? "Enter the project folder path, list the saved `.pm-suite` project files inside it, then open the one you want."
+                : "Choose a local folder, list the `.pm-suite` project files inside it, then open the one you want."}
             </p>
             <div className="col" style={{ gap: 12 }}>
-              <label className="label">
-                Project folder path
-                <input
-                  className="input"
-                  value={folderPath}
-                  onChange={(e) => setFolderPath(e.target.value)}
-                  placeholder="C:\Projects\Grillo"
-                />
-              </label>
+              {desktopRuntime ? (
+                <label className="label">
+                  Project folder path
+                  <input
+                    className="input"
+                    value={folderPath}
+                    onChange={(e) => setFolderPath(e.target.value)}
+                    placeholder="C:\Projects\Grillo"
+                  />
+                </label>
+              ) : (
+                <div className="workspace-source">
+                  <strong>{browserFolderLabel ? `Selected folder: ${browserFolderLabel}` : "No local folder selected"}</strong>
+                  <div className="row" style={{ marginTop: 8 }}>
+                    <button className="btn btn-sm" onClick={() => void chooseBrowserFolder()} disabled={busy}>
+                      {browserFolderLabel ? "Change folder" : "Choose folder"}
+                    </button>
+                  </div>
+                </div>
+              )}
               <div className="row">
-                <button className="btn btn-primary" onClick={() => void refreshFolderProjects()} disabled={!folderPath.trim() || busy}>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => void refreshFolderProjects()}
+                  disabled={(desktopRuntime ? !folderPath.trim() : !browserFolderLabel) || busy}
+                >
                   {busy ? "Scanning..." : "List saved projects"}
                 </button>
               </div>
@@ -436,9 +528,9 @@ export function OpenProjectView() {
                     <div key={filename} className="workspace-recent">
                       <div className="col" style={{ gap: 2 }}>
                         <strong>{filename}</strong>
-                        <span className="text-xs text-muted">{folderPath}</span>
+                        <span className="text-xs text-muted">{desktopRuntime ? folderPath : browserFolderLabel}</span>
                       </div>
-                      <button className="btn btn-sm btn-primary" onClick={() => void openDesktopProject(filename)} disabled={busy}>
+                      <button className="btn btn-sm btn-primary" onClick={() => void openFolderProject(filename)} disabled={busy}>
                         Open
                       </button>
                     </div>
@@ -446,9 +538,13 @@ export function OpenProjectView() {
                 </div>
               ) : (
                 <div className="workspace-inline-note">
-                  {folderPath.trim()
-                    ? "No saved `.pms.json` files found in that folder yet."
-                    : "Add a folder path first if you want to reopen a folder-backed project."}
+                  {desktopRuntime
+                    ? (folderPath.trim()
+                      ? "No saved `.pms.json` files found in that folder yet."
+                      : "Add a folder path first if you want to reopen a folder-backed project.")
+                    : (browserFolderLabel
+                      ? "No saved `.pms.json` files found in that folder yet."
+                      : "Choose a local folder first if you want to reopen a folder-backed project.")}
                 </div>
               )}
             </div>

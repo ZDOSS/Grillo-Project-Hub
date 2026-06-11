@@ -6,17 +6,18 @@ A free, open source, hybrid day-one project management suite for practical softw
 
 The MVP implementation is in place. The current build supports:
 
-- **Workspace** with new/open/demo project flow, recent-project reopen, browser-vs-folder storage guidance, and inline delete/remove confirmation
+- **Workspace** with new/open/demo project flow, recent-project reopen, browser-vs-folder storage guidance, inline delete/remove confirmation, and automatic restore of the last active project after reload
 - **Board** with drag-and-drop, WIP limits (warn + hard modes), and column-based status grouping
 - **Backlog** with priority-sorted items
 - **Table** with sort, group, filter, and column visibility
-- **Docs** with Markdown editing, sanitized rendering, internal embeds, backlinks, and router-safe in-app navigation for preview links
+- **Docs** with Markdown editing, sanitized rendering, internal embeds, backlinks, router-safe in-app navigation for preview links, and correct pane updates when switching documents
 - **Roadmap / timeline** with date drag/resize, milestone lanes, and dependency awareness
 - **Calendar** with month grid and date-based item visibility
 - **Bug triage** with severity, reproduction steps, expected/actual behavior, environment, affected version, and a visible new-bug entry point
 - **My work** filtered to the locally selected member
 - **Search** across items, docs, comments, and labels
 - **Settings** for theme, left-panel visibility, editable members, statuses, priorities, types, labels, milestones, custom fields, plugins, export, and AI bridge
+- **Consistent settings editing** for members, statuses, priorities, types, and plugin trust with explicit edit or save/cancel flows instead of always-live row inputs
 - **Shared navigation config** so sidebar navigation and left-panel visibility toggles stay in sync
 - **Command palette** with `Ctrl/Cmd+K` and `C` to create items
 - **Work item drawer** with full edit, checklist (with convert-to-subtask), comments with threads and edit history, subtasks, relationships, archive/trash/restore
@@ -53,10 +54,13 @@ Note: This is a static client-side demo only. All data lives in the browser (loc
 
 ## Storage notes
 
-- In the **PWA/web app**, projects are browser-local by default. The launcher now makes that explicit and lets you reopen saved browser projects from recents instead of forcing JSON import every time.
+- In the **PWA/web app**, projects are browser-local by default. On browsers that support the File System Access API, the launcher can also bind the PWA to a real local folder and save `.pm-suite` project files there.
+- Reloading now restores the last active project from browser state instead of dropping you into an empty shell.
+- Older browser-local saves are repaired on load if their saved-project index metadata is missing, so reopening an existing project no longer depends on that index staying intact.
 - In the **desktop shell**, you can still work browser-locally, or attach a folder path for `.pm-suite` saves and reopen those folder-backed projects from the launcher.
 - Removing a folder-backed recent from the launcher only removes the shortcut; it does not delete the underlying filesystem project.
 - The command layer now hard-fails unknown member edits and preserves `hiddenViewIds` defaults when opening older bundles, so settings updates do not silently no-op or regress legacy projects.
+- Starter templates now carry different left-panel defaults, and the bug-tracker template seeds bug-safe defaults so creating a new bug does not fail on status mismatch.
 - JSON import/export remains the portable handoff path across machines or runtimes.
 
 ## Architecture

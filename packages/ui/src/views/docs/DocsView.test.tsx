@@ -61,6 +61,7 @@ describe("DocsView", () => {
 
     expect(screen.getByTestId("location")).toHaveTextContent(`/doc/${secondId}`);
     expect(screen.getByTestId("location").textContent).not.toBe("/docs");
+    expect(screen.getByDisplayValue("Second Doc")).toBeInTheDocument();
   });
 
   it("intercepts markdown preview links using a data attribute instead of a CSS class contract", async () => {

@@ -14,22 +14,25 @@ export function BoardView({ view }: BoardViewProps) {
   const [draggingItem, setDraggingItem] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const dragCounter = useRef(0);
-
-  if (!bundle) return null;
-  const { statuses, priorities, labels } = bundle.core;
+  const statuses = bundle?.core.statuses ?? [];
+  const priorities = bundle?.core.priorities ?? [];
+  const labels = bundle?.core.labels ?? [];
 
   const itemsByStatus = useMemo(() => {
     const map = new Map<string, WorkItem[]>();
     for (const col of view.columns) {
       for (const sId of col.statusIds) map.set(sId, []);
     }
+    if (!bundle) return map;
     for (const item of bundle.core.items) {
       if (item.trashedAt || item.archived) continue;
       const arr = map.get(item.statusId);
       if (arr) arr.push(item);
     }
     return map;
-  }, [bundle.core.items, view.columns]);
+  }, [bundle, view.columns]);
+
+  if (!bundle) return null;
 
   const itemsForColumn = (col: BoardColumn): WorkItem[] => {
     const all: WorkItem[] = [];

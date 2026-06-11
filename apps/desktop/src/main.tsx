@@ -8,7 +8,8 @@ import {
   ProjectsListView,
   OpenProjectView,
   DemoFolderView,
-  ThemeProvider
+  ThemeProvider,
+  useRestoreProjectSession
 } from "@gph/ui";
 import { DesktopStorageAdapter } from "./platform/storage/desktop-storage";
 import { useAutoSave } from "./platform/auto-save";
@@ -17,6 +18,7 @@ const root = document.getElementById("root")!;
 DesktopStorageAdapter.install();
 
 function App() {
+  useRestoreProjectSession();
   useAutoSave();
   return (
     <ThemeProvider>

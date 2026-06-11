@@ -6,8 +6,43 @@
 
 import { create } from "zustand";
 import type { ProjectBundle } from "@gph/core";
-import { dispatchCommand, envelopeFor, type CommandEnvelope, type CommandPayload, type CommandSource, type DispatchResult } from "@gph/core";
+import { dispatchCommand, envelopeFor, importProjectJson, type CommandEnvelope, type CommandPayload, type CommandSource, type DispatchResult, type ProjectStoreAdapter, validateProjectBundle } from "@gph/core";
 import { exportProjectJson } from "@gph/core";
+
+const ACTIVE_PROJECT_KEY = "gph.active.project";
+
+type SavedProjectSession = {
+  storageKey: string;
+  storagePath: string | null;
+  storageTrust: "folder" | "browser" | "unsaved";
+};
+
+function saveProjectSession(session: SavedProjectSession | null): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    if (!session) {
+      localStorage.removeItem(ACTIVE_PROJECT_KEY);
+      return;
+    }
+    localStorage.setItem(ACTIVE_PROJECT_KEY, JSON.stringify(session));
+  } catch {}
+}
+
+function loadProjectSession(): SavedProjectSession | null {
+  if (typeof localStorage === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(ACTIVE_PROJECT_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as SavedProjectSession;
+  } catch {
+    return null;
+  }
+}
+
+function activeAdapter(): ProjectStoreAdapter | null {
+  if (typeof window === "undefined") return null;
+  return ((window as typeof window & { __gph_store?: ProjectStoreAdapter }).__gph_store) ?? null;
+}
 
 export type ProjectStoreState = {
   bundle: ProjectBundle | null;
@@ -33,13 +68,25 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
   storageTrust: "unsaved",
   isDirty: false,
   lastSource: null,
-  setBundle: (bundle, opts) => set({
-    bundle,
-    storageKey: opts?.storageKey ?? get().storageKey,
-    storagePath: opts?.storagePath ?? get().storagePath,
-    storageTrust: opts?.storageTrust ?? get().storageTrust,
-    isDirty: false
-  }),
+  setBundle: (bundle, opts) => {
+    const nextStorageKey = opts?.storageKey ?? get().storageKey ?? bundle.project.id;
+    const nextStoragePath = opts?.storagePath ?? get().storagePath;
+    const nextStorageTrust = opts?.storageTrust ?? get().storageTrust;
+    set({
+      bundle,
+      storageKey: nextStorageKey,
+      storagePath: nextStoragePath,
+      storageTrust: nextStorageTrust,
+      isDirty: false
+    });
+    if (nextStorageKey) {
+      saveProjectSession({
+        storageKey: nextStorageKey,
+        storagePath: nextStoragePath,
+        storageTrust: nextStorageTrust
+      });
+    }
+  },
   applyCommand: (payload, source = "ui", actorId = null) => {
     const cur = get().bundle;
     if (!cur) throw new Error("No project loaded");
@@ -48,12 +95,38 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
     set({ bundle: r.bundle, isDirty: true, lastSource: source });
     return r;
   },
-  markSaved: (storageKey, storagePath, trust) => set({ storageKey, storagePath, storageTrust: trust, isDirty: false }),
+  markSaved: (storageKey, storagePath, trust) => {
+    set({ storageKey, storagePath, storageTrust: trust, isDirty: false });
+    saveProjectSession({ storageKey, storagePath, storageTrust: trust });
+  },
   markUnsaved: () => set({ isDirty: true }),
   serialize: () => {
     const b = get().bundle;
     if (!b) throw new Error("No project loaded");
     return exportProjectJson(b);
   },
-  closeProject: () => set({ bundle: null, storageKey: null, storagePath: null, storageTrust: "unsaved", isDirty: false })
+  closeProject: () => {
+    set({ bundle: null, storageKey: null, storagePath: null, storageTrust: "unsaved", isDirty: false });
+    saveProjectSession(null);
+  }
 }));
+
+export async function restoreLastProjectSession(): Promise<boolean> {
+  const session = loadProjectSession();
+  if (!session?.storageKey) return false;
+  const adapter = activeAdapter();
+  if (!adapter) return false;
+  const loaded = await adapter.load(session.storageKey);
+  if (!loaded) {
+    saveProjectSession(null);
+    return false;
+  }
+  const imported = importProjectJson(loaded.json);
+  validateProjectBundle(imported.bundle);
+  useProjectStore.getState().setBundle(imported.bundle, {
+    storageKey: imported.bundle.project.id,
+    storagePath: loaded.metadata.displayPath,
+    storageTrust: loaded.metadata.trust
+  });
+  return true;
+}

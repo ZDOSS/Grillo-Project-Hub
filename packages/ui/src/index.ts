@@ -2,6 +2,7 @@ import "./theme/global.css";
 
 export * from "./theme";
 export * from "./store/project-store";
+export * from "./store/project-session";
 export * from "./store/workspace-store";
 export * from "./commands";
 export * from "./AppShell";

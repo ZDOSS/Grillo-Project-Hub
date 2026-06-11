@@ -38,6 +38,12 @@ export type ProjectStoreAdapter = {
   load(key: string): Promise<{ json: string; metadata: StorageMetadata } | null>;
   save(key: string, json: string, expectedRevision?: number | null): Promise<StorageMetadata>;
   delete(key: string): Promise<void>;
+  /** Optional folder-picking surface for runtimes that can bind a durable local directory. */
+  chooseFolder?(): Promise<string | null>;
+  /** Optional human-readable display name for the currently selected folder. */
+  getCurrentFolderDisplay?(): Promise<string | null>;
+  /** Optional folder scan for runtimes that can enumerate `.pm-suite` contents. */
+  listFolderProjects?(): Promise<string[]>;
   /** Optional file-watch subscription. */
   watch?(handler: (event: WatchEvent) => void): () => void;
 };
