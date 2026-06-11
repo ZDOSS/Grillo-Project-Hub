@@ -1,0 +1,31 @@
+{
+  "name": "@gph/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./domain": "./src/domain/index.ts",
+    "./storage": "./src/storage/index.ts",
+    "./export": "./src/export/index.ts",
+    "./import": "./src/import/index.ts",
+    "./commands": "./src/commands/index.ts",
+    "./views": "./src/views/index.ts",
+    "./modules": "./src/modules/index.ts",
+    "./automation": "./src/automation/index.ts",
+    "./templates": "./src/templates/index.ts",
+    "./search": "./src/search/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.0",
+    "typescript": "^5.5.4",
+    "vitest": "^2.1.1"
+  }
+}
