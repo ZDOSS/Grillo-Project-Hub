@@ -19,14 +19,15 @@ export function DocsView() {
   const { docId } = useParams<{ docId?: string }>();
   const [newTitle, setNewTitle] = useState("");
 
-  if (!bundle) return null;
-  const docs = bundle.core.documents;
-  const current = docId ? docs.find((d) => d.id === docId) : docs[0] ?? null;
+  const docs = bundle?.core.documents ?? [];
+  const current = (docId ? docs.find((d) => d.id === docId) : docs[0]) ?? null;
   const backlinks = useMemo(() => {
     const m = deriveBacklinks(docs);
     if (!current) return [] as Document[];
     return (m.get(current.id) ?? []).map((id) => docs.find((d) => d.id === id)).filter(Boolean) as Document[];
   }, [docs, current?.id]);
+
+  if (!bundle) return null;
 
   return (
     <div className="docs-layout">
