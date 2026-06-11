@@ -37,6 +37,7 @@ import { nowTimestamp } from "../domain/dates";
 import { bumpRevision, type TrashRecord } from "../domain/project";
 import { createBoardView, createBacklogView, createTableView, createRoadmapView, createDocsView, createCalendarView, createBugsView, createMyWorkView, findColumnForStatus } from "../domain/view";
 import { createSeverity } from "../domain/bug";
+import { generateId } from "../domain/ids";
 import { searchProject } from "../search/local-search";
 
 /**
@@ -380,7 +381,7 @@ function duplicateItem(
       ...newRels,
       ...sources.map((r) => ({
         ...r,
-        id: `rel_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+        id: generateId("rel"),
         sourceItemId: r.sourceItemId === source.id ? newItem.id : r.sourceItemId,
         targetItemId: r.targetItemId === source.id ? newItem.id : r.targetItemId
       }))
@@ -849,8 +850,7 @@ function deleteViewCommand(bundle: ProjectBundle, payload: { projectId: string; 
   if (!kanbanModule) throw new Error("Kanban module missing");
   const existingViews = ((kanbanModule.data as { views?: Record<string, unknown> })?.views) ?? {};
   if (!(payload.viewId in existingViews)) throw new Error("View not found");
-  const nextViews = { ...existingViews };
-  delete nextViews[payload.viewId];
+  const { [payload.viewId]: _removed, ...nextViews } = existingViews;
   const nextKanbanData = { ...(kanbanModule.data ?? {}), views: nextViews };
   const nextBundle = bumpRevision({
     ...bundle,

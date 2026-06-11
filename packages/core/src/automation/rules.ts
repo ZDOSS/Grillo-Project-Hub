@@ -1,5 +1,6 @@
 import type { AutomationRuleId, TriggerId, ActionId } from "../domain/ids";
 import { generateId } from "../domain/ids";
+import { nowTimestamp } from "../domain/dates";
 
 /**
  * Automation: trigger + optional conditions + actions.
@@ -52,7 +53,7 @@ export function createAutomationRule(input: {
   description?: string;
   id?: string;
 }): AutomationRule {
-  const now = new Date().toISOString();
+  const now = nowTimestamp();
   return {
     id: input.id ?? generateId("rule"),
     name: input.name,

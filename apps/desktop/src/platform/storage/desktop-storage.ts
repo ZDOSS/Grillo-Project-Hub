@@ -48,7 +48,8 @@ class DesktopAdapter implements ProjectStoreAdapter {
       const path = `${getFolder()}/.pm-suite/${key}.pms.json`;
       try {
         const json = await tauri.invoke("plugin:fs|read_text_file", { path }) as string;
-        return { json, metadata: { key, displayPath: path, externalRevision: null, trust: "folder" } };
+        const meta = this.listSync().find((m) => m.key === key);
+        return { json, metadata: { key, displayPath: path, externalRevision: meta?.externalRevision ?? null, trust: "folder" } };
       } catch {
         return null;
       }
