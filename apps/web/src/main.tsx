@@ -23,7 +23,7 @@ function App() {
   useAutoSave();
   return (
     <ThemeProvider>
-      <BrowserRouter>
+      <BrowserRouter basename={import.meta.env.BASE_URL}>
         <AppShell appMode="web">
           <Routes>
             <Route path="/" element={<ProjectsListView />} />
