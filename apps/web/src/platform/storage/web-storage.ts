@@ -200,13 +200,14 @@ class WebLocalStorageAdapter implements ProjectStoreAdapter {
   }
   async save(key: string, json: string, expectedRevision?: number | null): Promise<StorageMetadata> {
     if (typeof localStorage === "undefined") throw new Error("localStorage unavailable");
+    const index = readIndex();
+    const existing = index.find((m) => m.key === key);
     if (expectedRevision != null) {
-      const existing = readIndex().find((m) => m.key === key);
       if (existing && existing.externalRevision != null && existing.externalRevision !== expectedRevision) {
         throw new Error("External change detected; refusing to save without explicit conflict resolution");
       }
     }
-    const revision = (readIndex().find((m) => m.key === key)?.externalRevision ?? 0) + 1;
+    const revision = (existing?.externalRevision ?? 0) + 1;
     const folderHandle = await getBoundFolderHandle({ mode: "readwrite", allowPrompt: false });
     if (folderHandle) {
       await writeFolderProjectJson(folderHandle, key, json);
@@ -216,7 +217,7 @@ class WebLocalStorageAdapter implements ProjectStoreAdapter {
         externalRevision: revision,
         trust: "folder"
       };
-      writeIndex([meta, ...readIndex().filter((m) => m.key !== key)]);
+      writeIndex([meta, ...index.filter((m) => m.key !== key)]);
       return meta;
     }
 
@@ -227,7 +228,7 @@ class WebLocalStorageAdapter implements ProjectStoreAdapter {
       trust: "browser"
     };
     localStorage.setItem(getKey(key), json);
-    writeIndex([meta, ...readIndex().filter((m) => m.key !== key)]);
+    writeIndex([meta, ...index.filter((m) => m.key !== key)]);
     return meta;
   }
   async delete(key: string): Promise<void> {

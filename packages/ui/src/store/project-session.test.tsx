@@ -36,4 +36,41 @@ describe("project session restore", () => {
     expect(useProjectStore.getState().bundle?.project.name).toBe("Restored Project");
     expect(useProjectStore.getState().storageKey).toBe(bundle.project.id);
   });
+
+  it("clears the saved session when restore fails validation", async () => {
+    (window as typeof window & { __gph_store?: unknown }).__gph_store = {
+      capabilities: { folderBacked: false, fileWatch: false, attachments: true },
+      list: async () => [],
+      has: async () => true,
+      load: async () => ({
+        json: "{}",
+        metadata: {
+          key: "broken-project",
+          displayPath: null,
+          externalRevision: null,
+          trust: "browser" as const
+        }
+      }),
+      save: async () => {
+        throw new Error("unused");
+      },
+      delete: async () => {}
+    };
+    const storage = localStorage as Storage & {
+      getItem?: (key: string) => string | null;
+      setItem?: (key: string, value: string) => void;
+    };
+
+    storage.setItem?.("gph.active.project", JSON.stringify({
+      storageKey: "broken-project",
+      storagePath: null,
+      storageTrust: "browser"
+    }));
+
+    const restored = await restoreLastProjectSession();
+
+    expect(restored).toBe(false);
+    expect(storage.getItem?.("gph.active.project")).toBeNull();
+    expect(useProjectStore.getState().bundle).toBeNull();
+  });
 });

@@ -86,12 +86,12 @@ function DocEditor({ doc, backlinks }: { doc: Document; backlinks: Document[] })
   const [body, setBody] = useState(doc.body);
   const [tab, setTab] = useState<"edit" | "preview">("preview");
 
-  if (!bundle) return null;
-
   useEffect(() => {
     setTitle(doc.title);
     setBody(doc.body);
   }, [doc.id, doc.title, doc.body]);
+
+  if (!bundle) return null;
 
   const save = () => {
     applyCommand({ type: "doc.update", projectId: bundle.project.id, docId: doc.id, patch: { title, body } });

@@ -75,6 +75,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - the desktop recent-project reopen path still depends on `DesktopAdapter.load()` reading the active folder from `localStorage` at call time; `ProjectsListView` now documents that ordering explicitly so later adapter refactors do not accidentally cache the folder too early
 - the browser adapter now repairs older browser-local saves whose metadata index is missing by falling back to the raw `localStorage` project blob and reconstructing the saved-project index entry on load
 - the active project session is now persisted in `localStorage` (`gph.active.project`) and restored on startup through `restoreLastProjectSession()`, so reloads in both web and desktop shells reopen the last project instead of dropping the user into an empty shell
+- session restore now treats corrupt or invalid persisted bundles as stale state: failed import/validation clears `gph.active.project` instead of bubbling an unhandled rejection through the startup hook
 
 ## Command surface
 
@@ -143,18 +144,21 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - explicit edit affordance
   - save/cancel actions only while editing
   - semantic color selects instead of raw free-text color entry for those registries
+- registry edit rows now resync their local draft state when upstream bundle data changes, so import/undo/external-refresh cannot leave stale draft values or stuck edit mode on screen
 - launcher and member removal flows now use inline confirmation UI instead of `window.confirm`, which keeps the behavior testable in jsdom/Vitest and avoids blocking browser-native modal prompts
 - command palette (`Ctrl/Cmd+K`) and `C` shortcut
 - export downloads `.pms.json`, `.md`, or `.csv` from Settings
 - import accepts a `.pms.json` and replaces the active bundle
 - auto-save runs through the platform storage adapter and is visible via the trust badge
 - plugin trust settings now use explicit local draft state plus save/cancel feedback, instead of a bare radio-group mutation with no persistence affordance
+- browser folder-picker cancellation (`AbortError`) is now treated as a normal dismissal in both launcher flows, so canceling the native chooser does not surface a red workspace error
 - docs navigation is now router-safe inside the PWA:
   - sidebar doc links use React Router links
   - backlink pills use React Router links
   - rendered `[[doc:id]]` / `[[item:id]]` preview links are intercepted client-side instead of hard-navigating to a 404
   - preview interception now keys off a stable `data-route` attribute rather than the styling-only `docs-link` class, so class-name or sanitizer changes do not silently break routing
 - docs view local editor state now resyncs when the selected document changes, which fixes the "stuck on getting started" behavior where clicking another doc changed selection without updating the editor/preview pane
+- `DocEditor` now keeps that selection-sync effect above its null guard so hook ordering stays valid even if future refactors ever allow the component to see a transient `bundle === null`
 - bug triage now exposes a visible `New bug` action in the intake column
 - the bug-tracker template now seeds a bug-compatible default project/type/status configuration, while other starter templates apply different `hiddenViewIds` defaults so the left panel reflects the template's purpose out of the box
 - board cards now navigate on whole-card click/keyboard activation instead of requiring the title link target
@@ -170,8 +174,11 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - inline member removal confirmation in Settings
   - docs preview routing via `data-route`
   - startup session restore from persisted active-project metadata
+  - stale-session cleanup when persisted startup data is corrupt
   - template-specific hidden-view defaults and bug-template-safe bug creation
   - board-card click behavior via `useNavigate` invocation
+  - silent handling of cancelled browser folder picks
+  - settings-row draft reset when upstream bundle data changes
 - the Settings view test now always seeds a fresh project-store bundle per run instead of reusing any stale Zustand singleton state from prior tests
 - UI test setup now installs a memory-backed `localStorage` shim when jsdom's storage implementation is unavailable or misconfigured, which keeps persistence-oriented tests deterministic
 - Playwright e2e for hybrid parity, theme toggle, command palette, project creation, item creation with `C` shortcut, JSON export download, and search
@@ -214,6 +221,12 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - making plugin trust settings use the same explicit save/cancel pattern
   - fixing docs pane selection sync and board-card whole-card navigation
   - updating starter templates so bug creation and side-panel defaults match the chosen template
+- closed the Greptile hardening follow-up by:
+  - guarding startup restore against corrupt persisted bundles
+  - applying optimistic-revision checks consistently across browser-local and folder-backed saves
+  - treating folder-picker cancel as a non-error
+  - resyncing settings row draft state from upstream bundle updates
+  - moving `DocEditor` hook usage ahead of the null return to preserve Rules-of-Hooks safety
 
 ## Open follow-on planning
 

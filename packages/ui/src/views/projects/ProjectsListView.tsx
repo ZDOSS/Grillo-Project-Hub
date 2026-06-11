@@ -48,6 +48,10 @@ function deriveFolderFromStoragePath(storagePath: string | null): string | null 
   return storagePath.replace(/[\\/]?\.pm-suite[\\/][^\\/]+$/, "");
 }
 
+function isAbortError(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "name" in error && (error as { name?: string }).name === "AbortError";
+}
+
 async function openSavedProject(
   recent: RecentProject,
   setBundle: ReturnType<typeof useProjectStore.getState>["setBundle"],
@@ -142,6 +146,7 @@ export function ProjectsListView() {
       const label = await adapter.chooseFolder();
       setBrowserFolderLabel(label ?? "");
     } catch (error) {
+      if (isAbortError(error)) return;
       setWorkspaceError((error as Error).message);
     }
   };
@@ -475,6 +480,7 @@ export function OpenProjectView() {
       setBrowserFolderLabel(label ?? "");
       setFolderFiles([]);
     } catch (error) {
+      if (isAbortError(error)) return;
       setOpenError(`Folder access failed: ${(error as Error).message}`);
     } finally {
       setBusy(false);

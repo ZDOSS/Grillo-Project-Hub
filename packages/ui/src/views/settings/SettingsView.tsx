@@ -345,6 +345,13 @@ function MemberRow({ member }: { member: Member }) {
   const assignedItems = bundle.core.items.filter((item) => item.assigneeId === member.id && !item.trashedAt);
   const openAssigned = assignedItems.filter((item) => bundle.core.statuses.find((status) => status.id === item.statusId)?.category !== "completed");
 
+  useEffect(() => {
+    setDisplayName(member.displayName);
+    setColor(member.color ?? "");
+    setEditing(false);
+    setConfirmingRemove(false);
+  }, [member.id, member.displayName, member.color, member.archived]);
+
   const save = () => {
     applyCommand({
       type: "member.update",
@@ -426,6 +433,13 @@ function StatusRow({ status }: { status: StatusDefinition }) {
   const [color, setColor] = useState(status.color ?? "");
   const [editing, setEditing] = useState(false);
 
+  useEffect(() => {
+    setName(status.name);
+    setCategory(status.category);
+    setColor(status.color ?? "");
+    setEditing(false);
+  }, [status.id, status.name, status.category, status.color, status.archived]);
+
   const save = () => {
     applyCommand({
       type: "status.update",
@@ -501,6 +515,13 @@ function PriorityRow({ priority }: { priority: PriorityDefinition }) {
   const [color, setColor] = useState(priority.color ?? "");
   const [editing, setEditing] = useState(false);
 
+  useEffect(() => {
+    setName(priority.name);
+    setRank(priority.rank);
+    setColor(priority.color ?? "");
+    setEditing(false);
+  }, [priority.id, priority.name, priority.rank, priority.color, priority.archived]);
+
   const save = () => {
     applyCommand({
       type: "priority.update",
@@ -572,6 +593,15 @@ function TypeRow({ type }: { type: WorkItemTypeDefinition }) {
   const [defaultStatusId, setDefaultStatusId] = useState(type.defaultStatusId ?? "");
   const [defaultPriorityId, setDefaultPriorityId] = useState(type.defaultPriorityId ?? "");
   const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    setName(type.name);
+    setIcon(type.icon ?? "");
+    setColor(type.color ?? "");
+    setDefaultStatusId(type.defaultStatusId ?? "");
+    setDefaultPriorityId(type.defaultPriorityId ?? "");
+    setEditing(false);
+  }, [type.id, type.name, type.icon, type.color, type.defaultStatusId, type.defaultPriorityId, type.archived]);
 
   const save = () => {
     applyCommand({

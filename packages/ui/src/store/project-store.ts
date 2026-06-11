@@ -116,17 +116,22 @@ export async function restoreLastProjectSession(): Promise<boolean> {
   if (!session?.storageKey) return false;
   const adapter = activeAdapter();
   if (!adapter) return false;
-  const loaded = await adapter.load(session.storageKey);
-  if (!loaded) {
+  try {
+    const loaded = await adapter.load(session.storageKey);
+    if (!loaded) {
+      saveProjectSession(null);
+      return false;
+    }
+    const imported = importProjectJson(loaded.json);
+    validateProjectBundle(imported.bundle);
+    useProjectStore.getState().setBundle(imported.bundle, {
+      storageKey: imported.bundle.project.id,
+      storagePath: loaded.metadata.displayPath,
+      storageTrust: loaded.metadata.trust
+    });
+    return true;
+  } catch {
     saveProjectSession(null);
     return false;
   }
-  const imported = importProjectJson(loaded.json);
-  validateProjectBundle(imported.bundle);
-  useProjectStore.getState().setBundle(imported.bundle, {
-    storageKey: imported.bundle.project.id,
-    storagePath: loaded.metadata.displayPath,
-    storageTrust: loaded.metadata.trust
-  });
-  return true;
 }

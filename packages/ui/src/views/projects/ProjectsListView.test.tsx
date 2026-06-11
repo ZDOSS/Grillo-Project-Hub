@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
-import { buildProjectFromTemplate, exportProjectJson, InMemoryProjectStore } from "@gph/core";
+import { buildProjectFromTemplate, exportProjectJson, InMemoryProjectStore, type ProjectStoreAdapter } from "@gph/core";
 import { ProjectsListView } from "./ProjectsListView";
 import { useWorkspaceStore } from "../../store/workspace-store";
 import { useProjectStore } from "../../store/project-store";
@@ -105,5 +105,32 @@ describe("ProjectsListView", () => {
     await waitFor(async () => {
       expect(await adapter.load(bundle.project.id)).toBeNull();
     });
+  });
+
+  it("ignores a cancelled folder picker in the PWA flow", async () => {
+    const cancelError = Object.assign(new Error("The user aborted a request."), { name: "AbortError" });
+    const adapter: ProjectStoreAdapter = {
+      capabilities: { folderBacked: true, fileWatch: false, attachments: true },
+      list: async () => [],
+      has: async () => false,
+      load: async () => null,
+      save: async () => ({ key: "unused", displayPath: null, externalRevision: 1, trust: "browser" }),
+      delete: async () => {},
+      chooseFolder: async () => {
+        throw cancelError;
+      }
+    };
+    (window as typeof window & { __gph_store?: unknown }).__gph_store = adapter;
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <ProjectsListView />
+      </MemoryRouter>
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Choose folder" }));
+
+    expect(screen.queryByText("The user aborted a request.")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
