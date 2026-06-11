@@ -1,4 +1,4 @@
-import { type MouseEvent, useMemo, useState } from "react";
+import { type MouseEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import DOMPurify, { type Config as DOMPurifyConfig } from "dompurify";
 import { useProjectStore } from "../../store/project-store";
@@ -19,14 +19,15 @@ export function DocsView() {
   const { docId } = useParams<{ docId?: string }>();
   const [newTitle, setNewTitle] = useState("");
 
-  if (!bundle) return null;
-  const docs = bundle.core.documents;
-  const current = docId ? docs.find((d) => d.id === docId) : docs[0] ?? null;
+  const docs = bundle?.core.documents ?? [];
+  const current = (docId ? docs.find((d) => d.id === docId) : docs[0]) ?? null;
   const backlinks = useMemo(() => {
     const m = deriveBacklinks(docs);
     if (!current) return [] as Document[];
     return (m.get(current.id) ?? []).map((id) => docs.find((d) => d.id === id)).filter(Boolean) as Document[];
   }, [docs, current?.id]);
+
+  if (!bundle) return null;
 
   return (
     <div className="docs-layout">
@@ -85,6 +86,11 @@ function DocEditor({ doc, backlinks }: { doc: Document; backlinks: Document[] })
   const [title, setTitle] = useState(doc.title);
   const [body, setBody] = useState(doc.body);
   const [tab, setTab] = useState<"edit" | "preview">("preview");
+
+  useEffect(() => {
+    setTitle(doc.title);
+    setBody(doc.body);
+  }, [doc.id]);
 
   if (!bundle) return null;
 

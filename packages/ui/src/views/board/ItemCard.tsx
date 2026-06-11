@@ -1,4 +1,4 @@
-import type { DragEvent } from "react";
+import { useRef, type DragEvent } from "react";
 import { Link } from "react-router-dom";
 import type { WorkItem, StatusDefinition, PriorityDefinition, Label } from "@gph/core";
 import { getBugData } from "@gph/core";
@@ -20,6 +20,7 @@ export function ItemCard({
   onDragStart: (e: DragEvent<HTMLDivElement>) => void;
   onDragEnd: () => void;
 }) {
+  const suppressLinkClick = useRef(false);
   const status = statuses.find((s) => s.id === item.statusId);
   const priority = priorities.find((p) => p.id === item.priorityId);
   const itemLabels = item.labelIds.map((id) => labels.find((l) => l.id === id)).filter(Boolean) as Label[];
@@ -32,11 +33,30 @@ export function ItemCard({
       className="board-card"
       draggable
       data-dragging={dragging}
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
+      onDragStart={(event) => {
+        suppressLinkClick.current = true;
+        onDragStart(event);
+      }}
+      onDragEnd={() => {
+        onDragEnd();
+        // Clear the drag guard after any synthetic post-drag click has had a chance to fire.
+        window.setTimeout(() => {
+          suppressLinkClick.current = false;
+        }, 0);
+      }}
       role="article"
     >
-      <Link to={`/item/${item.id}`} className="board-card-title" style={{ color: "inherit", textDecoration: "none" }}>
+      <Link
+        to={`/item/${item.id}`}
+        className="board-card-title"
+        style={{ color: "inherit", textDecoration: "none" }}
+        onClick={(event) => {
+          if (dragging || suppressLinkClick.current) {
+            event.preventDefault();
+            suppressLinkClick.current = false;
+          }
+        }}
+      >
         {item.title}
       </Link>
       <div className="board-card-labels">

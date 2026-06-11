@@ -50,6 +50,16 @@ export function buildProjectFromTemplate(templateId: TemplateId, name: string): 
   }
 }
 
+function withHiddenViews(bundle: ProjectBundle, hiddenViewIds: string[]): ProjectBundle {
+  return {
+    ...bundle,
+    projectSettings: {
+      ...bundle.projectSettings,
+      hiddenViewIds
+    }
+  };
+}
+
 function buildSimpleKanban(name: string): ProjectBundle {
   const bundle = createProjectBundle({ name });
   const now = nowTimestamp();
@@ -64,13 +74,13 @@ function buildSimpleKanban(name: string): ProjectBundle {
   const sample = createWorkItem({ projectId: bundle.project.id, typeId: "task", title: "Welcome to your board", statusId: "ready", now });
   sample.description = "Drag cards across columns. Open a card to edit details, add subtasks, or convert checklist items into tasks.";
   const sample2 = createWorkItem({ projectId: bundle.project.id, typeId: "task", title: "Add your first task", statusId: "inbox", now });
-  return {
+  return withHiddenViews({
     ...bundle,
     core: {
       ...bundle.core,
       items: [sample, sample2],
       labels: [createLabel({ name: "quick win", color: "green" })],
-      documents: [createDocument({ title: "Getting Started", body: "Welcome to your project. This is a doc — open it from the Docs view.\n\nTry [[item:[[sample.id]]]] or refer to other docs with [[doc:welcome]].", now })]
+      documents: [createDocument({ title: "Getting Started", body: `Welcome to your project. This is a doc — open it from the Docs view.\n\nTry [[item:${sample.id}]] or refer to other docs with [[doc:welcome]].`, now })]
     },
     modules: {
       ...bundle.modules,
@@ -82,7 +92,7 @@ function buildSimpleKanban(name: string): ProjectBundle {
       }
     },
     projectSettings: { ...bundle.projectSettings, defaultViewId: board.id }
-  };
+  }, ["bugs", "docs", "roadmap", "calendar", "mywork"]);
 }
 
 function buildSoftwareProject(name: string): ProjectBundle {
@@ -93,7 +103,7 @@ function buildSoftwareProject(name: string): ProjectBundle {
   const m2 = createMilestone({ name: "v0.2 Polish", targetDate: null });
   const doc1 = createDocument({ title: "Architecture", body: "# Architecture\n\nThe project uses a shared core package, browser and desktop adapters, and a validated command surface.", now });
   const doc2 = createDocument({ title: "Roadmap", body: "# Roadmap\n\n- Phase 0: Foundation\n- Phase 1: Domain model\n- Phase 2: MVP planning experience", now });
-  return {
+  return withHiddenViews({
     ...bundle,
     core: {
       ...bundle.core,
@@ -106,7 +116,7 @@ function buildSoftwareProject(name: string): ProjectBundle {
         createLabel({ name: "infra", color: "orange" })
       ]
     }
-  };
+  }, []);
 }
 
 function buildBugTracker(name: string): ProjectBundle {
@@ -140,11 +150,22 @@ function buildBugTracker(name: string): ProjectBundle {
       affectedVersion: "0.1.0"
     }
   };
-  return {
+  return withHiddenViews({
     ...bundle,
+    project: {
+      ...bundle.project,
+      defaultTypeId: "bug",
+      defaultInitialStatusId: "new",
+      defaultCompletedStatusId: "verified"
+    },
     core: {
       ...bundle.core,
       statuses: bugStatuses,
+      itemTypes: bundle.core.itemTypes.map((type) => (
+        type.id === "bug"
+          ? { ...type, defaultStatusId: "new" }
+          : type
+      )),
       items: [sample]
     },
     modules: {
@@ -157,7 +178,7 @@ function buildBugTracker(name: string): ProjectBundle {
       }
     },
     projectSettings: { ...bundle.projectSettings, defaultViewId: board.id }
-  };
+  }, ["backlog", "roadmap", "calendar", "mywork"]);
 }
 
 function buildReleasePlanner(name: string): ProjectBundle {
@@ -166,7 +187,7 @@ function buildReleasePlanner(name: string): ProjectBundle {
   const m1 = createMilestone({ name: "Kickoff", targetDate: null });
   const m2 = createMilestone({ name: "Beta", targetDate: null });
   const m3 = createMilestone({ name: "GA", targetDate: null });
-  return {
+  return withHiddenViews({
     ...bundle,
     core: {
       ...bundle.core,
@@ -176,5 +197,5 @@ function buildReleasePlanner(name: string): ProjectBundle {
         createDocument({ title: "Release Process", body: "# Release Process\n\n1. Cut a release branch.\n2. Run smoke tests.\n3. Tag the release.\n4. Publish notes.", now })
       ]
     }
-  };
+  }, ["bugs", "mywork"]);
 }

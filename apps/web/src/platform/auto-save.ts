@@ -20,7 +20,7 @@ export function useAutoSave() {
     let cancelled = false;
     WebStorageAdapter.adapter.save(storageKey, json, null).then((meta) => {
       if (cancelled) return;
-      markSaved(storageKey, null, "browser");
+      markSaved(storageKey, meta.displayPath, meta.trust);
     }).catch((err) => {
       console.warn("Auto-save failed:", err);
     });

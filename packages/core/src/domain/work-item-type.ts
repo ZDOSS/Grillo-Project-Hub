@@ -46,7 +46,7 @@ export function createWorkItemType(input: {
 export function defaultWorkItemTypes(): WorkItemTypeDefinition[] {
   return [
     createWorkItemType({ id: "task", name: "Task", icon: "check-square", order: 1024, defaultStatusId: "inbox" }),
-    createWorkItemType({ id: "bug", name: "Bug", icon: "bug", order: 2048, defaultStatusId: "new" }),
+    createWorkItemType({ id: "bug", name: "Bug", icon: "bug", order: 2048, defaultStatusId: "inbox" }),
     createWorkItemType({ id: "feature", name: "Feature", icon: "sparkles", order: 3072, defaultStatusId: "ready" }),
     createWorkItemType({ id: "idea", name: "Idea", icon: "lightbulb", order: 3584, defaultStatusId: "inbox" }),
     createWorkItemType({ id: "chore", name: "Chore", icon: "wrench", order: 4096, defaultStatusId: "inbox" })

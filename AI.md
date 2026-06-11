@@ -65,13 +65,20 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - canonical durable format: `project.pms.json` inside `.pm-suite/` (or browser `localStorage` as a labeled compatibility layer)
 - adapter contract: `ProjectStoreAdapter` in `packages/core/src/storage/store.ts`
 - `WebLocalStorageAdapter` for browser/PWA mode
+- the web adapter is now hybrid: browser-local storage remains the default, but browsers with File System Access support can persist project files into a user-chosen local folder and remember that folder handle through IndexedDB
 - `DesktopAdapter` for Tauri (calls the Rust commands and falls back to `localStorage` when Tauri is absent in dev)
 - `InMemoryProjectStore` is available for tests
 - external change detection uses the adapter's `externalRevision` counter and `WatchEvent` notifications
 - trust status is surfaced in the UI as a `Folder-backed` / `Browser-local` / `Unsaved` badge
 - desktop storage now only writes to the filesystem when a folder path has actually been attached; otherwise the desktop shell behaves as browser-local storage on purpose instead of pretending to be folder-backed
 - recent-project reopen uses the active adapter's `load()` path rather than forcing JSON import; desktop recents restore the remembered folder path before loading
+- launcher reopen paths now validate imported bundles before calling `setBundle()`, matching the startup restore and direct storage-load paths so corrupt saved data is rejected consistently instead of silently entering the UI store
+- the two UI JSON-import entry points now also perform an explicit `validateProjectBundle()` immediately before `setBundle()`, mirroring the reopen paths even though `importProjectJson()` already validates internally; this keeps the UI-side contract obvious and avoids review drift about where store writes are gated
 - the desktop recent-project reopen path still depends on `DesktopAdapter.load()` reading the active folder from `localStorage` at call time; `ProjectsListView` now documents that ordering explicitly so later adapter refactors do not accidentally cache the folder too early
+- the browser adapter now repairs older browser-local saves whose metadata index is missing by falling back to the raw `localStorage` project blob and reconstructing the saved-project index entry on load
+- the active project session is now persisted in `localStorage` (`gph.active.project`) and restored on startup through `restoreLastProjectSession()`, so reloads in both web and desktop shells reopen the last project instead of dropping the user into an empty shell
+- session restore now treats corrupt or invalid persisted bundles as stale state: failed import/validation clears `gph.active.project` instead of bubbling an unhandled rejection through the startup hook
+- the web runtime now installs the same `WebLocalStorageAdapter` instance into both `window.__gph_store` and `WebStorageAdapter.adapter`, preventing auto-save and startup restore from drifting onto different adapter instances if adapter-local state is added later
 
 ## Command surface
 
@@ -92,11 +99,11 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - both apps import the same `@gph/ui` AppShell, views, and command palette
 - project navigation metadata now lives in shared `packages/ui/src/nav-config.ts`, so AppShell navigation and Settings left-panel visibility both derive from one source of truth
 - the web app uses `@vitejs/plugin-pwa` for install/offline; the desktop app uses the Tauri runtime
-- the web app's storage adapter is localStorage-only; the desktop adapter talks to a Rust filesystem command
+- the web app's storage adapter supports both browser-local saves and optional local-folder saves via the browser file-system picker when the runtime exposes that capability; the desktop adapter talks to a Rust filesystem command
 - in development, both apps run in the browser; the desktop app's storage adapter falls back to localStorage when `__TAURI__` is absent
 - the AppShell accepts an `appMode: "web" | "desktop"` prop for platform-specific header sizing
 - the shared workspace launcher now explains the real storage story per platform:
-  - web/PWA: browser-local projects plus JSON import/export
+  - web/PWA: browser-local projects by default, optional local-folder saves when supported, plus JSON import/export
   - desktop: browser-local by default, optional manual folder path for new projects, and folder scanning/open for existing `.pm-suite` saves
 
 ## Module/plugin rules
@@ -130,20 +137,37 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - folder-backed delete is intentionally "remove recent shortcut only" and does not delete filesystem data
   - desktop folder-path attach flow for new projects
   - desktop folder scan/open flow for existing `.pm-suite` saves
+  - PWA/browser folder picker for creating and reopening local-folder projects when File System Access is available
+  - automatic last-project restore after reload via persisted active-session metadata
 - per-project view tabs across board, backlog, table, roadmap, calendar, docs, bug triage, my work, search
 - work item drawer at `/item/:id` with full edit, checklist conversion, comments, subtasks, activity
 - settings view with theme, left-panel visibility, editable members, editable statuses, editable priorities, editable types, labels, milestones, custom fields, plugins, export/import, AI bridge
+- settings registry tables now follow a consistent edit flow for members/statuses/priorities/types:
+  - read-only rows by default
+  - explicit edit affordance
+  - save/cancel actions only while editing
+  - semantic color selects instead of raw free-text color entry for those registries
+- registry edit rows now resync their local draft state when upstream bundle data changes, so import/undo/external-refresh cannot leave stale draft values or stuck edit mode on screen
 - launcher and member removal flows now use inline confirmation UI instead of `window.confirm`, which keeps the behavior testable in jsdom/Vitest and avoids blocking browser-native modal prompts
 - command palette (`Ctrl/Cmd+K`) and `C` shortcut
 - export downloads `.pms.json`, `.md`, or `.csv` from Settings
 - import accepts a `.pms.json` and replaces the active bundle
 - auto-save runs through the platform storage adapter and is visible via the trust badge
+- plugin trust settings now use explicit local draft state plus save/cancel feedback, instead of a bare radio-group mutation with no persistence affordance
+- browser folder-picker cancellation (`AbortError`) is now treated as a normal dismissal in both launcher flows, so canceling the native chooser does not surface a red workspace error
 - docs navigation is now router-safe inside the PWA:
   - sidebar doc links use React Router links
   - backlink pills use React Router links
   - rendered `[[doc:id]]` / `[[item:id]]` preview links are intercepted client-side instead of hard-navigating to a 404
   - preview interception now keys off a stable `data-route` attribute rather than the styling-only `docs-link` class, so class-name or sanitizer changes do not silently break routing
+- docs view local editor state now resyncs when the selected document changes, which fixes the "stuck on getting started" behavior where clicking another doc changed selection without updating the editor/preview pane
+- that editor reset now keys only on `doc.id`, so switching documents still refreshes the draft while external bundle updates to the same document do not silently clobber unsaved local typing
+- `DocEditor` now keeps that selection-sync effect above its null guard so hook ordering stays valid even if future refactors ever allow the component to see a transient `bundle === null`
 - bug triage now exposes a visible `New bug` action in the intake column
+- the bug-tracker template now seeds a bug-compatible default project/type/status configuration, while other starter templates apply different `hiddenViewIds` defaults so the left panel reflects the template's purpose out of the box
+- the simple-kanban starter doc now writes a real `[[item:<id>]]` reference for its seeded welcome task instead of rendering a broken literal `sample.id` token
+- board cards now navigate on whole-card click/keyboard activation instead of requiring the title link target
+- board cards expose `role="link"` plus Enter-key activation on the whole card, preserving accessible navigation semantics while keeping the larger click target
 
 ## Testing strategy
 
@@ -155,7 +179,16 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - inline delete confirmation in the launcher
   - inline member removal confirmation in Settings
   - docs preview routing via `data-route`
+  - docs editor draft preservation when the same document refreshes externally
+  - startup session restore from persisted active-project metadata
+  - stale-session cleanup when persisted startup data is corrupt
+  - template-specific hidden-view defaults and bug-template-safe bug creation
+  - board-card click behavior via `useNavigate` invocation
+  - board-card keyboard activation with link semantics
+  - silent handling of cancelled browser folder picks
+  - settings-row draft reset when upstream bundle data changes
 - the Settings view test now always seeds a fresh project-store bundle per run instead of reusing any stale Zustand singleton state from prior tests
+- UI test setup now installs a memory-backed `localStorage` shim when jsdom's storage implementation is unavailable or misconfigured, which keeps persistence-oriented tests deterministic
 - Playwright e2e for hybrid parity, theme toggle, command palette, project creation, item creation with `C` shortcut, JSON export download, and search
 - `npm test` runs unit + component tests; `npm run test:e2e` runs Playwright against the running web dev server
 
@@ -189,6 +222,22 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - centralizing nav/view metadata in shared `nav-config.ts`
   - fixing the stale-bundle bug in `SettingsView.test.tsx`
   - documenting that folder-backed recent deletion only removes the launcher shortcut
+- closed the current PWA/settings follow-up by:
+  - adding browser local-folder selection/reopen support behind optional adapter capabilities
+  - restoring the last active project after reload and repairing legacy browser-local saves whose index metadata is missing
+  - converting members/statuses/priorities/types settings rows to explicit edit/save/cancel flows with color dropdowns
+  - aligning launcher reopen validation with every other bundle load path, fixing the simple-kanban starter doc's seeded item link, and unifying the installed web storage adapter instance used by startup restore and auto-save
+  - making both JSON-file import surfaces perform explicit pre-store bundle validation so every visible import/reopen path now shows the same guard at the UI edge
+  - making plugin trust settings use the same explicit save/cancel pattern
+  - fixing docs pane selection sync and board-card whole-card navigation
+  - tightening the docs editor reset so same-doc external refreshes do not wipe unsaved drafts, and restoring proper link semantics for whole-card board navigation
+  - updating starter templates so bug creation and side-panel defaults match the chosen template
+- closed the Greptile hardening follow-up by:
+  - guarding startup restore against corrupt persisted bundles
+  - applying optimistic-revision checks consistently across browser-local and folder-backed saves
+  - treating folder-picker cancel as a non-error
+  - resyncing settings row draft state from upstream bundle updates
+  - moving `DocEditor` hook usage ahead of the null return to preserve Rules-of-Hooks safety
 
 ## Open follow-on planning
 

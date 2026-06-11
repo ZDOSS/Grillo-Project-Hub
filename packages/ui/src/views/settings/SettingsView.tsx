@@ -1,10 +1,19 @@
-import { useMemo, useState } from "react";
-import { exportProjectCsv, exportProjectJson, exportProjectMarkdown, importProjectJson, type Member, type PriorityDefinition, type StatusDefinition, type WorkItemTypeDefinition } from "@gph/core";
+import { useEffect, useMemo, useState } from "react";
+import { exportProjectCsv, exportProjectJson, exportProjectMarkdown, importProjectJson, validateProjectBundle, type Member, type PriorityDefinition, type StatusDefinition, type WorkItemTypeDefinition } from "@gph/core";
 import { useProjectStore } from "../../store/project-store";
 import { useTheme } from "../../theme/theme-provider";
 import { PROJECT_NAV_ITEMS } from "../../nav-config";
 
 const SIDEBAR_OPTIONS = PROJECT_NAV_ITEMS.map(({ id, label }) => ({ id, label }));
+const COLOR_OPTIONS = [
+  { value: "", label: "None" },
+  { value: "blue", label: "Blue" },
+  { value: "green", label: "Green" },
+  { value: "orange", label: "Orange" },
+  { value: "red", label: "Red" },
+  { value: "purple", label: "Purple" },
+  { value: "yellow", label: "Yellow" }
+] as const;
 
 type SettingsTab =
   | "general"
@@ -19,6 +28,39 @@ type SettingsTab =
   | "plugins"
   | "export"
   | "bridge";
+
+function EditIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M11.5 2.5a1.414 1.414 0 0 1 2 2L6 12l-3 1 1-3 7.5-7.5z" />
+    </svg>
+  );
+}
+
+function colorOptionsForValue(value: string) {
+  if (!value || COLOR_OPTIONS.some((option) => option.value === value)) {
+    return COLOR_OPTIONS;
+  }
+  return [...COLOR_OPTIONS, { value, label: value }] as const;
+}
+
+function ColorSelect({
+  value,
+  onChange,
+  ariaLabel
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  ariaLabel: string;
+}) {
+  return (
+    <select className="select" aria-label={ariaLabel} value={value} onChange={(e) => onChange(e.target.value)}>
+      {colorOptionsForValue(value).map((option) => (
+        <option key={option.value || "none"} value={option.value}>{option.label}</option>
+      ))}
+    </select>
+  );
+}
 
 /**
  * Settings view: editable registry tables for the project's shared configuration.
@@ -297,10 +339,18 @@ function MemberRow({ member }: { member: Member }) {
   const applyCommand = useProjectStore((s) => s.applyCommand);
   const [displayName, setDisplayName] = useState(member.displayName);
   const [color, setColor] = useState(member.color ?? "");
+  const [editing, setEditing] = useState(false);
   const [confirmingRemove, setConfirmingRemove] = useState(false);
 
   const assignedItems = bundle.core.items.filter((item) => item.assigneeId === member.id && !item.trashedAt);
   const openAssigned = assignedItems.filter((item) => bundle.core.statuses.find((status) => status.id === item.statusId)?.category !== "completed");
+
+  useEffect(() => {
+    setDisplayName(member.displayName);
+    setColor(member.color ?? "");
+    setEditing(false);
+    setConfirmingRemove(false);
+  }, [member.id, member.displayName, member.color, member.archived]);
 
   const save = () => {
     applyCommand({
@@ -309,12 +359,23 @@ function MemberRow({ member }: { member: Member }) {
       memberId: member.id,
       patch: { displayName: displayName.trim() || member.displayName, color: color || null }
     });
+    setEditing(false);
+  };
+
+  const cancelEdit = () => {
+    setDisplayName(member.displayName);
+    setColor(member.color ?? "");
+    setEditing(false);
   };
 
   return (
     <div className="settings-table-row settings-table-row-member">
       <div className="settings-row-field">
-        <input className="input" value={displayName} onChange={(e) => setDisplayName(e.target.value)} onBlur={save} />
+        {editing ? (
+          <input className="input" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+        ) : (
+          <strong>{member.displayName}</strong>
+        )}
         <span className="text-xs text-muted">#{member.id.slice(-6)}</span>
       </div>
       <div className="settings-row-field">
@@ -322,8 +383,20 @@ function MemberRow({ member }: { member: Member }) {
         <span className="tag">{openAssigned.length} active</span>
       </div>
       <div className="settings-row-actions">
-        <input className="input" value={color} onChange={(e) => setColor(e.target.value)} onBlur={save} placeholder="Color" />
-        <button className="btn btn-sm" onClick={save}>Save</button>
+        {editing ? (
+          <>
+            <ColorSelect value={color} onChange={setColor} ariaLabel={`Color for ${member.displayName}`} />
+            <button className="btn btn-sm btn-primary" onClick={save}>Save</button>
+            <button className="btn btn-sm" onClick={cancelEdit}>Cancel</button>
+          </>
+        ) : (
+          <>
+            <span className="tag">{member.color ?? "No color"}</span>
+            <button className="btn btn-sm" onClick={() => setEditing(true)}>
+              <EditIcon /> Edit
+            </button>
+          </>
+        )}
         {confirmingRemove ? (
           <>
             <span className="text-xs text-muted">
@@ -358,6 +431,14 @@ function StatusRow({ status }: { status: StatusDefinition }) {
   const [name, setName] = useState(status.name);
   const [category, setCategory] = useState(status.category);
   const [color, setColor] = useState(status.color ?? "");
+  const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    setName(status.name);
+    setCategory(status.category);
+    setColor(status.color ?? "");
+    setEditing(false);
+  }, [status.id, status.name, status.category, status.color, status.archived]);
 
   const save = () => {
     applyCommand({
@@ -366,21 +447,50 @@ function StatusRow({ status }: { status: StatusDefinition }) {
       statusId: status.id,
       patch: { name: name.trim() || status.name, category, color: color || null }
     });
+    setEditing(false);
+  };
+
+  const cancelEdit = () => {
+    setName(status.name);
+    setCategory(status.category);
+    setColor(status.color ?? "");
+    setEditing(false);
   };
 
   return (
     <div className="settings-table-row settings-table-row-status">
-      <input className="input" value={name} onChange={(e) => setName(e.target.value)} onBlur={save} />
-      <select className="select" value={category} onChange={(e) => setCategory(e.target.value as typeof category)} onBlur={save}>
-        <option value="planned">Planned</option>
-        <option value="active">Active</option>
-        <option value="completed">Completed</option>
-        <option value="canceled">Canceled</option>
-      </select>
-      <input className="input" value={color} onChange={(e) => setColor(e.target.value)} onBlur={save} placeholder="Color" />
+      {editing ? (
+        <input className="input" value={name} onChange={(e) => setName(e.target.value)} />
+      ) : (
+        <strong>{status.name}</strong>
+      )}
+      {editing ? (
+        <select className="select" value={category} onChange={(e) => setCategory(e.target.value as typeof category)}>
+          <option value="planned">Planned</option>
+          <option value="active">Active</option>
+          <option value="completed">Completed</option>
+          <option value="canceled">Canceled</option>
+        </select>
+      ) : (
+        <span>{status.category}</span>
+      )}
+      {editing ? (
+        <ColorSelect value={color} onChange={setColor} ariaLabel={`Color for ${status.name}`} />
+      ) : (
+        <span className="tag">{status.color ?? "No color"}</span>
+      )}
       <span className={`tag ${status.archived ? "tag-warn" : "tag-ok"}`}>{status.archived ? "Hidden" : "Visible"}</span>
       <div className="settings-row-actions">
-        <button className="btn btn-sm" onClick={save}>Save</button>
+        {editing ? (
+          <>
+            <button className="btn btn-sm btn-primary" onClick={save}>Save</button>
+            <button className="btn btn-sm" onClick={cancelEdit}>Cancel</button>
+          </>
+        ) : (
+          <button className="btn btn-sm" onClick={() => setEditing(true)}>
+            <EditIcon /> Edit
+          </button>
+        )}
         <button
           className="btn btn-sm"
           onClick={() => applyCommand({
@@ -403,6 +513,14 @@ function PriorityRow({ priority }: { priority: PriorityDefinition }) {
   const [name, setName] = useState(priority.name);
   const [rank, setRank] = useState(priority.rank);
   const [color, setColor] = useState(priority.color ?? "");
+  const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    setName(priority.name);
+    setRank(priority.rank);
+    setColor(priority.color ?? "");
+    setEditing(false);
+  }, [priority.id, priority.name, priority.rank, priority.color, priority.archived]);
 
   const save = () => {
     applyCommand({
@@ -411,16 +529,45 @@ function PriorityRow({ priority }: { priority: PriorityDefinition }) {
       priorityId: priority.id,
       patch: { name: name.trim() || priority.name, rank, color: color || null }
     });
+    setEditing(false);
+  };
+
+  const cancelEdit = () => {
+    setName(priority.name);
+    setRank(priority.rank);
+    setColor(priority.color ?? "");
+    setEditing(false);
   };
 
   return (
     <div className="settings-table-row settings-table-row-priority">
-      <input className="input" value={name} onChange={(e) => setName(e.target.value)} onBlur={save} />
-      <input className="input" type="number" value={rank} onChange={(e) => setRank(Number(e.target.value))} onBlur={save} />
-      <input className="input" value={color} onChange={(e) => setColor(e.target.value)} onBlur={save} placeholder="Color" />
+      {editing ? (
+        <input className="input" value={name} onChange={(e) => setName(e.target.value)} />
+      ) : (
+        <strong>{priority.name}</strong>
+      )}
+      {editing ? (
+        <input className="input" type="number" value={rank} onChange={(e) => setRank(Number(e.target.value))} />
+      ) : (
+        <span>{priority.rank}</span>
+      )}
+      {editing ? (
+        <ColorSelect value={color} onChange={setColor} ariaLabel={`Color for ${priority.name}`} />
+      ) : (
+        <span className="tag">{priority.color ?? "No color"}</span>
+      )}
       <span className={`tag ${priority.archived ? "tag-warn" : "tag-ok"}`}>{priority.archived ? "Hidden" : "Visible"}</span>
       <div className="settings-row-actions">
-        <button className="btn btn-sm" onClick={save}>Save</button>
+        {editing ? (
+          <>
+            <button className="btn btn-sm btn-primary" onClick={save}>Save</button>
+            <button className="btn btn-sm" onClick={cancelEdit}>Cancel</button>
+          </>
+        ) : (
+          <button className="btn btn-sm" onClick={() => setEditing(true)}>
+            <EditIcon /> Edit
+          </button>
+        )}
         <button
           className="btn btn-sm"
           onClick={() => applyCommand({
@@ -445,6 +592,16 @@ function TypeRow({ type }: { type: WorkItemTypeDefinition }) {
   const [color, setColor] = useState(type.color ?? "");
   const [defaultStatusId, setDefaultStatusId] = useState(type.defaultStatusId ?? "");
   const [defaultPriorityId, setDefaultPriorityId] = useState(type.defaultPriorityId ?? "");
+  const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    setName(type.name);
+    setIcon(type.icon ?? "");
+    setColor(type.color ?? "");
+    setDefaultStatusId(type.defaultStatusId ?? "");
+    setDefaultPriorityId(type.defaultPriorityId ?? "");
+    setEditing(false);
+  }, [type.id, type.name, type.icon, type.color, type.defaultStatusId, type.defaultPriorityId, type.archived]);
 
   const save = () => {
     applyCommand({
@@ -459,28 +616,67 @@ function TypeRow({ type }: { type: WorkItemTypeDefinition }) {
         defaultPriorityId: defaultPriorityId || null
       }
     });
+    setEditing(false);
+  };
+
+  const cancelEdit = () => {
+    setName(type.name);
+    setIcon(type.icon ?? "");
+    setColor(type.color ?? "");
+    setDefaultStatusId(type.defaultStatusId ?? "");
+    setDefaultPriorityId(type.defaultPriorityId ?? "");
+    setEditing(false);
   };
 
   return (
     <div className="settings-table-row settings-table-row-type">
-      <input className="input" value={name} onChange={(e) => setName(e.target.value)} onBlur={save} />
-      <input className="input" value={icon} onChange={(e) => setIcon(e.target.value)} onBlur={save} placeholder="Icon id" />
-      <input className="input" value={color} onChange={(e) => setColor(e.target.value)} onBlur={save} placeholder="Color" />
-      <select className="select" value={defaultStatusId} onChange={(e) => setDefaultStatusId(e.target.value)} onBlur={save}>
-        <option value="">Default status</option>
-        {bundle.core.statuses.filter((status) => !status.archived).map((status) => (
-          <option key={status.id} value={status.id}>{status.name}</option>
-        ))}
-      </select>
-      <select className="select" value={defaultPriorityId} onChange={(e) => setDefaultPriorityId(e.target.value)} onBlur={save}>
-        <option value="">Default priority</option>
-        {bundle.core.priorities.filter((priority) => !priority.archived).map((priority) => (
-          <option key={priority.id} value={priority.id}>{priority.name}</option>
-        ))}
-      </select>
+      {editing ? (
+        <input className="input" value={name} onChange={(e) => setName(e.target.value)} />
+      ) : (
+        <strong>{type.name}</strong>
+      )}
+      {editing ? (
+        <input className="input" value={icon} onChange={(e) => setIcon(e.target.value)} placeholder="Icon id" />
+      ) : (
+        <span>{type.icon ?? "No icon"}</span>
+      )}
+      {editing ? (
+        <ColorSelect value={color} onChange={setColor} ariaLabel={`Color for ${type.name}`} />
+      ) : (
+        <span className="tag">{type.color ?? "No color"}</span>
+      )}
+      {editing ? (
+        <select className="select" value={defaultStatusId} onChange={(e) => setDefaultStatusId(e.target.value)}>
+          <option value="">Default status</option>
+          {bundle.core.statuses.filter((status) => !status.archived).map((status) => (
+            <option key={status.id} value={status.id}>{status.name}</option>
+          ))}
+        </select>
+      ) : (
+        <span>{bundle.core.statuses.find((status) => status.id === type.defaultStatusId)?.name ?? "No default"}</span>
+      )}
+      {editing ? (
+        <select className="select" value={defaultPriorityId} onChange={(e) => setDefaultPriorityId(e.target.value)}>
+          <option value="">Default priority</option>
+          {bundle.core.priorities.filter((priority) => !priority.archived).map((priority) => (
+            <option key={priority.id} value={priority.id}>{priority.name}</option>
+          ))}
+        </select>
+      ) : (
+        <span>{bundle.core.priorities.find((priority) => priority.id === type.defaultPriorityId)?.name ?? "No default"}</span>
+      )}
       <span className={`tag ${type.archived ? "tag-warn" : "tag-ok"}`}>{type.archived ? "Hidden" : "Visible"}</span>
       <div className="settings-row-actions">
-        <button className="btn btn-sm" onClick={save}>Save</button>
+        {editing ? (
+          <>
+            <button className="btn btn-sm btn-primary" onClick={save}>Save</button>
+            <button className="btn btn-sm" onClick={cancelEdit}>Cancel</button>
+          </>
+        ) : (
+          <button className="btn btn-sm" onClick={() => setEditing(true)}>
+            <EditIcon /> Edit
+          </button>
+        )}
         <button
           className="btn btn-sm"
           onClick={() => applyCommand({
@@ -546,6 +742,13 @@ function SidebarTab() {
 function PluginsTab() {
   const bundle = useProjectStore((s) => s.bundle)!;
   const applyCommand = useProjectStore((s) => s.applyCommand);
+  const [trustMode, setTrustMode] = useState(bundle.projectSettings.pluginTrustMode);
+
+  useEffect(() => {
+    setTrustMode(bundle.projectSettings.pluginTrustMode);
+  }, [bundle.projectSettings.pluginTrustMode]);
+
+  const dirty = trustMode !== bundle.projectSettings.pluginTrustMode;
 
   return (
     <div className="col" style={{ gap: 12, maxWidth: 680 }}>
@@ -564,18 +767,31 @@ function PluginsTab() {
               <input
                 type="radio"
                 name="trust"
-                checked={bundle.projectSettings.pluginTrustMode === value}
-                onChange={() => applyCommand({
-                  type: "project.updateSettings",
-                  projectId: bundle.project.id,
-                  patch: { pluginTrustMode: value }
-                })}
+                checked={trustMode === value}
+                onChange={() => setTrustMode(value)}
               />
               <strong>{label}</strong>
             </span>
             <span className="text-sm text-secondary">{description}</span>
           </label>
         ))}
+      </div>
+      <div className="row">
+        <button
+          className="btn btn-primary"
+          onClick={() => applyCommand({
+            type: "project.updateSettings",
+            projectId: bundle.project.id,
+            patch: { pluginTrustMode: trustMode }
+          })}
+          disabled={!dirty}
+        >
+          Save
+        </button>
+        <button className="btn" onClick={() => setTrustMode(bundle.projectSettings.pluginTrustMode)} disabled={!dirty}>
+          Cancel
+        </button>
+        {dirty ? <span className="tag tag-warn">Unsaved changes</span> : <span className="tag tag-ok">Saved</span>}
       </div>
     </div>
   );
@@ -653,6 +869,7 @@ function ExportPanel() {
           const text = await file.text();
           try {
             const r = importProjectJson(text);
+            validateProjectBundle(r.bundle);
             useProjectStore.getState().setBundle(r.bundle, { storageKey: null, storagePath: null, storageTrust: "browser" });
           } catch (err) {
             alert(`Import failed: ${(err as Error).message}`);

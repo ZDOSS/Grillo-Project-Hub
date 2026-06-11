@@ -8,7 +8,8 @@ import {
   ProjectsListView,
   OpenProjectView,
   DemoFolderView,
-  ThemeProvider
+  ThemeProvider,
+  useRestoreProjectSession
 } from "@gph/ui";
 import { WebStorageAdapter } from "./platform/storage/web-storage";
 import { useAutoSave } from "./platform/auto-save";
@@ -20,6 +21,7 @@ const root = document.getElementById("root")!;
 WebStorageAdapter.install();
 
 function App() {
+  useRestoreProjectSession();
   useAutoSave();
   return (
     <ThemeProvider>
