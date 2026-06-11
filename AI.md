@@ -160,11 +160,13 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - rendered `[[doc:id]]` / `[[item:id]]` preview links are intercepted client-side instead of hard-navigating to a 404
   - preview interception now keys off a stable `data-route` attribute rather than the styling-only `docs-link` class, so class-name or sanitizer changes do not silently break routing
 - docs view local editor state now resyncs when the selected document changes, which fixes the "stuck on getting started" behavior where clicking another doc changed selection without updating the editor/preview pane
+- that editor reset now keys only on `doc.id`, so switching documents still refreshes the draft while external bundle updates to the same document do not silently clobber unsaved local typing
 - `DocEditor` now keeps that selection-sync effect above its null guard so hook ordering stays valid even if future refactors ever allow the component to see a transient `bundle === null`
 - bug triage now exposes a visible `New bug` action in the intake column
 - the bug-tracker template now seeds a bug-compatible default project/type/status configuration, while other starter templates apply different `hiddenViewIds` defaults so the left panel reflects the template's purpose out of the box
 - the simple-kanban starter doc now writes a real `[[item:<id>]]` reference for its seeded welcome task instead of rendering a broken literal `sample.id` token
 - board cards now navigate on whole-card click/keyboard activation instead of requiring the title link target
+- board cards expose `role="link"` plus Enter-key activation on the whole card, preserving accessible navigation semantics while keeping the larger click target
 
 ## Testing strategy
 
@@ -176,10 +178,12 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - inline delete confirmation in the launcher
   - inline member removal confirmation in Settings
   - docs preview routing via `data-route`
+  - docs editor draft preservation when the same document refreshes externally
   - startup session restore from persisted active-project metadata
   - stale-session cleanup when persisted startup data is corrupt
   - template-specific hidden-view defaults and bug-template-safe bug creation
   - board-card click behavior via `useNavigate` invocation
+  - board-card keyboard activation with link semantics
   - silent handling of cancelled browser folder picks
   - settings-row draft reset when upstream bundle data changes
 - the Settings view test now always seeds a fresh project-store bundle per run instead of reusing any stale Zustand singleton state from prior tests
@@ -224,6 +228,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - aligning launcher reopen validation with every other bundle load path, fixing the simple-kanban starter doc's seeded item link, and unifying the installed web storage adapter instance used by startup restore and auto-save
   - making plugin trust settings use the same explicit save/cancel pattern
   - fixing docs pane selection sync and board-card whole-card navigation
+  - tightening the docs editor reset so same-doc external refreshes do not wipe unsaved drafts, and restoring proper link semantics for whole-card board navigation
   - updating starter templates so bug creation and side-panel defaults match the chosen template
 - closed the Greptile hardening follow-up by:
   - guarding startup restore against corrupt persisted bundles

@@ -7,10 +7,10 @@ A free, open source, hybrid day-one project management suite for practical softw
 The MVP implementation is in place. The current build supports:
 
 - **Workspace** with new/open/demo project flow, recent-project reopen, browser-vs-folder storage guidance, inline delete/remove confirmation, and automatic restore of the last active project after reload
-- **Board** with drag-and-drop, WIP limits (warn + hard modes), and column-based status grouping
+- **Board** with drag-and-drop, WIP limits (warn + hard modes), column-based status grouping, and whole-card accessible navigation
 - **Backlog** with priority-sorted items
 - **Table** with sort, group, filter, and column visibility
-- **Docs** with Markdown editing, sanitized rendering, internal embeds, backlinks, router-safe in-app navigation for preview links, and correct pane updates when switching documents
+- **Docs** with Markdown editing, sanitized rendering, internal embeds, backlinks, router-safe in-app navigation for preview links, correct pane updates when switching documents, and draft-preserving editor resets
 - **Roadmap / timeline** with date drag/resize, milestone lanes, and dependency awareness
 - **Calendar** with month grid and date-based item visibility
 - **Bug triage** with severity, reproduction steps, expected/actual behavior, environment, affected version, and a visible new-bug entry point

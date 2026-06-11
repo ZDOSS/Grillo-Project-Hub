@@ -89,7 +89,7 @@ function DocEditor({ doc, backlinks }: { doc: Document; backlinks: Document[] })
   useEffect(() => {
     setTitle(doc.title);
     setBody(doc.body);
-  }, [doc.id, doc.title, doc.body]);
+  }, [doc.id]);
 
   if (!bundle) return null;
 

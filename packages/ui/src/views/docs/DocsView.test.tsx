@@ -103,4 +103,32 @@ describe("DocsView", () => {
 
     expect(screen.getAllByTestId("location").at(-1)).toHaveTextContent(`/doc/${firstDoc.id}`);
   });
+
+  it("keeps unsaved editor text when the same document refreshes underneath it", async () => {
+    const bundle = useProjectStore.getState().bundle!;
+    const doc = bundle.core.documents[0]!;
+
+    render(
+      <MemoryRouter initialEntries={[`/doc/${doc.id}`]}>
+        <Routes>
+          <Route path="/doc/:docId" element={<DocsView />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /edit/i }));
+    const editor = document.querySelector("textarea.textarea") as HTMLTextAreaElement | null;
+    expect(editor).not.toBeNull();
+    await userEvent.clear(editor);
+    await userEvent.type(editor, "Unsaved draft text");
+
+    useProjectStore.getState().applyCommand({
+      type: "doc.update",
+      projectId: bundle.project.id,
+      docId: doc.id,
+      patch: { body: "External refresh body" }
+    });
+
+    expect(document.querySelector("textarea.textarea")).toHaveValue("Unsaved draft text");
+  });
 });

@@ -35,13 +35,13 @@ export function ItemCard({
       data-dragging={dragging}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      role="article"
+      role="link"
       tabIndex={0}
       onClick={() => {
         if (!dragging) navigate(`/item/${item.id}`);
       }}
       onKeyDown={(event) => {
-        if ((event.key === "Enter" || event.key === " ") && !dragging) {
+        if (event.key === "Enter" && !dragging) {
           event.preventDefault();
           navigate(`/item/${item.id}`);
         }
