@@ -1,0 +1,46 @@
+{
+  "name": "@gph/ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./components": "./src/components/index.ts",
+    "./views/board": "./src/views/board/index.ts",
+    "./views/backlog": "./src/views/backlog/index.ts",
+    "./views/table": "./src/views/table/index.ts",
+    "./views/docs": "./src/views/docs/index.ts",
+    "./views/roadmap": "./src/views/roadmap/index.ts",
+    "./views/calendar": "./src/views/calendar/index.ts",
+    "./views/bugs": "./src/views/bugs/index.ts",
+    "./work-item": "./src/work-item/index.ts",
+    "./projects": "./src/projects/index.ts",
+    "./theme": "./src/theme/index.ts",
+    "./commands": "./src/commands/index.ts",
+    "./search": "./src/search/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@gph/core": "*",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zustand": "^4.5.5"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.5.0",
+    "@testing-library/react": "^16.0.1",
+    "@testing-library/user-event": "^14.5.2",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "jsdom": "^25.0.1",
+    "react": "^18.3.1",
+    "typescript": "^5.5.4",
+    "vitest": "^2.1.1"
+  }
+}

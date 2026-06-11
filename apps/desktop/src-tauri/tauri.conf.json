@@ -1,0 +1,40 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Grillo Project Hub",
+  "version": "0.1.0",
+  "identifier": "org.opensource.grilloprojecthub",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://localhost:5174",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Grillo Project Hub",
+        "width": 1400,
+        "height": 900,
+        "minWidth": 960,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null,
+      "fs": {
+        "scope": ["$APPCONFIG/**", "$APPDATA/**", "$DOCUMENT/**", "$DESKTOP/**", "$HOME/**", "$DOWNLOAD/**"]
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "category": "Productivity",
+    "copyright": "© 2026 Grillo Project Hub contributors",
+    "targets": "all",
+    "icon": [
+      "icons/icon.png"
+    ]
+  }
+}

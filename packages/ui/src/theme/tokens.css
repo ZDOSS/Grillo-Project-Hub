@@ -1,0 +1,180 @@
+/**
+ * Design tokens for the Grillo Project Hub.
+ * Polished + friendly visual character, balanced density, subtle nature accent.
+ * Light and dark themes are first-class, built from shared semantic tokens.
+ */
+
+:root {
+  /* Light theme (default) */
+  --color-bg-canvas: #f7f5f0;
+  --color-bg-surface: #ffffff;
+  --color-bg-elevated: #ffffff;
+  --color-bg-muted: #efece5;
+  --color-bg-sidebar: #2c3530;
+  --color-bg-sidebar-hover: #38433c;
+  --color-bg-sidebar-active: #435049;
+  --color-bg-row-hover: #f0ede5;
+  --color-bg-row-selected: #e6efe1;
+  --color-bg-status-ok: #e6efe1;
+  --color-bg-status-warn: #fbf2dc;
+  --color-bg-status-blocked: #f4dada;
+  --color-bg-status-done: #d8e6d0;
+  --color-bg-overlay: rgba(28, 36, 32, 0.36);
+
+  --color-text-primary: #1d2620;
+  --color-text-secondary: #59615a;
+  --color-text-muted: #8a9089;
+  --color-text-on-accent: #ffffff;
+  --color-text-on-sidebar: #e3e8e1;
+  --color-text-on-sidebar-muted: #a4ada3;
+  --color-text-on-status: #2a3530;
+
+  --color-border-subtle: #e2dfd6;
+  --color-border-strong: #c6c2b3;
+  --color-border-focus: #4f8a55;
+
+  --color-accent: #4f8a55;
+  --color-accent-hover: #437549;
+  --color-accent-soft: #dde9d4;
+  --color-accent-contrast: #ffffff;
+
+  --color-danger: #b13a3a;
+  --color-warn: #d29a3a;
+
+  --color-status-planned: #6b7a6a;
+  --color-status-active: #4f8a55;
+  --color-status-completed: #2e6a4d;
+  --color-status-canceled: #8a6e3a;
+
+  --shadow-1: 0 1px 2px rgba(28, 36, 32, 0.06), 0 1px 3px rgba(28, 36, 32, 0.04);
+  --shadow-2: 0 2px 6px rgba(28, 36, 32, 0.08), 0 4px 16px rgba(28, 36, 32, 0.06);
+  --shadow-3: 0 4px 16px rgba(28, 36, 32, 0.12), 0 12px 32px rgba(28, 36, 32, 0.08);
+
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --font-size-2xs: 11px;
+  --font-size-xs: 12px;
+  --font-size-sm: 13px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 24px;
+  --font-size-3xl: 30px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+
+  --sidebar-width: 232px;
+  --viewbar-height: 44px;
+  --header-height: 48px;
+  --modal-max-width: 720px;
+  --drawer-width: 540px;
+}
+
+[data-theme="dark"] {
+  --color-bg-canvas: #1c2420;
+  --color-bg-surface: #232b27;
+  --color-bg-elevated: #2a322d;
+  --color-bg-muted: #1a201d;
+  --color-bg-sidebar: #161b18;
+  --color-bg-sidebar-hover: #1f2622;
+  --color-bg-sidebar-active: #2a312c;
+  --color-bg-row-hover: #2a312c;
+  --color-bg-row-selected: #2d3a32;
+  --color-bg-status-ok: #2d3a32;
+  --color-bg-status-warn: #3a3220;
+  --color-bg-status-blocked: #3a2828;
+  --color-bg-status-done: #233228;
+  --color-bg-overlay: rgba(0, 0, 0, 0.55);
+
+  --color-text-primary: #e6e8e3;
+  --color-text-secondary: #b1b6ad;
+  --color-text-muted: #80847c;
+  --color-text-on-accent: #ffffff;
+  --color-text-on-sidebar: #d5d9d0;
+  --color-text-on-sidebar-muted: #8e948a;
+  --color-text-on-status: #e6e8e3;
+
+  --color-border-subtle: #2d3530;
+  --color-border-strong: #3d4640;
+  --color-border-focus: #6aa472;
+
+  --color-accent: #6aa472;
+  --color-accent-hover: #76b07e;
+  --color-accent-soft: #2d3a32;
+  --color-accent-contrast: #ffffff;
+
+  --color-danger: #d05d5d;
+  --color-warn: #d8ad60;
+
+  --color-status-planned: #98a394;
+  --color-status-active: #6aa472;
+  --color-status-completed: #4f8a55;
+  --color-status-canceled: #b39160;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.25), 0 1px 3px rgba(0, 0, 0, 0.2);
+  --shadow-2: 0 2px 6px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
+  --shadow-3: 0 4px 16px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.3);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-md);
+  line-height: 1.5;
+  background: var(--color-bg-canvas);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+}
+
+a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

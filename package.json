@@ -1,0 +1,28 @@
+{
+  "name": "grillo-project-hub",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Grillo Project Hub - a free, open source, hybrid project management suite",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev:web",
+    "dev:web": "npm --workspace apps/web run dev",
+    "dev:desktop": "npm --workspace apps/desktop run dev",
+    "build": "npm run build --workspaces --if-present",
+    "build:web": "npm --workspace apps/web run build",
+    "build:core": "npm --workspace packages/core run build",
+    "build:ui": "npm --workspace packages/ui run build",
+    "test": "npm run test:core && npm run test:ui",
+    "test:core": "npm --workspace packages/core run test",
+    "test:ui": "npm --workspace packages/ui run test",
+    "test:e2e": "npm --workspace apps/web run test:e2e",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "echo 'lint placeholder' "
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
