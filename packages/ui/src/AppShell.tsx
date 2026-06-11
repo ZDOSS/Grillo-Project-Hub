@@ -4,6 +4,7 @@ import { useProjectStore } from "./store/project-store";
 import { useTheme } from "./theme/theme-provider";
 import { CommandPalette, registerCoreCommands } from "./commands/CommandPalette";
 import { openPalette } from "./commands/palette-bus";
+import { PROJECT_NAV_ITEMS } from "./nav-config";
 
 export type AppShellProps = {
   appMode: "web" | "desktop";
@@ -171,17 +172,22 @@ const GrilloLogo = () => (
 
 // ── Nav config ───────────────────────────────────────────────────────────────
 
-const NAV_ITEMS = [
-  { id: "board", to: "/board",    label: "Board",      icon: <IconBoard /> },
-  { id: "backlog", to: "/backlog",  label: "Backlog",    icon: <IconBacklog /> },
-  { id: "table", to: "/table",    label: "Table",      icon: <IconTable /> },
-  { id: "roadmap", to: "/roadmap",  label: "Roadmap",    icon: <IconRoadmap /> },
-  { id: "calendar", to: "/calendar", label: "Calendar",   icon: <IconCalendar /> },
-  { id: "docs", to: "/docs",     label: "Docs",       icon: <IconDocs /> },
-  { id: "bugs", to: "/bugs",     label: "Bug triage", icon: <IconBug /> },
-  { id: "mywork", to: "/mywork",   label: "My work",    icon: <IconMyWork /> },
-  { id: "search", to: "/search",   label: "Search",     icon: <IconSearch /> },
-];
+const NAV_ICONS = {
+  board: <IconBoard />,
+  backlog: <IconBacklog />,
+  table: <IconTable />,
+  roadmap: <IconRoadmap />,
+  calendar: <IconCalendar />,
+  docs: <IconDocs />,
+  bugs: <IconBug />,
+  mywork: <IconMyWork />,
+  search: <IconSearch />
+} satisfies Record<(typeof PROJECT_NAV_ITEMS)[number]["id"], ReactNode>;
+
+const NAV_ITEMS = PROJECT_NAV_ITEMS.map((item) => ({
+  ...item,
+  icon: NAV_ICONS[item.id]
+}));
 
 const SECONDARY = [
   { to: "/settings", label: "Settings", icon: <IconSettings /> },

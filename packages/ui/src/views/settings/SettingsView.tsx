@@ -2,18 +2,9 @@ import { useMemo, useState } from "react";
 import { exportProjectCsv, exportProjectJson, exportProjectMarkdown, importProjectJson, type Member, type PriorityDefinition, type StatusDefinition, type WorkItemTypeDefinition } from "@gph/core";
 import { useProjectStore } from "../../store/project-store";
 import { useTheme } from "../../theme/theme-provider";
+import { PROJECT_NAV_ITEMS } from "../../nav-config";
 
-const SIDEBAR_OPTIONS = [
-  { id: "board", label: "Board" },
-  { id: "backlog", label: "Backlog" },
-  { id: "table", label: "Table" },
-  { id: "roadmap", label: "Roadmap" },
-  { id: "calendar", label: "Calendar" },
-  { id: "docs", label: "Docs" },
-  { id: "bugs", label: "Bug triage" },
-  { id: "mywork", label: "My work" },
-  { id: "search", label: "Search" }
-] as const;
+const SIDEBAR_OPTIONS = PROJECT_NAV_ITEMS.map(({ id, label }) => ({ id, label }));
 
 type SettingsTab =
   | "general"

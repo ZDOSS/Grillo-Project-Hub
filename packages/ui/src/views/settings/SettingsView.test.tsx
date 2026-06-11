@@ -10,11 +10,8 @@ import { SettingsView } from "./SettingsView";
 describe("SettingsView", () => {
   beforeEach(() => {
     const bundle = buildProjectFromTemplate("software-project", "Settings");
-    const withMember = useProjectStore.getState().bundle
-      ? useProjectStore.getState().bundle
-      : bundle;
     useProjectStore.setState({
-      bundle: withMember,
+      bundle,
       storageKey: bundle.project.id,
       storagePath: null,
       storageTrust: "browser",

@@ -159,6 +159,8 @@ export function ProjectsListView() {
 
   const handleDeleteProject = async (recent: RecentProject) => {
     try {
+      // Folder-backed recents remove the launcher shortcut only; deleting the actual file is a
+      // separate filesystem action and should never happen from this UI affordance.
       if (recent.trust === "browser") {
         await deleteSavedProject(recent);
       }

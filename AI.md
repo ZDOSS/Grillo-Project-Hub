@@ -90,6 +90,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 ## Platform differences between web and desktop
 
 - both apps import the same `@gph/ui` AppShell, views, and command palette
+- project navigation metadata now lives in shared `packages/ui/src/nav-config.ts`, so AppShell navigation and Settings left-panel visibility both derive from one source of truth
 - the web app uses `@vitejs/plugin-pwa` for install/offline; the desktop app uses the Tauri runtime
 - the web app's storage adapter is localStorage-only; the desktop adapter talks to a Rust filesystem command
 - in development, both apps run in the browser; the desktop app's storage adapter falls back to localStorage when `__TAURI__` is absent
@@ -126,6 +127,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - reopen-from-recents support
   - browser-vs-folder storage explanation
   - explicit delete/remove confirmation for saved projects
+  - folder-backed delete is intentionally "remove recent shortcut only" and does not delete filesystem data
   - desktop folder-path attach flow for new projects
   - desktop folder scan/open flow for existing `.pm-suite` saves
 - per-project view tabs across board, backlog, table, roadmap, calendar, docs, bug triage, my work, search
@@ -153,6 +155,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - inline delete confirmation in the launcher
   - inline member removal confirmation in Settings
   - docs preview routing via `data-route`
+- the Settings view test now always seeds a fresh project-store bundle per run instead of reusing any stale Zustand singleton state from prior tests
 - Playwright e2e for hybrid parity, theme toggle, command palette, project creation, item creation with `C` shortcut, JSON export download, and search
 - `npm test` runs unit + component tests; `npm run test:e2e` runs Playwright against the running web dev server
 
@@ -182,6 +185,10 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - documenting the folder-restore ordering contract used by desktop recents reopen
   - replacing `window.confirm` with inline confirmation in launcher and member-removal flows
   - switching docs preview click interception from a CSS-class dependency to a stable data attribute
+- closed the next review follow-up by:
+  - centralizing nav/view metadata in shared `nav-config.ts`
+  - fixing the stale-bundle bug in `SettingsView.test.tsx`
+  - documenting that folder-backed recent deletion only removes the launcher shortcut
 
 ## Open follow-on planning
 

@@ -17,6 +17,7 @@ The MVP implementation is in place. The current build supports:
 - **My work** filtered to the locally selected member
 - **Search** across items, docs, comments, and labels
 - **Settings** for theme, left-panel visibility, editable members, statuses, priorities, types, labels, milestones, custom fields, plugins, export, and AI bridge
+- **Shared navigation config** so sidebar navigation and left-panel visibility toggles stay in sync
 - **Command palette** with `Ctrl/Cmd+K` and `C` to create items
 - **Work item drawer** with full edit, checklist (with convert-to-subtask), comments with threads and edit history, subtasks, relationships, archive/trash/restore
 - **Local full-text search** with structured filters
@@ -54,6 +55,7 @@ Note: This is a static client-side demo only. All data lives in the browser (loc
 
 - In the **PWA/web app**, projects are browser-local by default. The launcher now makes that explicit and lets you reopen saved browser projects from recents instead of forcing JSON import every time.
 - In the **desktop shell**, you can still work browser-locally, or attach a folder path for `.pm-suite` saves and reopen those folder-backed projects from the launcher.
+- Removing a folder-backed recent from the launcher only removes the shortcut; it does not delete the underlying filesystem project.
 - The command layer now hard-fails unknown member edits and preserves `hiddenViewIds` defaults when opening older bundles, so settings updates do not silently no-op or regress legacy projects.
 - JSON import/export remains the portable handoff path across machines or runtimes.
 
