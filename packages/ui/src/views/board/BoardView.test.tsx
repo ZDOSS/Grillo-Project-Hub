@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
@@ -73,6 +73,42 @@ describe("BoardView", () => {
 
     const link = screen.getByRole("link", { name: "Open me" });
     expect(link).toHaveAttribute("href", `/item/${item.id}`);
+
+    await userEvent.click(link);
+
+    expect(screen.getAllByTestId("location").at(-1)).toHaveTextContent(`/item/${item.id}`);
+  });
+
+  it("opens the work item on the first click after a drag ends without navigation", async () => {
+    const bundle = buildProjectFromTemplate("simple-kanban", "Test");
+    useProjectStore.setState({ bundle });
+    const created = useProjectStore.getState().applyCommand({
+      type: "item.create",
+      projectId: bundle.project.id,
+      typeId: "task",
+      title: "Drag then open",
+      statusId: "ready"
+    }).bundle;
+
+    const item = created.core.items.find((entry) => entry.title === "Drag then open")!;
+    const kanbanModule = created.modules["builtin.kanban"];
+    const views = (kanbanModule.data as { views?: Record<string, { id: string; type: string; name: string; columns: Array<{ id: string; name: string; statusIds: string[]; defaultDropStatusId: string; wipLimit?: number | null; wipMode?: "warn" | "hard"; order: number }> }> }).views ?? {};
+    const view = Object.values(views).find((entry) => entry.type === "board")!;
+
+    renderBoard(view);
+
+    const link = screen.getByRole("link", { name: "Drag then open" });
+    const card = link.closest(".board-card");
+    expect(card).toBeTruthy();
+
+    fireEvent.dragStart(card!, {
+      dataTransfer: {
+        setData: () => {},
+        effectAllowed: "move"
+      }
+    });
+    fireEvent.dragEnd(card!);
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
 
     await userEvent.click(link);
 

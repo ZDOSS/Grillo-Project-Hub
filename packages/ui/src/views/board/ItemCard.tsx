@@ -39,6 +39,10 @@ export function ItemCard({
       }}
       onDragEnd={() => {
         onDragEnd();
+        // Clear the drag guard after any synthetic post-drag click has had a chance to fire.
+        window.setTimeout(() => {
+          suppressLinkClick.current = false;
+        }, 0);
       }}
       role="article"
     >
