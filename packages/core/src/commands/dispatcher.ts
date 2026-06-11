@@ -88,6 +88,7 @@ const dispatchers: Record<string, (b: ProjectBundle, env: CommandEnvelope) => Di
   "item.trash": (b, env) => trashItem(b, env.payload as { projectId: string; itemId: string }),
   "item.restore": (b, env) => restoreItem(b, env.payload as { projectId: string; itemId: string }),
   "item.duplicate": (b, env) => duplicateItem(b, env.payload as Parameters<typeof duplicateItem>[1]),
+  "item.permanentlyDelete": (b, env) => permanentlyDeleteItem(b, env.payload as { projectId: string; itemId: string }),
   "item.addChecklistEntry": (b, env) => addChecklistEntry(b, env.payload as Parameters<typeof addChecklistEntry>[1]),
   "item.toggleChecklistEntry": (b, env) => toggleChecklistEntry(b, env.payload as Parameters<typeof toggleChecklistEntry>[1]),
   "item.reorderChecklist": (b, env) => reorderChecklist(b, env.payload as Parameters<typeof reorderChecklist>[1]),
@@ -295,6 +296,55 @@ function restoreItem(bundle: ProjectBundle, payload: { projectId: string; itemId
   return { bundle: appendEvent(nextBundle, event), events: [event] };
 }
 
+/**
+ * Hard delete: remove the item, its trash entry, any relationships where it appears on either
+ * side, its reminders, its attachments, and strip any [[item:id]] / ![[item:id]] references
+ * from document bodies. Permanent: cannot be restored.
+ */
+function permanentlyDeleteItem(bundle: ProjectBundle, payload: { projectId: string; itemId: string }): DispatchResult {
+  const item = findItemOrThrow(bundle, payload.itemId);
+  const id = item.id;
+  // Drop the item, related relationships, reminders and attachments, plus any trash entry
+  // for this item. Update document bodies to remove dangling links/embeds.
+  const escapedId = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const linkOrEmbedRe = new RegExp(
+    `!?\\[\\[(?:item|workItem):${escapedId}(?:\\|[^\\]]+)?\\]\\]`,
+    "g"
+  );
+  const nextDocuments = bundle.core.documents.map((d) => {
+    if (!linkOrEmbedRe.test(d.body)) return d;
+    const cleaned = d.body.replace(linkOrEmbedRe, "(deleted item)");
+    return { ...d, body: cleaned, updatedAt: nowTimestamp() };
+  });
+  const nextItems = bundle.core.items.filter((i) => i.id !== id);
+  const nextRelationships = bundle.core.relationships.filter(
+    (r) => r.sourceItemId !== id && r.targetItemId !== id
+  );
+  const nextReminders = bundle.core.reminders.filter(
+    (r) => !(r.targetType === "workItem" && r.targetId === id)
+  );
+  const nextAttachments = bundle.core.attachments.filter((a) => a.itemId !== id);
+  const nextTrash = bundle.core.trash.filter(
+    (t) => !(t.recordType === "workItem" && t.recordId === id)
+  );
+  const nextBundle = withCore(bundle, (c) => ({
+    ...c,
+    items: nextItems,
+    documents: nextDocuments,
+    relationships: nextRelationships,
+    reminders: nextReminders,
+    attachments: nextAttachments,
+    trash: nextTrash
+  }));
+  const event = createEvent({
+    type: "item.permanentlyDeleted",
+    projectId: bundle.project.id,
+    itemId: id,
+    data: { title: item.title }
+  });
+  return { bundle: appendEvent(nextBundle, event), events: [event] };
+}
+
 function duplicateItem(
   bundle: ProjectBundle,
   payload: { projectId: string; itemId: string; includeRelationships?: boolean; includeAttachments?: boolean }
@@ -447,7 +497,7 @@ function createRelationshipCommand(
     sourceItemId: payload.sourceItemId,
     targetItemId: payload.targetItemId
   });
-  validateRelationship(rel, bundle.core.items);
+  validateRelationship(rel, bundle.core.items, bundle.core.relationships);
   const nextBundle = withCore(bundle, (c) => ({ ...c, relationships: [...c.relationships, rel] }));
   return { bundle: nextBundle, events: [] };
 }
@@ -766,30 +816,45 @@ function createViewCommand(
     }
   }
   const kanbanModule = bundle.modules["builtin.kanban"];
-  if (kanbanModule) {
-    kanbanModule.data = { ...(kanbanModule.data ?? {}), views: { ...((kanbanModule.data as { views?: Record<string, unknown> })?.views ?? {}), [view.id]: view } };
+  if (!kanbanModule) {
+    return { bundle: bumpRevision(bundle), events: [] };
   }
-  const nextBundle = bumpRevision({ ...bundle, modules: { ...bundle.modules, "builtin.kanban": kanbanModule ?? bundle.modules["builtin.kanban"] } });
+  const existingViews = ((kanbanModule.data as { views?: Record<string, unknown> })?.views) ?? {};
+  const nextKanbanData = { ...(kanbanModule.data ?? {}), views: { ...existingViews, [view.id]: view } };
+  const nextBundle = bumpRevision({
+    ...bundle,
+    modules: { ...bundle.modules, "builtin.kanban": { ...kanbanModule, data: nextKanbanData } }
+  });
   return { bundle: nextBundle, events: [] };
 }
 
 function updateViewCommand(bundle: ProjectBundle, payload: { projectId: string; viewId: string; patch: Record<string, unknown> }): DispatchResult {
   const kanbanModule = bundle.modules["builtin.kanban"];
   if (!kanbanModule) throw new Error("Kanban module missing");
-  const views = (kanbanModule.data as { views?: Record<string, unknown> })?.views ?? {};
-  const existing = views[payload.viewId];
-  if (!existing) throw new Error("View not found");
-  views[payload.viewId] = { ...(existing as object), ...stripReadOnly(payload.patch) };
-  const nextBundle = bumpRevision({ ...bundle, modules: { ...bundle.modules, "builtin.kanban": { ...kanbanModule, data: { ...kanbanModule.data, views } } } });
+  const existingViews = ((kanbanModule.data as { views?: Record<string, unknown> })?.views) ?? {};
+  const current = existingViews[payload.viewId];
+  if (!current) throw new Error("View not found");
+  const nextViews = { ...existingViews, [payload.viewId]: { ...(current as object), ...stripReadOnly(payload.patch) } };
+  const nextKanbanData = { ...(kanbanModule.data ?? {}), views: nextViews };
+  const nextBundle = bumpRevision({
+    ...bundle,
+    modules: { ...bundle.modules, "builtin.kanban": { ...kanbanModule, data: nextKanbanData } }
+  });
   return { bundle: nextBundle, events: [] };
 }
 
 function deleteViewCommand(bundle: ProjectBundle, payload: { projectId: string; viewId: string }): DispatchResult {
   const kanbanModule = bundle.modules["builtin.kanban"];
   if (!kanbanModule) throw new Error("Kanban module missing");
-  const views = ((kanbanModule.data as { views?: Record<string, unknown> })?.views ?? {});
-  delete views[payload.viewId];
-  const nextBundle = bumpRevision({ ...bundle, modules: { ...bundle.modules, "builtin.kanban": { ...kanbanModule, data: { ...kanbanModule.data, views } } } });
+  const existingViews = ((kanbanModule.data as { views?: Record<string, unknown> })?.views) ?? {};
+  if (!(payload.viewId in existingViews)) throw new Error("View not found");
+  const nextViews = { ...existingViews };
+  delete nextViews[payload.viewId];
+  const nextKanbanData = { ...(kanbanModule.data ?? {}), views: nextViews };
+  const nextBundle = bumpRevision({
+    ...bundle,
+    modules: { ...bundle.modules, "builtin.kanban": { ...kanbanModule, data: nextKanbanData } }
+  });
   return { bundle: nextBundle, events: [] };
 }
 

@@ -474,8 +474,7 @@ export function WorkItemDrawer() {
             }}>Move to trash</button>
             <button className="btn btn-sm btn-danger" onClick={() => {
               if (confirm("Permanently delete this item? This cannot be undone.")) {
-                // For MVP, permanently delete by removing from items
-                // (with confirmation). Trashed items persist in trash collection.
+                applyCommand({ type: "item.permanentlyDelete", projectId: bundle.project.id, itemId: item.id });
                 close();
               }
             }}>Delete…</button>
@@ -529,7 +528,7 @@ function AddSubtask({ parentId, disabled }: { parentId: string; disabled: boolea
         disabled={disabled}
         onKeyDown={(e) => {
           if (e.key === "Enter" && text.trim()) {
-            applyCommand({ type: "item.create", projectId: bundle.project.id, typeId: "task", title: text.trim(), parentId });
+            applyCommand({ type: "item.create", projectId: bundle.project.id, typeId: bundle.project.defaultTypeId, title: text.trim(), parentId });
             setText("");
           }
         }}
@@ -539,7 +538,7 @@ function AddSubtask({ parentId, disabled }: { parentId: string; disabled: boolea
         disabled={disabled || !text.trim()}
         onClick={() => {
           if (!text.trim()) return;
-          applyCommand({ type: "item.create", projectId: bundle.project.id, typeId: "task", title: text.trim(), parentId });
+          applyCommand({ type: "item.create", projectId: bundle.project.id, typeId: bundle.project.defaultTypeId, title: text.trim(), parentId });
           setText("");
         }}
       >Add</button>

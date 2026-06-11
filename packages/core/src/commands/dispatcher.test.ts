@@ -44,4 +44,66 @@ describe("command dispatcher", () => {
     expect(b.core.items[0].checklist.length).toBe(0);
     expect(b.core.items[1].parentId).toBe(itemId);
   });
+
+  it("rejects a blocks relationship that would create a cycle", () => {
+    const bundle = createProjectBundle({ name: "P" });
+    let b = bundle;
+    const a = dispatchCommand(b, envelopeFor({ type: "item.create", projectId: b.project.id, typeId: "task", title: "A" }, "ui", null)).bundle;
+    const aId = a.core.items[0].id;
+    const bb = dispatchCommand(a, envelopeFor({ type: "item.create", projectId: a.project.id, typeId: "task", title: "B" }, "ui", null)).bundle;
+    const bId = bb.core.items[1].id;
+    // A blocks B
+    const ab = dispatchCommand(bb, envelopeFor({ type: "relationship.create", projectId: bb.project.id, relationshipType: "blocks", sourceItemId: aId, targetItemId: bId }, "ui", null)).bundle;
+    // B blocks A should be rejected
+    expect(() => dispatchCommand(ab, envelopeFor({ type: "relationship.create", projectId: ab.project.id, relationshipType: "blocks", sourceItemId: bId, targetItemId: aId }, "ui", null))).toThrow(/cycle/);
+  });
+
+  it("view commands do not mutate the input bundle", () => {
+    const bundle = createProjectBundle({ name: "P" });
+    const beforeViews = JSON.parse(JSON.stringify((bundle.modules["builtin.kanban"].data as { views?: Record<string, unknown> }).views));
+    const r = dispatchCommand(bundle, envelopeFor({ type: "view.create", projectId: bundle.project.id, viewType: "backlog", name: "My Backlog" }, "ui", null));
+    // Original bundle reference is unchanged
+    const afterViews = (bundle.modules["builtin.kanban"].data as { views?: Record<string, unknown> }).views ?? {};
+    expect(Object.keys(afterViews).length).toBe(Object.keys(beforeViews).length);
+    // New bundle has the new view
+    const newViews = (r.bundle.modules["builtin.kanban"].data as { views?: Record<string, unknown> }).views ?? {};
+    expect(Object.keys(newViews).length).toBe(Object.keys(beforeViews).length + 1);
+  });
+
+  it("permanently deletes an item and cascades to relationships, reminders, attachments, and doc links", () => {
+    const bundle = createProjectBundle({ name: "P" });
+    let b = bundle;
+    // Create two items.
+    const a = dispatchCommand(b, envelopeFor({ type: "item.create", projectId: b.project.id, typeId: "task", title: "A" }, "ui", null)).bundle;
+    const aId = a.core.items[0].id;
+    const bb = dispatchCommand(a, envelopeFor({ type: "item.create", projectId: a.project.id, typeId: "task", title: "B" }, "ui", null)).bundle;
+    const bId = bb.core.items[1].id;
+    // Relationship A blocks B.
+    const withRel = dispatchCommand(bb, envelopeFor({ type: "relationship.create", projectId: bb.project.id, relationshipType: "blocks", sourceItemId: aId, targetItemId: bId }, "ui", null)).bundle;
+    // Reminder and attachment on A.
+    const withRem = dispatchCommand(withRel, envelopeFor({ type: "reminder.create", projectId: withRel.project.id, targetType: "workItem", targetId: aId, remindAt: "2030-01-01T00:00:00.000Z", timeZone: "UTC", message: "hi" }, "ui", null)).bundle;
+    const withAtt = dispatchCommand(withRem, envelopeFor({ type: "attachment.add", projectId: withRem.project.id, filename: "f.txt", mediaType: "text/plain", size: 1, itemId: aId }, "ui", null)).bundle;
+    // Doc body with a link to A and an embed of A.
+    const docBody = `Before [[item:${aId}|link]] and ![[item:${aId}]] after.`;
+    const withDoc = dispatchCommand(withAtt, envelopeFor({ type: "doc.create", projectId: withAtt.project.id, title: "Doc", body: docBody }, "ui", null)).bundle;
+    // Trash A first.
+    const trashed = dispatchCommand(withDoc, envelopeFor({ type: "item.trash", projectId: withDoc.project.id, itemId: aId }, "ui", null)).bundle;
+    // Now permanently delete A.
+    const r = dispatchCommand(trashed, envelopeFor({ type: "item.permanentlyDelete", projectId: trashed.project.id, itemId: aId }, "ui", null));
+
+    // Item gone
+    expect(r.bundle.core.items.find((i) => i.id === aId)).toBeUndefined();
+    // Trash entry gone
+    expect(r.bundle.core.trash.find((t) => t.recordType === "workItem" && t.recordId === aId)).toBeUndefined();
+    // Relationship gone
+    expect(r.bundle.core.relationships).toEqual([]);
+    // Reminder gone
+    expect(r.bundle.core.reminders.find((rm) => rm.targetId === aId)).toBeUndefined();
+    // Attachment gone
+    expect(r.bundle.core.attachments.find((at) => at.itemId === aId)).toBeUndefined();
+    // Doc body stripped of the dangling reference and embed
+    const doc = r.bundle.core.documents[r.bundle.core.documents.length - 1];
+    expect(doc.body).not.toContain(`[[item:${aId}`);
+    expect(doc.body).toContain("(deleted item)");
+  });
 });

@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "@gph/core": "*",
+    "dompurify": "^3.1.6",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zustand": "^4.5.5"
@@ -36,6 +37,7 @@
     "@testing-library/jest-dom": "^6.5.0",
     "@testing-library/react": "^16.0.1",
     "@testing-library/user-event": "^14.5.2",
+    "@types/dompurify": "^3.0.5",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
     "jsdom": "^25.0.1",

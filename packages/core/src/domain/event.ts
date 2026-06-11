@@ -18,6 +18,7 @@ export type EventType =
   | "item.statusChanged"
   | "item.moved"
   | "item.deleted"
+  | "item.permanentlyDeleted"
   | "item.restored"
   | "item.archived"
   | "item.commented"

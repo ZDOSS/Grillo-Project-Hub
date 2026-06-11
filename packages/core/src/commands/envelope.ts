@@ -40,6 +40,7 @@ export type CommandPayload =
   | ItemToggleChecklistEntryPayload
   | ItemReorderChecklistPayload
   | ItemConvertChecklistToSubtaskPayload
+  | ItemPermanentlyDeletePayload
   | RelationshipCreatePayload
   | RelationshipDeletePayload
   | CommentCreatePayload
@@ -141,6 +142,11 @@ export type ItemDuplicatePayload = {
   itemId: ItemId;
   includeRelationships?: boolean;
   includeAttachments?: boolean;
+};
+export type ItemPermanentlyDeletePayload = {
+  type: "item.permanentlyDelete";
+  projectId: ProjectId;
+  itemId: ItemId;
 };
 
 /* Checklist */

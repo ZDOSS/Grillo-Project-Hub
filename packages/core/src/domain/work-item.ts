@@ -291,7 +291,8 @@ export function relationshipsForItem(
 
 export function validateRelationship(
   rel: Relationship,
-  items: WorkItem[]
+  items: WorkItem[],
+  relationships: Relationship[] = []
 ): void {
   if (rel.sourceItemId === rel.targetItemId) {
     throw new Error("Relationship cannot reference the same item on both sides");
@@ -305,14 +306,30 @@ export function validateRelationship(
     throw new Error("Cross-project relationships are not allowed");
   }
   if (rel.type === "blocks") {
-    if (wouldCreateBlockingCycle(items, rel.sourceItemId, rel.targetItemId)) {
+    if (wouldCreateBlockingCycle(relationships, rel.sourceItemId, rel.targetItemId)) {
       throw new Error("Blocking relationship would create a cycle");
     }
   }
 }
 
-function wouldCreateBlockingCycle(items: WorkItem[], sourceId: ItemId, targetId: ItemId): boolean {
-  // BFS from targetId following blocks edges; if we reach sourceId, cycle.
+/**
+ * Detect a cycle that would be introduced by adding a "blocks" edge from `sourceId` to `targetId`.
+ * Walks the existing `relationships` array following real `blocks` edges. If we can reach
+ * `sourceId` by following blocks edges from `targetId`, the new edge would close a cycle.
+ */
+export function wouldCreateBlockingCycle(
+  relationships: Relationship[],
+  sourceId: ItemId,
+  targetId: ItemId
+): boolean {
+  if (sourceId === targetId) return true;
+  const blocksBySource = new Map<ItemId, ItemId[]>();
+  for (const r of relationships) {
+    if (r.type !== "blocks") continue;
+    const arr = blocksBySource.get(r.sourceItemId) ?? [];
+    arr.push(r.targetItemId);
+    blocksBySource.set(r.sourceItemId, arr);
+  }
   const visited = new Set<ItemId>();
   const stack: ItemId[] = [targetId];
   while (stack.length) {
@@ -320,11 +337,7 @@ function wouldCreateBlockingCycle(items: WorkItem[], sourceId: ItemId, targetId:
     if (cur === sourceId) return true;
     if (visited.has(cur)) continue;
     visited.add(cur);
-    for (const i of items) {
-      if ((i as unknown as { blocksItemId?: ItemId }).blocksItemId === cur) {
-        stack.push(i.id);
-      }
-    }
+    for (const next of blocksBySource.get(cur) ?? []) stack.push(next);
   }
   return false;
 }

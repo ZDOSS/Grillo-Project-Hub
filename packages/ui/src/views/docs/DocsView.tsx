@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import DOMPurify, { type Config as DOMPurifyConfig } from "dompurify";
 import { useProjectStore } from "../../store/project-store";
 import { deriveBacklinks, parseDocLinks, type Document } from "@gph/core";
 
@@ -139,21 +140,28 @@ function DocEditor({ doc, backlinks }: { doc: Document; backlinks: Document[] })
  * Tiny, safe Markdown renderer.
  *
  *  - Renders headings, paragraphs, lists, code, links, and [[doc:id]] / [[item:id]] internal links.
- *  - Strips raw HTML tags.
- *  - Does NOT execute scripts or any active content.
+ *  - Emits a constrained HTML subset (headings, lists, paragraphs, strong/em, code, internal links).
+ *  - Sanitizes the final HTML through DOMPurify so any HTML the user types in the source
+ *    (including `javascript:` URIs, `on*` handlers, and `<script>`/`<iframe>` tags) is stripped
+ *    before injection. Internal `docs-link` / `docs-embed` markers and their `href`s / `data-*`
+ *    attributes are allowlisted explicitly.
  */
 function RenderMarkdown({ body }: { body: string }) {
   const html = useMemo(() => renderMarkdownSafe(body), [body]);
   return <div dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
+const PURIFY_CONFIG: DOMPurifyConfig = {
+  ALLOWED_TAGS: ["a", "div", "h1", "h2", "h3", "h4", "h5", "h6", "p", "ul", "ol", "li", "strong", "em", "code", "br", "span"],
+  ALLOWED_ATTR: ["href", "class", "data-doc", "data-item", "data-attachment"],
+  ALLOW_DATA_ATTR: false
+};
+
 function renderMarkdownSafe(input: string): string {
-  // Strip any <script>, <iframe>, <object>, <embed>, <style> tags and on* attributes
+  // Build the safe HTML. We escape inline text ourselves; the only inline HTML we emit
+  // is the controlled subset above, so DOMPurify's allowlist is sufficient.
   let text = input;
-  text = text.replace(/<\s*(script|iframe|object|embed|style)\b[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, "");
-  text = text.replace(/<\/?\s*(script|iframe|object|embed|style)\b[^>]*>/gi, "");
-  text = text.replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "");
-  // Convert internal links
+  // Internal links: emit safe, no user-supplied attribute values that bypass sanitization.
   text = text.replace(/\[\[doc:([a-zA-Z0-9_-]+)(?:\|([^\]]+))?\]\]/g, (_, id, label) => `<a class="docs-link" href="/doc/${id}">${escapeHtml(label ?? id)}</a>`);
   text = text.replace(/\[\[item:([a-zA-Z0-9_-]+)(?:\|([^\]]+))?\]\]/g, (_, id, label) => `<a class="docs-link" href="/item/${id}">${escapeHtml(label ?? id)}</a>`);
   text = text.replace(/!\[\[doc:([a-zA-Z0-9_-]+)\]\]/g, (_, id) => `<div class="docs-embed" data-doc="${id}">[doc embed: ${escapeHtml(id)}]</div>`);
@@ -175,7 +183,8 @@ function renderMarkdownSafe(input: string): string {
   text = text.replace(/(^|\n)((?:\d+\. .*(?:\n|$))+)/g, (_, lead, block) => lead + "<ol>" + block.replace(/^\d+\. (.*)$/gm, "<li>$1</li>") + "</ol>");
   // Paragraphs
   text = text.split(/\n{2,}/).map((p) => /^<(h\d|ul|ol|pre|blockquote)/.test(p.trim()) ? p : `<p>${p.replace(/\n/g, "<br>")}</p>`).join("\n");
-  return text;
+  // Sanitize: strips javascript:/vbscript:/data: URIs, on* handlers, <script>/<iframe>/etc.
+  return DOMPurify.sanitize(text, PURIFY_CONFIG);
 }
 
 function escapeHtml(s: string): string {

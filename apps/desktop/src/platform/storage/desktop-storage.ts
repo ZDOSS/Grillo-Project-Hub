@@ -70,7 +70,7 @@ class DesktopAdapter implements ProjectStoreAdapter {
         console.warn("Tauri fs write failed, using localStorage", e);
         if (typeof localStorage !== "undefined") localStorage.setItem(NAMESPACE + key, json);
       }
-      const meta: StorageMetadata = { key, displayPath: path, externalRevision: Date.now(), trust: "folder" };
+      const meta: StorageMetadata = { key, displayPath: path, externalRevision: this.nextRevisionFor(key), trust: "folder" };
       if (typeof localStorage !== "undefined") {
         const next = [meta, ...this.listSync().filter((m) => m.key !== key)];
         localStorage.setItem(INDEX_KEY, JSON.stringify(next));
@@ -79,7 +79,7 @@ class DesktopAdapter implements ProjectStoreAdapter {
     }
     if (typeof localStorage === "undefined") throw new Error("Storage unavailable");
     localStorage.setItem(NAMESPACE + key, json);
-    const meta: StorageMetadata = { key, displayPath: null, externalRevision: Date.now(), trust: "browser" };
+    const meta: StorageMetadata = { key, displayPath: null, externalRevision: this.nextRevisionFor(key), trust: "browser" };
     const next = [meta, ...this.listSync().filter((m) => m.key !== key)];
     localStorage.setItem(INDEX_KEY, JSON.stringify(next));
     return meta;
@@ -96,7 +96,7 @@ class DesktopAdapter implements ProjectStoreAdapter {
     let unlisten: (() => void) | null = null;
     tauri.event.listen("gph://external-change", (e) => {
       const payload = e.payload as { key: string; newRevision?: number };
-      if (payload?.key) handler({ type: "externalChange", key: payload.key, newRevision: payload.newRevision ?? Date.now() });
+      if (payload?.key) handler({ type: "externalChange", key: payload.key, newRevision: payload.newRevision ?? this.nextRevisionFor(payload.key) });
     }).then((u) => {
       if (disposed) u();
       else unlisten = u;
@@ -105,6 +105,10 @@ class DesktopAdapter implements ProjectStoreAdapter {
       disposed = true;
       unlisten?.();
     };
+  }
+  private nextRevisionFor(key: string): number {
+    const existing = this.listSync().find((m) => m.key === key);
+    return (existing?.externalRevision ?? 0) + 1;
   }
   private listSync(): StorageMetadata[] {
     if (typeof localStorage === "undefined") return [];
