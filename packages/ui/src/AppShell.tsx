@@ -5,30 +5,189 @@ import { useTheme } from "./theme/theme-provider";
 import { CommandPalette, registerCoreCommands } from "./commands/CommandPalette";
 import { openPalette } from "./commands/palette-bus";
 
-/**
- * Shared application shell for web and desktop. The same component is rendered by both targets;
- * differences (folder-backed storage, file watch, OS notifications) live behind platform adapters.
- */
 export type AppShellProps = {
   appMode: "web" | "desktop";
   children: ReactNode;
 };
 
+// ── Inline SVG icons ────────────────────────────────────────────────────────
+// All icons are 16×16, stroke-based, currentColor.
+
+const IconBoard = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="1" y="1" width="6" height="6" rx="1"/>
+    <rect x="9" y="1" width="6" height="6" rx="1"/>
+    <rect x="1" y="9" width="6" height="6" rx="1"/>
+    <rect x="9" y="9" width="6" height="6" rx="1"/>
+  </svg>
+);
+
+const IconBacklog = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <line x1="3" y1="4" x2="13" y2="4"/>
+    <line x1="3" y1="8" x2="13" y2="8"/>
+    <line x1="3" y1="12" x2="10" y2="12"/>
+  </svg>
+);
+
+const IconTable = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="1" y="1" width="14" height="14" rx="1.5"/>
+    <line x1="1" y1="5.5" x2="15" y2="5.5"/>
+    <line x1="6" y1="5.5" x2="6" y2="15"/>
+  </svg>
+);
+
+const IconRoadmap = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="1" y="3" width="6" height="3" rx="1"/>
+    <rect x="5" y="7" width="7" height="3" rx="1"/>
+    <rect x="3" y="11" width="9" height="3" rx="1"/>
+  </svg>
+);
+
+const IconCalendar = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="1" y="3" width="14" height="12" rx="1.5"/>
+    <line x1="1" y1="7" x2="15" y2="7"/>
+    <line x1="5" y1="1" x2="5" y2="5"/>
+    <line x1="11" y1="1" x2="11" y2="5"/>
+  </svg>
+);
+
+const IconDocs = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M3 1h7l3 3v11H3V1z"/>
+    <polyline points="10,1 10,4 13,4"/>
+    <line x1="5" y1="8" x2="11" y2="8"/>
+    <line x1="5" y1="11" x2="9" y2="11"/>
+  </svg>
+);
+
+const IconBug = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <ellipse cx="8" cy="9" rx="4" ry="5"/>
+    <path d="M5 6c0-1.657 1.343-3 3-3s3 1.343 3 3"/>
+    <line x1="1" y1="9" x2="4" y2="9"/>
+    <line x1="12" y1="9" x2="15" y2="9"/>
+    <line x1="1" y1="6" x2="4" y2="7"/>
+    <line x1="12" y1="7" x2="15" y2="6"/>
+    <line x1="1" y1="12" x2="4" y2="11"/>
+    <line x1="12" y1="11" x2="15" y2="12"/>
+  </svg>
+);
+
+const IconMyWork = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="8" cy="5" r="3"/>
+    <path d="M2 14c0-3.314 2.686-6 6-6s6 2.686 6 6"/>
+  </svg>
+);
+
+const IconSearch = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="7" cy="7" r="4.5"/>
+    <line x1="10.5" y1="10.5" x2="14" y2="14"/>
+  </svg>
+);
+
+const IconProjects = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M1 4l3-3h4l3 3"/>
+    <rect x="1" y="4" width="14" height="10" rx="1.5"/>
+    <line x1="5" y1="9" x2="11" y2="9"/>
+  </svg>
+);
+
+const IconOpen = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M1 5l3-3h3l2 2h6v9H1V5z"/>
+    <line x1="5" y1="10" x2="11" y2="10"/>
+  </svg>
+);
+
+const IconDemo = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <polygon points="4,2 14,8 4,14"/>
+  </svg>
+);
+
+const IconSettings = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="8" cy="8" r="2.5"/>
+    <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.42 1.42M11.53 11.53l1.42 1.42M3.05 12.95l1.42-1.42M11.53 4.47l1.42-1.42"/>
+  </svg>
+);
+
+const IconSun = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="8" cy="8" r="3"/>
+    <line x1="8" y1="1" x2="8" y2="3"/>
+    <line x1="8" y1="13" x2="8" y2="15"/>
+    <line x1="1" y1="8" x2="3" y2="8"/>
+    <line x1="13" y1="8" x2="15" y2="8"/>
+    <line x1="3.05" y1="3.05" x2="4.46" y2="4.46"/>
+    <line x1="11.54" y1="11.54" x2="12.95" y2="12.95"/>
+    <line x1="12.95" y1="3.05" x2="11.54" y2="4.46"/>
+    <line x1="4.46" y1="11.54" x2="3.05" y2="12.95"/>
+  </svg>
+);
+
+const IconMoon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M13.5 10A6 6 0 0 1 6 2.5a6 6 0 1 0 7.5 7.5z"/>
+  </svg>
+);
+
+// ── Logo mark ────────────────────────────────────────────────────────────────
+// A minimal geometric cricket/G mark. Two arcs suggest antennae + body.
+
+const GrilloLogo = () => (
+  <svg
+    className="sidebar-logo"
+    width="22"
+    height="22"
+    viewBox="0 0 22 22"
+    fill="none"
+    aria-label="Grillo"
+  >
+    {/* Body — rounded rect */}
+    <rect x="6" y="9" width="10" height="8" rx="3" stroke="currentColor" strokeWidth="1.75"/>
+    {/* Head */}
+    <circle cx="11" cy="7" r="2" stroke="currentColor" strokeWidth="1.75"/>
+    {/* Left antenna */}
+    <path d="M9 5.5 C8 3.5 5.5 3 5 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    {/* Right antenna */}
+    <path d="M13 5.5 C14 3.5 16.5 3 17 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    {/* Legs — three per side, subtle */}
+    <line x1="6" y1="12" x2="3" y2="11" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round"/>
+    <line x1="6" y1="14" x2="3" y2="14" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round"/>
+    <line x1="6" y1="16" x2="3" y2="17" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round"/>
+    <line x1="16" y1="12" x2="19" y2="11" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round"/>
+    <line x1="16" y1="14" x2="19" y2="14" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round"/>
+    <line x1="16" y1="16" x2="19" y2="17" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round"/>
+  </svg>
+);
+
+// ── Nav config ───────────────────────────────────────────────────────────────
+
 const NAV_ITEMS = [
-  { to: "/board", label: "Board", icon: "▦" },
-  { to: "/backlog", label: "Backlog", icon: "≡" },
-  { to: "/table", label: "Table", icon: "▤" },
-  { to: "/roadmap", label: "Roadmap", icon: "📅" },
-  { to: "/calendar", label: "Calendar", icon: "🗓" },
-  { to: "/docs", label: "Docs", icon: "📄" },
-  { to: "/bugs", label: "Bug triage", icon: "🐞" },
-  { to: "/mywork", label: "My work", icon: "★" },
-  { to: "/search", label: "Search", icon: "🔍" }
+  { to: "/board",    label: "Board",      icon: <IconBoard /> },
+  { to: "/backlog",  label: "Backlog",    icon: <IconBacklog /> },
+  { to: "/table",    label: "Table",      icon: <IconTable /> },
+  { to: "/roadmap",  label: "Roadmap",    icon: <IconRoadmap /> },
+  { to: "/calendar", label: "Calendar",   icon: <IconCalendar /> },
+  { to: "/docs",     label: "Docs",       icon: <IconDocs /> },
+  { to: "/bugs",     label: "Bug triage", icon: <IconBug /> },
+  { to: "/mywork",   label: "My work",    icon: <IconMyWork /> },
+  { to: "/search",   label: "Search",     icon: <IconSearch /> },
 ];
 
 const SECONDARY = [
-  { to: "/settings", label: "Settings", icon: "⚙" }
+  { to: "/settings", label: "Settings", icon: <IconSettings /> },
 ];
+
+// ── Shell ────────────────────────────────────────────────────────────────────
 
 export function AppShell({ appMode, children }: AppShellProps) {
   const location = useLocation();
@@ -47,7 +206,12 @@ export function AppShell({ appMode, children }: AppShellProps) {
       } else if (mod && e.key.toLowerCase() === "p") {
         e.preventDefault();
         openPalette();
-      } else if (!mod && e.key === "c" && document.activeElement?.tagName !== "INPUT" && document.activeElement?.tagName !== "TEXTAREA") {
+      } else if (
+        !mod &&
+        e.key === "c" &&
+        document.activeElement?.tagName !== "INPUT" &&
+        document.activeElement?.tagName !== "TEXTAREA"
+      ) {
         const target = e.target as HTMLElement | null;
         if (target && target.isContentEditable) return;
         e.preventDefault();
@@ -62,7 +226,8 @@ export function AppShell({ appMode, children }: AppShellProps) {
 
   useEffect(() => {
     const onToggle = () => toggle();
-    const onOpenCreate = () => window.dispatchEvent(new CustomEvent("gph:open-create-item-shortcut"));
+    const onOpenCreate = () =>
+      window.dispatchEvent(new CustomEvent("gph:open-create-item-shortcut"));
     const onNavigate = (e: Event) => {
       const path = (e as CustomEvent<string>).detail;
       navigate(path);
@@ -78,24 +243,47 @@ export function AppShell({ appMode, children }: AppShellProps) {
   }, [toggle, navigate]);
 
   const trust = bundle?.projectSettings.storageTrust ?? "unsaved";
-  const isProjectRoute = useMemo(() => location.pathname !== "/" && !location.pathname.startsWith("/open") && !location.pathname.startsWith("/demo"), [location.pathname]);
+  const isProjectRoute = useMemo(
+    () =>
+      location.pathname !== "/" &&
+      !location.pathname.startsWith("/open") &&
+      !location.pathname.startsWith("/demo"),
+    [location.pathname]
+  );
 
   return (
     <div className="app-shell" data-mode={appMode} data-theme={resolved}>
       <aside className="app-sidebar" aria-label="Primary Navigation">
-        <h1>Grillo Project Hub</h1>
+        <div className="sidebar-brand">
+          <GrilloLogo />
+          <span className="sidebar-brand-name">Grillo</span>
+        </div>
+
         <div className="sidebar-section">
           <div className="sidebar-section-title">Workspace</div>
-          <Link to="/" className="sidebar-link" aria-current={location.pathname === "/" ? "page" : undefined}>
-            <span>📁</span> Projects
+          <Link
+            to="/"
+            className="sidebar-link"
+            aria-current={location.pathname === "/" ? "page" : undefined}
+          >
+            <IconProjects /> Projects
           </Link>
-          <Link to="/open" className="sidebar-link" aria-current={location.pathname === "/open" ? "page" : undefined}>
-            <span>📂</span> Open
+          <Link
+            to="/open"
+            className="sidebar-link"
+            aria-current={location.pathname === "/open" ? "page" : undefined}
+          >
+            <IconOpen /> Open
           </Link>
-          <Link to="/demo" className="sidebar-link" aria-current={location.pathname === "/demo" ? "page" : undefined}>
-            <span>✨</span> Demo
+          <Link
+            to="/demo"
+            className="sidebar-link"
+            aria-current={location.pathname === "/demo" ? "page" : undefined}
+          >
+            <IconDemo /> Demo
           </Link>
         </div>
+
         <div className="sidebar-section">
           <div className="sidebar-section-title">Project</div>
           {NAV_ITEMS.map((item) => (
@@ -103,12 +291,15 @@ export function AppShell({ appMode, children }: AppShellProps) {
               key={item.to}
               to={item.to}
               className="sidebar-link"
-              aria-current={location.pathname.startsWith(item.to) ? "page" : undefined}
+              aria-current={
+                location.pathname.startsWith(item.to) ? "page" : undefined
+              }
             >
-              <span>{item.icon}</span> {item.label}
+              {item.icon} {item.label}
             </Link>
           ))}
         </div>
+
         <div className="sidebar-section">
           <div className="sidebar-section-title">App</div>
           {SECONDARY.map((item) => (
@@ -116,9 +307,11 @@ export function AppShell({ appMode, children }: AppShellProps) {
               key={item.to}
               to={item.to}
               className="sidebar-link"
-              aria-current={location.pathname.startsWith(item.to) ? "page" : undefined}
+              aria-current={
+                location.pathname.startsWith(item.to) ? "page" : undefined
+              }
             >
-              <span>{item.icon}</span> {item.label}
+              {item.icon} {item.label}
             </Link>
           ))}
         </div>
@@ -131,7 +324,11 @@ export function AppShell({ appMode, children }: AppShellProps) {
               <strong>{bundle.project.name}</strong>
               <span className="storage-badge" data-trust={trust}>
                 <span className="storage-dot" />
-                {trust === "folder" ? "Folder" : trust === "browser" ? "Browser" : "Unsaved"}
+                {trust === "folder"
+                  ? "Folder"
+                  : trust === "browser"
+                  ? "Browser"
+                  : "Unsaved"}
               </span>
             </>
           ) : (
@@ -139,9 +336,15 @@ export function AppShell({ appMode, children }: AppShellProps) {
           )}
         </div>
         <div className="row" style={{ gap: 8 }}>
-          <button className="btn btn-sm" onClick={() => openPalette()}>Search / Commands <span className="mono text-xs">Ctrl K</span></button>
-          <button className="btn btn-sm" onClick={toggle} aria-label="Toggle theme">
-            {resolved === "dark" ? "☾" : "☀"}
+          <button className="btn btn-sm" onClick={() => openPalette()}>
+            Search / Commands <kbd className="kbd">Ctrl K</kbd>
+          </button>
+          <button
+            className="btn btn-sm btn-ghost icon-btn"
+            onClick={toggle}
+            aria-label={resolved === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {resolved === "dark" ? <IconSun /> : <IconMoon />}
           </button>
         </div>
       </header>
@@ -165,7 +368,9 @@ function ProjectViewTabs() {
           key={item.to}
           to={item.to}
           role="tab"
-          aria-current={location.pathname.startsWith(item.to) ? "page" : undefined}
+          aria-current={
+            location.pathname.startsWith(item.to) ? "page" : undefined
+          }
           className="viewbar-tab"
         >
           {item.label}
