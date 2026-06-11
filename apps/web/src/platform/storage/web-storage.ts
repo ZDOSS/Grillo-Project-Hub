@@ -53,10 +53,13 @@ function openHandlesDb(): Promise<IDBDatabase> {
 async function readStoredFolderHandle(): Promise<FileSystemDirectoryHandle | null> {
   if (typeof indexedDB === "undefined") return null;
   const db = await openHandlesDb();
-  return new Promise((resolve, reject) => {
+  return new Promise<FileSystemDirectoryHandle | null>((resolve, reject) => {
     const tx = db.transaction(FS_STORE_NAME, "readonly");
     const request = tx.objectStore(FS_STORE_NAME).get(FS_FOLDER_HANDLE_KEY);
-    request.onsuccess = () => resolve((request.result as FileSystemDirectoryHandle | undefined) ?? null);
+    request.onsuccess = () => {
+      const value = request.result;
+      resolve(value == null ? null : (value as FileSystemDirectoryHandle));
+    };
     request.onerror = () => reject(request.error ?? new Error("Could not read folder handle"));
   }).finally(() => db.close());
 }
@@ -245,8 +248,9 @@ class WebLocalStorageAdapter implements ProjectStoreAdapter {
     writeIndex(readIndex().filter((m) => m.key !== key));
   }
   async chooseFolder(): Promise<string | null> {
-    if (!supportsFolderAccess()) return null;
-    const handle = await window.showDirectoryPicker({ mode: "readwrite" });
+    const picker = supportsFolderAccess() ? window.showDirectoryPicker : undefined;
+    if (!picker) return null;
+    const handle = await picker.call(window, { mode: "readwrite" });
     const granted = await ensureFolderPermission(handle, "readwrite", true);
     if (!granted) return null;
     await writeStoredFolderHandle(handle);
