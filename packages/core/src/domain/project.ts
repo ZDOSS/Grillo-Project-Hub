@@ -98,7 +98,7 @@ export type ProjectBundle = {
 };
 
 export type TrashRecord = {
-  recordType: "workItem" | "document" | "milestone" | "label" | "status" | "priority" | "type" | "severity" | "view" | "docFolder" | "relationship";
+  recordType: "workItem" | "document" | "milestone" | "label" | "status" | "priority" | "type" | "severity" | "view" | "docFolder" | "relationship" | "attachment";
   recordId: string;
   payload: unknown;
   trashedAt: Timestamp;

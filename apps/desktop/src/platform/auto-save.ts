@@ -12,7 +12,7 @@ export function useAutoSave() {
     if (!bundle || !storageKey || !isDirty) return;
     const json = useProjectStore.getState().serialize();
     let cancelled = false;
-    DesktopStorageAdapter.adapter.save(storageKey, json).then((meta) => {
+    DesktopStorageAdapter.adapter.save(storageKey, json, null).then((meta) => {
       if (cancelled) return;
       markSaved(storageKey, meta.displayPath, meta.trust);
     }).catch((err) => {

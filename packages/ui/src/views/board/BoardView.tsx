@@ -63,7 +63,8 @@ export function BoardView({ view }: BoardViewProps) {
     if (col.statusIds.includes(item.statusId)) return;
     const targetStatus = col.defaultDropStatusId;
     if (!col.statusIds.includes(targetStatus)) {
-      throw new Error("Invalid drop target: default drop status not in column");
+      console.warn("Invalid drop target: default drop status not in column");
+      return;
     }
     if (item.statusId === targetStatus) return;
     // WIP hard enforcement

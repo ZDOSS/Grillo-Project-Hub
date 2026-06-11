@@ -231,6 +231,8 @@ function updateItem(bundle: ProjectBundle, payload: { projectId: string; itemId:
 
 function moveItemStatus(bundle: ProjectBundle, payload: { projectId: string; itemId: string; toStatusId: string }): DispatchResult {
   const item = findItemOrThrow(bundle, payload.itemId);
+  const statusDef = findStatus(bundle.core.statuses, payload.toStatusId);
+  if (!statusDef) throw new Error(`Unknown status: ${payload.toStatusId}`);
   const next = { ...item, statusId: payload.toStatusId, updatedAt: nowTimestamp() };
   const nextBundle = withCore(bundle, (c) => ({ ...c, items: c.items.map((i) => (i.id === item.id ? next : i)) }));
   const event = createEvent({
@@ -767,7 +769,7 @@ function addAttachmentCommand(
 function deleteAttachmentCommand(bundle: ProjectBundle, payload: { projectId: string; attachmentId: string }): DispatchResult {
   const att = bundle.core.attachments.find((a) => a.id === payload.attachmentId);
   if (!att) throw new Error("Attachment not found");
-  const trash: TrashRecord = { recordType: "workItem", recordId: att.id, payload: att, trashedAt: nowTimestamp() };
+  const trash: TrashRecord = { recordType: "attachment", recordId: att.id, payload: att, trashedAt: nowTimestamp() };
   const nextBundle = withCore(bundle, (c) => ({
     ...c,
     attachments: c.attachments.filter((a) => a.id !== payload.attachmentId),

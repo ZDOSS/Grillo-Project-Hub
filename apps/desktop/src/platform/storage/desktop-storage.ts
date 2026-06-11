@@ -59,7 +59,13 @@ class DesktopAdapter implements ProjectStoreAdapter {
     if (!raw) return null;
     return { json: raw, metadata: { key, displayPath: null, externalRevision: null, trust: "browser" } };
   }
-  async save(key: string, json: string): Promise<StorageMetadata> {
+  async save(key: string, json: string, expectedRevision?: number | null): Promise<StorageMetadata> {
+    if (expectedRevision != null) {
+      const existing = this.listSync().find((m) => m.key === key);
+      if (existing && existing.externalRevision != null && existing.externalRevision !== expectedRevision) {
+        throw new Error("External change detected; refusing to save without explicit conflict resolution");
+      }
+    }
     const tauri = getTauri();
     if (tauri) {
       const folder = getFolder();
