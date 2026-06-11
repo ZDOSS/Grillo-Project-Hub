@@ -189,12 +189,6 @@
   background: var(--color-bg-row-hover);
   color: var(--color-text-primary);
 }
-.viewbar-tab[aria-current="page"] {
-  background: var(--color-accent-soft);
-  color: var(--color-text-primary);
-  border-color: var(--color-accent-soft);
-  font-weight: 600;
-}
 .view-content {
   flex: 1;
   display: flex;
@@ -976,6 +970,10 @@
   font-weight: 500;
   color: var(--color-text-secondary);
   letter-spacing: 0;
+}
+[data-theme="dark"] .kbd {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.16);
 }
 
 /* Icon-only button (theme toggle) */

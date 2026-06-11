@@ -56,6 +56,9 @@
   --radius-lg: 14px;
   --radius-xl: 20px;
 
+  /* Prefer native system fonts (ui-sans-serif first) for reliable offline/desktop rendering across platforms.
+     "Inter" was listed previously but never actually loaded via @font-face or <link> in the apps, so this is a no-op for rendering
+     but clarifies the intent to avoid assuming a specific web font. */
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI Variable Text", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --font-mono: "JetBrains Mono", "Cascadia Code", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
