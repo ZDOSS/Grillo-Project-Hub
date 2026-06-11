@@ -15,7 +15,7 @@ describe("AppShell", () => {
         </MemoryRouter>
       </ThemeProvider>
     );
-    expect(screen.getByText(/Grillo Project Hub/i)).toBeInTheDocument();
+    expect(screen.getByRole("banner", { name: /Grillo Project Hub/i })).toBeInTheDocument();
     expect(screen.getByRole("complementary", { name: /primary navigation/i })).toBeInTheDocument();
   });
 });

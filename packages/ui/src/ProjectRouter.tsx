@@ -11,7 +11,7 @@ import { MyWorkView } from "./views/mywork/MyWorkView";
 import { SearchView } from "./views/search/SearchView";
 import { SettingsView } from "./views/settings/SettingsView";
 import { WorkItemDrawer, CreateItemDialog } from "./work-item";
-import { useNavigate, useParams, useLocation, Route, Routes } from "react-router-dom";
+import { Link, Navigate, Route, Routes } from "react-router-dom";
 import { openCreateItem, subscribeCreateItem } from "./commands/palette-bus";
 import { useState } from "react";
 
@@ -25,7 +25,12 @@ export function ProjectRouter() {
     return (
       <div className="empty">
         <div className="empty-title">No project open</div>
-        <div>Use the sidebar to create a new project, open a file, or browse the demo.</div>
+        <div>Use the workspace launcher to reopen a saved project, import a bundle, or browse the demo.</div>
+        <div className="row" style={{ flexWrap: "wrap", justifyContent: "center" }}>
+          <Link className="btn btn-primary" to="/">Projects</Link>
+          <Link className="btn" to="/open">Open / import</Link>
+          <Link className="btn btn-ghost" to="/demo">Demo</Link>
+        </div>
       </div>
     );
   }
@@ -40,6 +45,7 @@ function ProjectRoutes() {
   return (
     <>
       <Routes>
+        <Route path="/" element={<Navigate to="/board" replace />} />
         <Route path="/board" element={boardView ? <BoardView view={boardView as never} /> : <BacklogView />} />
         <Route path="/backlog" element={<BacklogView />} />
         <Route path="/table" element={<TableView />} />

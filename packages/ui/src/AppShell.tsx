@@ -4,6 +4,7 @@ import { useProjectStore } from "./store/project-store";
 import { useTheme } from "./theme/theme-provider";
 import { CommandPalette, registerCoreCommands } from "./commands/CommandPalette";
 import { openPalette } from "./commands/palette-bus";
+import { PROJECT_NAV_ITEMS } from "./nav-config";
 
 export type AppShellProps = {
   appMode: "web" | "desktop";
@@ -171,17 +172,22 @@ const GrilloLogo = () => (
 
 // ── Nav config ───────────────────────────────────────────────────────────────
 
-const NAV_ITEMS = [
-  { to: "/board",    label: "Board",      icon: <IconBoard /> },
-  { to: "/backlog",  label: "Backlog",    icon: <IconBacklog /> },
-  { to: "/table",    label: "Table",      icon: <IconTable /> },
-  { to: "/roadmap",  label: "Roadmap",    icon: <IconRoadmap /> },
-  { to: "/calendar", label: "Calendar",   icon: <IconCalendar /> },
-  { to: "/docs",     label: "Docs",       icon: <IconDocs /> },
-  { to: "/bugs",     label: "Bug triage", icon: <IconBug /> },
-  { to: "/mywork",   label: "My work",    icon: <IconMyWork /> },
-  { to: "/search",   label: "Search",     icon: <IconSearch /> },
-];
+const NAV_ICONS = {
+  board: <IconBoard />,
+  backlog: <IconBacklog />,
+  table: <IconTable />,
+  roadmap: <IconRoadmap />,
+  calendar: <IconCalendar />,
+  docs: <IconDocs />,
+  bugs: <IconBug />,
+  mywork: <IconMyWork />,
+  search: <IconSearch />
+} satisfies Record<(typeof PROJECT_NAV_ITEMS)[number]["id"], ReactNode>;
+
+const NAV_ITEMS = PROJECT_NAV_ITEMS.map((item) => ({
+  ...item,
+  icon: NAV_ICONS[item.id]
+}));
 
 const SECONDARY = [
   { to: "/settings", label: "Settings", icon: <IconSettings /> },
@@ -243,6 +249,11 @@ export function AppShell({ appMode, children }: AppShellProps) {
   }, [toggle, navigate]);
 
   const trust = bundle?.projectSettings.storageTrust ?? "unsaved";
+  const hiddenViewIds = bundle?.projectSettings.hiddenViewIds ?? [];
+  const visibleNavItems = useMemo(
+    () => NAV_ITEMS.filter((item) => !hiddenViewIds.includes(item.id)),
+    [hiddenViewIds]
+  );
   const isProjectRoute = useMemo(
     () =>
       location.pathname !== "/" &&
@@ -286,7 +297,7 @@ export function AppShell({ appMode, children }: AppShellProps) {
 
         <div className="sidebar-section">
           <div className="sidebar-section-title">Project</div>
-          {NAV_ITEMS.map((item) => (
+          {visibleNavItems.map((item) => (
             <Link
               key={item.to}
               to={item.to}
@@ -350,7 +361,7 @@ export function AppShell({ appMode, children }: AppShellProps) {
       </header>
 
       <main className="app-main">
-        {isProjectRoute && bundle ? <ProjectViewTabs /> : null}
+        {isProjectRoute && bundle ? <ProjectViewTabs items={visibleNavItems} /> : null}
         <div className="view-content">{children}</div>
       </main>
 
@@ -359,11 +370,11 @@ export function AppShell({ appMode, children }: AppShellProps) {
   );
 }
 
-function ProjectViewTabs() {
+function ProjectViewTabs({ items }: { items: typeof NAV_ITEMS }) {
   const location = useLocation();
   return (
     <div className="viewbar" role="tablist" aria-label="Project views">
-      {NAV_ITEMS.map((item) => (
+      {items.map((item) => (
         <Link
           key={item.to}
           to={item.to}

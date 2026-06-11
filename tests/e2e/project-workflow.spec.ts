@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 
 test("the user can create an item, change its status, and see the activity log", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await page.locator(".modal-footer button.btn-primary").click();
   await expect(page).toHaveURL(/\/board/);
   // Open new item dialog with the C shortcut
   await page.keyboard.press("c");
@@ -19,7 +19,7 @@ test("the user can create an item, change its status, and see the activity log",
 
 test("export downloads a JSON project bundle", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await page.locator(".modal-footer button.btn-primary").click();
   await expect(page).toHaveURL(/\/board/);
   // Navigate to settings and export
   await page.getByRole("link", { name: "Settings" }).click();

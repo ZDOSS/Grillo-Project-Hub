@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { useProjectStore } from "../../store/project-store";
 import { getBugData, type WorkItem } from "@gph/core";
+import { openCreateItem } from "../../commands/palette-bus";
 
 /**
  * Bug triage view. Three columns: Intake, Ready, In Progress.
@@ -30,7 +31,14 @@ export function BugTriageView() {
           <div key={col.id} className="bugs-column">
             <div className="row-between">
               <strong>{col.title}</strong>
-              <span className="text-xs text-muted">{items.length}</span>
+              <div className="row">
+                {col.id === "intake" ? (
+                  <button className="btn btn-sm btn-primary" onClick={() => openCreateItem({ typeId: "bug" })}>
+                    New bug
+                  </button>
+                ) : null}
+                <span className="text-xs text-muted">{items.length}</span>
+              </div>
             </div>
             {items.length === 0 && <div className="text-muted text-xs">No bugs</div>}
             {items.map((item) => {

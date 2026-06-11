@@ -58,6 +58,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - `Attachment` metadata in the bundle, binary payloads in `attachments/` for folder-backed projects
 - `EventRecord` log with `source: "ui" | "import" | "automation" | "mcp" | "system"`
 - project-level `TrashRecord` for soft-deleted records; permanent deletion is gated
+- `projectSettings.hiddenViewIds` for left-panel/viewbar visibility preferences without deleting underlying views
 
 ## Storage model summary
 
@@ -68,6 +69,9 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - `InMemoryProjectStore` is available for tests
 - external change detection uses the adapter's `externalRevision` counter and `WatchEvent` notifications
 - trust status is surfaced in the UI as a `Folder-backed` / `Browser-local` / `Unsaved` badge
+- desktop storage now only writes to the filesystem when a folder path has actually been attached; otherwise the desktop shell behaves as browser-local storage on purpose instead of pretending to be folder-backed
+- recent-project reopen uses the active adapter's `load()` path rather than forcing JSON import; desktop recents restore the remembered folder path before loading
+- the desktop recent-project reopen path still depends on `DesktopAdapter.load()` reading the active folder from `localStorage` at call time; `ProjectsListView` now documents that ordering explicitly so later adapter refactors do not accidentally cache the folder too early
 
 ## Command surface
 
@@ -75,14 +79,25 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - command families include `project.*`, `item.*`, `relationship.*`, `comment.*`, `milestone.*`, `label.*`, `member.*`, `status.*`, `priority.*`, `type.*`, `doc.*`, `customField.*`, `reminder.*`, `attachment.*`, `view.*`, `search`
 - the dispatcher in `packages/core/src/commands/dispatcher.ts` applies the change, records `EventRecord`s, and returns the new bundle
 - hierarchy rules, archive/trash, severity independence, and date-only vs UTC timestamp validation are enforced in dispatcher paths
+- newly added commands in this pass:
+  - `project.updateSettings` for plugin trust mode and left-panel visibility (`hiddenViewIds`)
+  - `member.update` for inline member edits
+  - `member.delete` for archiving a member and unassigning any items still assigned to them
+- dispatcher hardening added after review:
+  - `member.update` now throws `Error("Member not found")` for unknown IDs instead of silently succeeding
+  - `project.updateSettings` now preserves `hiddenViewIds: []` for legacy bundles that predate that field instead of reintroducing `undefined`
 
 ## Platform differences between web and desktop
 
 - both apps import the same `@gph/ui` AppShell, views, and command palette
+- project navigation metadata now lives in shared `packages/ui/src/nav-config.ts`, so AppShell navigation and Settings left-panel visibility both derive from one source of truth
 - the web app uses `@vitejs/plugin-pwa` for install/offline; the desktop app uses the Tauri runtime
 - the web app's storage adapter is localStorage-only; the desktop adapter talks to a Rust filesystem command
 - in development, both apps run in the browser; the desktop app's storage adapter falls back to localStorage when `__TAURI__` is absent
 - the AppShell accepts an `appMode: "web" | "desktop"` prop for platform-specific header sizing
+- the shared workspace launcher now explains the real storage story per platform:
+  - web/PWA: browser-local projects plus JSON import/export
+  - desktop: browser-local by default, optional manual folder path for new projects, and folder scanning/open for existing `.pm-suite` saves
 
 ## Module/plugin rules
 
@@ -91,7 +106,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - core items survive module disable/remove
 - unknown module sections are preserved unchanged when saving
 - bug severities are stored in the `builtin.bugs` section and only apply to type IDs configured by the bug module
-- plugin trust posture is surfaced in Settings (`first-party only` is the only enabled mode in MVP; `curated/signed` and `unrestricted` are documented placeholders for later stages)
+- plugin trust posture is surfaced in Settings and now writes back into `projectSettings.pluginTrustMode`; runtime enforcement is still MVP-first-party-only, but the setting is no longer dead UI
 
 ## Key implementation invariants
 
@@ -108,19 +123,39 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 
 ## Current major workflows
 
-- workspace launcher (`/`, `/open`, `/demo`) with new project dialog and template selection
+- workspace launcher (`/`, `/open`, `/demo`) with:
+  - reopen-from-recents support
+  - browser-vs-folder storage explanation
+  - explicit delete/remove confirmation for saved projects
+  - folder-backed delete is intentionally "remove recent shortcut only" and does not delete filesystem data
+  - desktop folder-path attach flow for new projects
+  - desktop folder scan/open flow for existing `.pm-suite` saves
 - per-project view tabs across board, backlog, table, roadmap, calendar, docs, bug triage, my work, search
 - work item drawer at `/item/:id` with full edit, checklist conversion, comments, subtasks, activity
-- settings view with theme, members, statuses, priorities, types, labels, milestones, custom fields, automation, plugins, export/import, AI bridge
+- settings view with theme, left-panel visibility, editable members, editable statuses, editable priorities, editable types, labels, milestones, custom fields, plugins, export/import, AI bridge
+- launcher and member removal flows now use inline confirmation UI instead of `window.confirm`, which keeps the behavior testable in jsdom/Vitest and avoids blocking browser-native modal prompts
 - command palette (`Ctrl/Cmd+K`) and `C` shortcut
 - export downloads `.pms.json`, `.md`, or `.csv` from Settings
 - import accepts a `.pms.json` and replaces the active bundle
 - auto-save runs through the platform storage adapter and is visible via the trust badge
+- docs navigation is now router-safe inside the PWA:
+  - sidebar doc links use React Router links
+  - backlink pills use React Router links
+  - rendered `[[doc:id]]` / `[[item:id]]` preview links are intercepted client-side instead of hard-navigating to a 404
+  - preview interception now keys off a stable `data-route` attribute rather than the styling-only `docs-link` class, so class-name or sanitizer changes do not silently break routing
+- bug triage now exposes a visible `New bug` action in the intake column
 
 ## Testing strategy
 
 - TDD for the shared core: domain rules, command handlers, storage contract, and export/import
-- Vitest component tests for `AppShell`, `BoardView`, `BacklogView`, `CommandPalette`
+- Vitest component tests for `AppShell`, `BoardView`, `BacklogView`, `CommandPalette`, `ProjectsListView`, and `DocsView`
+- review-follow-up regressions now have dedicated tests for:
+  - unknown-member updates in the dispatcher
+  - legacy `hiddenViewIds` fallback behavior
+  - inline delete confirmation in the launcher
+  - inline member removal confirmation in Settings
+  - docs preview routing via `data-route`
+- the Settings view test now always seeds a fresh project-store bundle per run instead of reusing any stale Zustand singleton state from prior tests
 - Playwright e2e for hybrid parity, theme toggle, command palette, project creation, item creation with `C` shortcut, JSON export download, and search
 - `npm test` runs unit + component tests; `npm run test:e2e` runs Playwright against the running web dev server
 
@@ -137,6 +172,23 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - added the PWA manifest, service worker registration, favicon, and auto-save bridge for the web app
 - added Playwright e2e and Vitest unit/component tests across the monorepo
 - added GitHub Actions workflow (`.github/workflows/deploy-web.yml`) to automatically build and deploy the `apps/web` PWA to GitHub Pages on pushes to `main` (and manual dispatch). Includes Vite `base` configuration for the project subpath, `BrowserRouter` `basename` support for client routing, SPA `404.html` fallback, and full PWA assets. Updated `vite.config.ts`, `main.tsx`, `Readme.md`, and this file. Provides a static demo of the web shell (data remains browser-local).
+- stabilized the launcher and startup UX after the visual pass:
+  - recents can now actually reopen saved projects
+  - the no-project state has direct recovery actions
+  - desktop folder-backed saves no longer silently assume a folder when none is attached
+- replaced dead-end settings rows with editable registry tables for members, statuses, priorities, and work-item types
+- added project-level left-panel visibility preferences and wired them into the shared AppShell nav + viewbar filtering
+- fixed PWA/router breakage caused by hard `href="/doc/..."` and `href="/item/..."` links in docs and work-item detail surfaces
+- updated unit and e2e tests to cover reopen-from-recents and router-safe docs navigation, and refreshed shell/e2e selectors to match the current UI
+- closed the Greptile follow-up robustness pass by:
+  - hardening dispatcher behavior for unknown member IDs and legacy `hiddenViewIds`
+  - documenting the folder-restore ordering contract used by desktop recents reopen
+  - replacing `window.confirm` with inline confirmation in launcher and member-removal flows
+  - switching docs preview click interception from a CSS-class dependency to a stable data attribute
+- closed the next review follow-up by:
+  - centralizing nav/view metadata in shared `nav-config.ts`
+  - fixing the stale-bundle bug in `SettingsView.test.tsx`
+  - documenting that folder-backed recent deletion only removes the launcher shortcut
 
 ## Open follow-on planning
 

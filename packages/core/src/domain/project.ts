@@ -92,6 +92,7 @@ export type ProjectBundle = {
   projectSettings: {
     defaultViewId: string | null;
     enabledModuleIds: string[];
+    hiddenViewIds: string[];
     storageTrust: "folder" | "browser" | "unsaved";
     pluginTrustMode: "first-party" | "curated" | "unrestricted";
   };
@@ -222,6 +223,7 @@ export function createProjectBundle(input: { name: string; description?: string;
         "builtin.calendar",
         "builtin.attachments"
       ],
+      hiddenViewIds: [],
       storageTrust: "browser",
       pluginTrustMode: "first-party"
     }

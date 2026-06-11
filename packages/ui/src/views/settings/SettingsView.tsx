@@ -1,16 +1,33 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { exportProjectCsv, exportProjectJson, exportProjectMarkdown, importProjectJson, type Member, type PriorityDefinition, type StatusDefinition, type WorkItemTypeDefinition } from "@gph/core";
 import { useProjectStore } from "../../store/project-store";
 import { useTheme } from "../../theme/theme-provider";
-import { exportProjectJson, exportProjectMarkdown, exportProjectCsv } from "@gph/core";
+import { PROJECT_NAV_ITEMS } from "../../nav-config";
+
+const SIDEBAR_OPTIONS = PROJECT_NAV_ITEMS.map(({ id, label }) => ({ id, label }));
+
+type SettingsTab =
+  | "general"
+  | "sidebar"
+  | "members"
+  | "statuses"
+  | "priorities"
+  | "types"
+  | "labels"
+  | "milestones"
+  | "fields"
+  | "plugins"
+  | "export"
+  | "bridge";
 
 /**
- * Settings view: theme, members, statuses, priorities, types, plugin trust, export/import.
+ * Settings view: editable registry tables for the project's shared configuration.
  */
 export function SettingsView() {
   const bundle = useProjectStore((s) => s.bundle);
   const applyCommand = useProjectStore((s) => s.applyCommand);
   const { theme, setTheme } = useTheme();
-  const [tab, setTab] = useState<"general" | "members" | "statuses" | "priorities" | "types" | "labels" | "milestones" | "fields" | "automation" | "plugins" | "export" | "bridge">("general");
+  const [tab, setTab] = useState<SettingsTab>("general");
   const [memberName, setMemberName] = useState("");
   const [statusName, setStatusName] = useState("");
   const [statusCategory, setStatusCategory] = useState<"planned" | "active" | "completed" | "canceled">("planned");
@@ -30,6 +47,7 @@ export function SettingsView() {
       <div className="row" style={{ flexWrap: "wrap", gap: 4, marginBottom: 16 }}>
         {([
           ["general", "General"],
+          ["sidebar", "Left panel"],
           ["members", "Members"],
           ["statuses", "Statuses"],
           ["priorities", "Priorities"],
@@ -37,7 +55,6 @@ export function SettingsView() {
           ["labels", "Labels"],
           ["milestones", "Milestones"],
           ["fields", "Custom fields"],
-          ["automation", "Automation"],
           ["plugins", "Plugins & trust"],
           ["export", "Export & import"],
           ["bridge", "AI bridge"]
@@ -46,12 +63,14 @@ export function SettingsView() {
             key={k}
             className={`btn btn-sm ${tab === k ? "btn-primary" : ""}`}
             onClick={() => setTab(k)}
-          >{label}</button>
+          >
+            {label}
+          </button>
         ))}
       </div>
 
       {tab === "general" && (
-        <div className="col" style={{ gap: 12, maxWidth: 600 }}>
+        <div className="col" style={{ gap: 12, maxWidth: 720 }}>
           <label className="label label-row">
             Project name
             <input
@@ -61,10 +80,6 @@ export function SettingsView() {
             />
           </label>
           <label className="label label-row">
-            Description
-            <textarea className="textarea" value={bundle.project.description ?? ""} onChange={(e) => applyCommand({ type: "item.update", projectId: bundle.project.id, itemId: "_project_", patch: { description: e.target.value } } as never)} />
-          </label>
-          <label className="label label-row">
             Theme
             <select className="select" value={theme} onChange={(e) => setTheme(e.target.value as "light" | "dark" | "system")}>
               <option value="system">System</option>
@@ -72,6 +87,13 @@ export function SettingsView() {
               <option value="dark">Dark</option>
             </select>
           </label>
+          <div className="workspace-inline-note">
+            {bundle.projectSettings.storageTrust === "folder"
+              ? "This project is attached to a local folder and will auto-save there."
+              : bundle.projectSettings.storageTrust === "browser"
+              ? "This project is currently browser-local. Reopen it from the workspace recents, or export/import a bundle when moving machines."
+              : "This project has not been saved yet."}
+          </div>
           <div className="row">
             <span className="storage-badge" data-trust={bundle.projectSettings.storageTrust}>
               <span className="storage-dot" /> {bundle.projectSettings.storageTrust === "folder" ? "Folder-backed" : bundle.projectSettings.storageTrust === "browser" ? "Browser-local" : "Unsaved"}
@@ -80,28 +102,39 @@ export function SettingsView() {
         </div>
       )}
 
+      {tab === "sidebar" && <SidebarTab />}
+
       {tab === "members" && (
-        <div className="col" style={{ gap: 8, maxWidth: 600 }}>
-          <div className="row">
+        <div className="col" style={{ gap: 12, maxWidth: 920 }}>
+          <div className="settings-grid settings-grid-add">
             <input className="input" placeholder="Display name" value={memberName} onChange={(e) => setMemberName(e.target.value)} />
-            <button className="btn btn-primary" onClick={() => {
-              if (!memberName.trim()) return;
-              applyCommand({ type: "member.create", projectId: bundle.project.id, displayName: memberName.trim() });
-              setMemberName("");
-            }}>Add member</button>
+            <button
+              className="btn btn-primary"
+              onClick={() => {
+                if (!memberName.trim()) return;
+                applyCommand({ type: "member.create", projectId: bundle.project.id, displayName: memberName.trim() });
+                setMemberName("");
+              }}
+            >
+              Add member
+            </button>
           </div>
-          {bundle.core.members.map((m) => (
-            <div key={m.id} className="row-between" style={{ padding: 8, borderBottom: "1px solid var(--color-border-subtle)" }}>
-              <span>{m.displayName}</span>
-              <span className="text-xs text-muted">#{m.id.slice(-6)}</span>
+          <div className="settings-table">
+            <div className="settings-table-header">
+              <span>Name</span>
+              <span>Workload</span>
+              <span>Actions</span>
             </div>
-          ))}
+            {bundle.core.members.filter((member) => !member.archived).map((member) => (
+              <MemberRow key={member.id} member={member} />
+            ))}
+          </div>
         </div>
       )}
 
       {tab === "statuses" && (
-        <div className="col" style={{ gap: 8, maxWidth: 600 }}>
-          <div className="row">
+        <div className="col" style={{ gap: 12, maxWidth: 980 }}>
+          <div className="settings-grid settings-grid-add settings-grid-status">
             <input className="input" placeholder="Name" value={statusName} onChange={(e) => setStatusName(e.target.value)} />
             <select className="select" value={statusCategory} onChange={(e) => setStatusCategory(e.target.value as "planned" | "active" | "completed" | "canceled")}>
               <option value="planned">Planned</option>
@@ -109,57 +142,92 @@ export function SettingsView() {
               <option value="completed">Completed</option>
               <option value="canceled">Canceled</option>
             </select>
-            <button className="btn btn-primary" onClick={() => {
-              if (!statusName.trim()) return;
-              applyCommand({ type: "status.create", projectId: bundle.project.id, name: statusName.trim(), category: statusCategory });
-              setStatusName("");
-            }}>Add status</button>
+            <button
+              className="btn btn-primary"
+              onClick={() => {
+                if (!statusName.trim()) return;
+                applyCommand({ type: "status.create", projectId: bundle.project.id, name: statusName.trim(), category: statusCategory });
+                setStatusName("");
+              }}
+            >
+              Add status
+            </button>
           </div>
-          {bundle.core.statuses.map((s) => (
-            <div key={s.id} className="row-between" style={{ padding: 8, borderBottom: "1px solid var(--color-border-subtle)" }}>
-              <span>{s.name}</span>
-              <span className="tag">{s.category}</span>
+          <div className="settings-table">
+            <div className="settings-table-header settings-table-header-status">
+              <span>Name</span>
+              <span>Category</span>
+              <span>Color</span>
+              <span>State</span>
+              <span>Actions</span>
             </div>
-          ))}
+            {bundle.core.statuses.map((status) => (
+              <StatusRow key={status.id} status={status} />
+            ))}
+          </div>
         </div>
       )}
 
       {tab === "priorities" && (
-        <div className="col" style={{ gap: 8, maxWidth: 600 }}>
-          <div className="row">
+        <div className="col" style={{ gap: 12, maxWidth: 980 }}>
+          <div className="settings-grid settings-grid-add settings-grid-priority">
             <input className="input" placeholder="Name" value={priorityName} onChange={(e) => setPriorityName(e.target.value)} />
-            <input className="input" type="number" placeholder="Rank" value={priorityRank} onChange={(e) => setPriorityRank(Number(e.target.value))} style={{ maxWidth: 100 }} />
-            <button className="btn btn-primary" onClick={() => {
-              if (!priorityName.trim()) return;
-              applyCommand({ type: "priority.create", projectId: bundle.project.id, name: priorityName.trim(), rank: priorityRank });
-              setPriorityName("");
-            }}>Add priority</button>
+            <input className="input" type="number" placeholder="Rank" value={priorityRank} onChange={(e) => setPriorityRank(Number(e.target.value))} />
+            <button
+              className="btn btn-primary"
+              onClick={() => {
+                if (!priorityName.trim()) return;
+                applyCommand({ type: "priority.create", projectId: bundle.project.id, name: priorityName.trim(), rank: priorityRank });
+                setPriorityName("");
+              }}
+            >
+              Add priority
+            </button>
           </div>
-          {bundle.core.priorities.sort((a, b) => b.rank - a.rank).map((p) => (
-            <div key={p.id} className="row-between" style={{ padding: 8, borderBottom: "1px solid var(--color-border-subtle)" }}>
-              <span>{p.name}</span>
-              <span className="tag">rank {p.rank}</span>
+          <div className="settings-table">
+            <div className="settings-table-header settings-table-header-priority">
+              <span>Name</span>
+              <span>Rank</span>
+              <span>Color</span>
+              <span>State</span>
+              <span>Actions</span>
             </div>
-          ))}
+            {[...bundle.core.priorities].sort((a, b) => b.rank - a.rank).map((priority) => (
+              <PriorityRow key={priority.id} priority={priority} />
+            ))}
+          </div>
         </div>
       )}
 
       {tab === "types" && (
-        <div className="col" style={{ gap: 8, maxWidth: 600 }}>
-          <div className="row">
+        <div className="col" style={{ gap: 12, maxWidth: 1180 }}>
+          <div className="settings-grid settings-grid-add settings-grid-type-add">
             <input className="input" placeholder="Type name" value={typeName} onChange={(e) => setTypeName(e.target.value)} />
-            <button className="btn btn-primary" onClick={() => {
-              if (!typeName.trim()) return;
-              applyCommand({ type: "type.create", projectId: bundle.project.id, name: typeName.trim() });
-              setTypeName("");
-            }}>Add type</button>
+            <button
+              className="btn btn-primary"
+              onClick={() => {
+                if (!typeName.trim()) return;
+                applyCommand({ type: "type.create", projectId: bundle.project.id, name: typeName.trim() });
+                setTypeName("");
+              }}
+            >
+              Add type
+            </button>
           </div>
-          {bundle.core.itemTypes.map((t) => (
-            <div key={t.id} className="row-between" style={{ padding: 8, borderBottom: "1px solid var(--color-border-subtle)" }}>
-              <span>{t.name}</span>
-              <span className="text-xs text-muted">{t.icon ?? ""}</span>
+          <div className="settings-table">
+            <div className="settings-table-header settings-table-header-type">
+              <span>Name</span>
+              <span>Icon</span>
+              <span>Color</span>
+              <span>Default status</span>
+              <span>Default priority</span>
+              <span>State</span>
+              <span>Actions</span>
             </div>
-          ))}
+            {bundle.core.itemTypes.map((type) => (
+              <TypeRow key={type.id} type={type} />
+            ))}
+          </div>
         </div>
       )}
 
@@ -216,39 +284,299 @@ export function SettingsView() {
         </div>
       )}
 
-      {tab === "fields" && (
-        <CustomFieldsTab />
-      )}
+      {tab === "fields" && <CustomFieldsTab />}
+      {tab === "plugins" && <PluginsTab />}
+      {tab === "export" && <ExportPanel />}
+      {tab === "bridge" && <BridgePanel />}
+    </div>
+  );
+}
 
-      {tab === "automation" && (
-        <div className="col" style={{ gap: 8, maxWidth: 600 }}>
-          <p className="text-secondary text-sm">Automation rules are stored in the project bundle. The MVP exposes a simple trigger + conditions + actions builder. You can edit raw rules via the AI bridge.</p>
-          <p className="text-xs text-muted">Open <a href="/settings/bridge">AI bridge</a> to view the JSON shape of automation rules.</p>
+function MemberRow({ member }: { member: Member }) {
+  const bundle = useProjectStore((s) => s.bundle)!;
+  const applyCommand = useProjectStore((s) => s.applyCommand);
+  const [displayName, setDisplayName] = useState(member.displayName);
+  const [color, setColor] = useState(member.color ?? "");
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
+
+  const assignedItems = bundle.core.items.filter((item) => item.assigneeId === member.id && !item.trashedAt);
+  const openAssigned = assignedItems.filter((item) => bundle.core.statuses.find((status) => status.id === item.statusId)?.category !== "completed");
+
+  const save = () => {
+    applyCommand({
+      type: "member.update",
+      projectId: bundle.project.id,
+      memberId: member.id,
+      patch: { displayName: displayName.trim() || member.displayName, color: color || null }
+    });
+  };
+
+  return (
+    <div className="settings-table-row settings-table-row-member">
+      <div className="settings-row-field">
+        <input className="input" value={displayName} onChange={(e) => setDisplayName(e.target.value)} onBlur={save} />
+        <span className="text-xs text-muted">#{member.id.slice(-6)}</span>
+      </div>
+      <div className="settings-row-field">
+        <span className="tag tag-info">{assignedItems.length} assigned</span>
+        <span className="tag">{openAssigned.length} active</span>
+      </div>
+      <div className="settings-row-actions">
+        <input className="input" value={color} onChange={(e) => setColor(e.target.value)} onBlur={save} placeholder="Color" />
+        <button className="btn btn-sm" onClick={save}>Save</button>
+        {confirmingRemove ? (
+          <>
+            <span className="text-xs text-muted">
+              Remove {member.displayName} from this project? Assigned items will become unassigned.
+            </span>
+            <button
+              className="btn btn-sm btn-danger"
+              onClick={() => {
+                applyCommand({ type: "member.delete", projectId: bundle.project.id, memberId: member.id });
+                setConfirmingRemove(false);
+              }}
+            >
+              Confirm remove
+            </button>
+            <button className="btn btn-sm" onClick={() => setConfirmingRemove(false)}>
+              Cancel
+            </button>
+          </>
+        ) : (
+          <button className="btn btn-sm btn-danger" onClick={() => setConfirmingRemove(true)}>
+            Remove
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StatusRow({ status }: { status: StatusDefinition }) {
+  const bundle = useProjectStore((s) => s.bundle)!;
+  const applyCommand = useProjectStore((s) => s.applyCommand);
+  const [name, setName] = useState(status.name);
+  const [category, setCategory] = useState(status.category);
+  const [color, setColor] = useState(status.color ?? "");
+
+  const save = () => {
+    applyCommand({
+      type: "status.update",
+      projectId: bundle.project.id,
+      statusId: status.id,
+      patch: { name: name.trim() || status.name, category, color: color || null }
+    });
+  };
+
+  return (
+    <div className="settings-table-row settings-table-row-status">
+      <input className="input" value={name} onChange={(e) => setName(e.target.value)} onBlur={save} />
+      <select className="select" value={category} onChange={(e) => setCategory(e.target.value as typeof category)} onBlur={save}>
+        <option value="planned">Planned</option>
+        <option value="active">Active</option>
+        <option value="completed">Completed</option>
+        <option value="canceled">Canceled</option>
+      </select>
+      <input className="input" value={color} onChange={(e) => setColor(e.target.value)} onBlur={save} placeholder="Color" />
+      <span className={`tag ${status.archived ? "tag-warn" : "tag-ok"}`}>{status.archived ? "Hidden" : "Visible"}</span>
+      <div className="settings-row-actions">
+        <button className="btn btn-sm" onClick={save}>Save</button>
+        <button
+          className="btn btn-sm"
+          onClick={() => applyCommand({
+            type: "status.update",
+            projectId: bundle.project.id,
+            statusId: status.id,
+            patch: { archived: !status.archived }
+          })}
+        >
+          {status.archived ? "Restore" : "Hide"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PriorityRow({ priority }: { priority: PriorityDefinition }) {
+  const bundle = useProjectStore((s) => s.bundle)!;
+  const applyCommand = useProjectStore((s) => s.applyCommand);
+  const [name, setName] = useState(priority.name);
+  const [rank, setRank] = useState(priority.rank);
+  const [color, setColor] = useState(priority.color ?? "");
+
+  const save = () => {
+    applyCommand({
+      type: "priority.update",
+      projectId: bundle.project.id,
+      priorityId: priority.id,
+      patch: { name: name.trim() || priority.name, rank, color: color || null }
+    });
+  };
+
+  return (
+    <div className="settings-table-row settings-table-row-priority">
+      <input className="input" value={name} onChange={(e) => setName(e.target.value)} onBlur={save} />
+      <input className="input" type="number" value={rank} onChange={(e) => setRank(Number(e.target.value))} onBlur={save} />
+      <input className="input" value={color} onChange={(e) => setColor(e.target.value)} onBlur={save} placeholder="Color" />
+      <span className={`tag ${priority.archived ? "tag-warn" : "tag-ok"}`}>{priority.archived ? "Hidden" : "Visible"}</span>
+      <div className="settings-row-actions">
+        <button className="btn btn-sm" onClick={save}>Save</button>
+        <button
+          className="btn btn-sm"
+          onClick={() => applyCommand({
+            type: "priority.update",
+            projectId: bundle.project.id,
+            priorityId: priority.id,
+            patch: { archived: !priority.archived }
+          })}
+        >
+          {priority.archived ? "Restore" : "Hide"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function TypeRow({ type }: { type: WorkItemTypeDefinition }) {
+  const bundle = useProjectStore((s) => s.bundle)!;
+  const applyCommand = useProjectStore((s) => s.applyCommand);
+  const [name, setName] = useState(type.name);
+  const [icon, setIcon] = useState(type.icon ?? "");
+  const [color, setColor] = useState(type.color ?? "");
+  const [defaultStatusId, setDefaultStatusId] = useState(type.defaultStatusId ?? "");
+  const [defaultPriorityId, setDefaultPriorityId] = useState(type.defaultPriorityId ?? "");
+
+  const save = () => {
+    applyCommand({
+      type: "type.update",
+      projectId: bundle.project.id,
+      typeId: type.id,
+      patch: {
+        name: name.trim() || type.name,
+        icon: icon || null,
+        color: color || null,
+        defaultStatusId: defaultStatusId || null,
+        defaultPriorityId: defaultPriorityId || null
+      }
+    });
+  };
+
+  return (
+    <div className="settings-table-row settings-table-row-type">
+      <input className="input" value={name} onChange={(e) => setName(e.target.value)} onBlur={save} />
+      <input className="input" value={icon} onChange={(e) => setIcon(e.target.value)} onBlur={save} placeholder="Icon id" />
+      <input className="input" value={color} onChange={(e) => setColor(e.target.value)} onBlur={save} placeholder="Color" />
+      <select className="select" value={defaultStatusId} onChange={(e) => setDefaultStatusId(e.target.value)} onBlur={save}>
+        <option value="">Default status</option>
+        {bundle.core.statuses.filter((status) => !status.archived).map((status) => (
+          <option key={status.id} value={status.id}>{status.name}</option>
+        ))}
+      </select>
+      <select className="select" value={defaultPriorityId} onChange={(e) => setDefaultPriorityId(e.target.value)} onBlur={save}>
+        <option value="">Default priority</option>
+        {bundle.core.priorities.filter((priority) => !priority.archived).map((priority) => (
+          <option key={priority.id} value={priority.id}>{priority.name}</option>
+        ))}
+      </select>
+      <span className={`tag ${type.archived ? "tag-warn" : "tag-ok"}`}>{type.archived ? "Hidden" : "Visible"}</span>
+      <div className="settings-row-actions">
+        <button className="btn btn-sm" onClick={save}>Save</button>
+        <button
+          className="btn btn-sm"
+          onClick={() => applyCommand({
+            type: "type.update",
+            projectId: bundle.project.id,
+            typeId: type.id,
+            patch: { archived: !type.archived }
+          })}
+        >
+          {type.archived ? "Restore" : "Hide"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SidebarTab() {
+  const bundle = useProjectStore((s) => s.bundle)!;
+  const applyCommand = useProjectStore((s) => s.applyCommand);
+  const hiddenViewIds = bundle.projectSettings.hiddenViewIds ?? [];
+
+  const toggleView = (viewId: string) => {
+    const next = hiddenViewIds.includes(viewId)
+      ? hiddenViewIds.filter((id) => id !== viewId)
+      : [...hiddenViewIds, viewId];
+    applyCommand({
+      type: "project.updateSettings",
+      projectId: bundle.project.id,
+      patch: { hiddenViewIds: next }
+    });
+  };
+
+  return (
+    <div className="col" style={{ gap: 12, maxWidth: 760 }}>
+      <p className="text-sm text-secondary" style={{ margin: 0 }}>
+        Choose which built-in project views show up in the left panel and the view switcher. Hidden views stay in the project data; this only declutters navigation.
+      </p>
+      <div className="settings-table">
+        <div className="settings-table-header">
+          <span>View</span>
+          <span>Visible</span>
+          <span>Actions</span>
         </div>
-      )}
+        {SIDEBAR_OPTIONS.map((view) => {
+          const visible = !hiddenViewIds.includes(view.id);
+          return (
+            <div key={view.id} className="settings-table-row settings-table-row-sidebar">
+              <strong>{view.label}</strong>
+              <span className={`tag ${visible ? "tag-ok" : "tag-warn"}`}>{visible ? "Shown" : "Hidden"}</span>
+              <div className="settings-row-actions">
+                <button className="btn btn-sm" onClick={() => toggleView(view.id)}>
+                  {visible ? "Hide" : "Show"}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
-      {tab === "plugins" && (
-        <div className="col" style={{ gap: 12, maxWidth: 600 }}>
-          <h3>Plugin trust mode</h3>
-          <p className="text-sm text-secondary">
-            First-party plugins are always safe. Curated/signed plugins verify package integrity before loading.
-            Unrestricted local plugins are off by default and require explicit acknowledgment.
-          </p>
-          <div className="col" style={{ gap: 6 }}>
-            <label className="row"><input type="radio" name="trust" checked /> First-party only (default)</label>
-            <label className="row"><input type="radio" name="trust" disabled /> First-party + curated/signed</label>
-            <label className="row"><input type="radio" name="trust" disabled /> Unrestricted local plugins (off by default)</label>
-          </div>
-        </div>
-      )}
+function PluginsTab() {
+  const bundle = useProjectStore((s) => s.bundle)!;
+  const applyCommand = useProjectStore((s) => s.applyCommand);
 
-      {tab === "export" && (
-        <ExportPanel />
-      )}
-
-      {tab === "bridge" && (
-        <BridgePanel />
-      )}
+  return (
+    <div className="col" style={{ gap: 12, maxWidth: 680 }}>
+      <h3>Plugin trust mode</h3>
+      <p className="text-sm text-secondary">
+        These modes are project settings. The UI is now editable, but only first-party plugins are fully exercised in this MVP.
+      </p>
+      <div className="col" style={{ gap: 6 }}>
+        {([
+          ["first-party", "First-party only", "Safest option for local-first workspaces."],
+          ["curated", "First-party + curated/signed", "Allows vetted plugins once package verification is available."],
+          ["unrestricted", "Unrestricted local plugins", "Highest flexibility, highest risk. Intended for power users."]
+        ] as const).map(([value, label, description]) => (
+          <label key={value} className="workspace-source">
+            <span className="row" style={{ alignItems: "center" }}>
+              <input
+                type="radio"
+                name="trust"
+                checked={bundle.projectSettings.pluginTrustMode === value}
+                onChange={() => applyCommand({
+                  type: "project.updateSettings",
+                  projectId: bundle.project.id,
+                  patch: { pluginTrustMode: value }
+                })}
+              />
+              <strong>{label}</strong>
+            </span>
+            <span className="text-sm text-secondary">{description}</span>
+          </label>
+        ))}
+      </div>
     </div>
   );
 }
@@ -323,9 +651,8 @@ function ExportPanel() {
           const file = e.target.files?.[0];
           if (!file) return;
           const text = await file.text();
-          const mod = await import("@gph/core");
           try {
-            const r = mod.importProjectJson(text);
+            const r = importProjectJson(text);
             useProjectStore.getState().setBundle(r.bundle, { storageKey: null, storagePath: null, storageTrust: "browser" });
           } catch (err) {
             alert(`Import failed: ${(err as Error).message}`);
