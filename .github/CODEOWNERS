@@ -1,0 +1,23 @@
+# CODEOWNERS for Grillo Project Hub
+# See https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owners for the entire repo
+* @zeidalidiez
+
+# Core packages
+/packages/core/ @zeidalidiez
+/packages/ui/ @zeidalidiez
+
+# Applications
+/apps/web/ @zeidalidiez
+/apps/desktop/ @zeidalidiez
+
+# Documentation and specs
+/docs/ @zeidalidiez
+
+# CI/CD and workflows
+/.github/ @zeidalidiez
+
+# Root config and scripts
+/package.json @zeidalidiez
+/tsconfig*.json @zeidalidiez
