@@ -268,8 +268,7 @@ export const WebStorageAdapter = {
     // Hook the project store to auto-save changes. The current model is browser-local,
     // labeled as a "browser" trust badge.
     if (typeof window === "undefined") return;
-    const adapter = new WebLocalStorageAdapter();
-    (window as unknown as { __gph_store: ProjectStoreAdapter }).__gph_store = adapter;
+    (window as unknown as { __gph_store: ProjectStoreAdapter }).__gph_store = WebStorageAdapter.adapter;
   },
   adapter: new WebLocalStorageAdapter()
 };

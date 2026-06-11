@@ -80,7 +80,7 @@ function buildSimpleKanban(name: string): ProjectBundle {
       ...bundle.core,
       items: [sample, sample2],
       labels: [createLabel({ name: "quick win", color: "green" })],
-      documents: [createDocument({ title: "Getting Started", body: "Welcome to your project. This is a doc — open it from the Docs view.\n\nTry [[item:[[sample.id]]]] or refer to other docs with [[doc:welcome]].", now })]
+      documents: [createDocument({ title: "Getting Started", body: `Welcome to your project. This is a doc — open it from the Docs view.\n\nTry [[item:${sample.id}]] or refer to other docs with [[doc:welcome]].`, now })]
     },
     modules: {
       ...bundle.modules,

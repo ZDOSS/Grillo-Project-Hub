@@ -4,6 +4,7 @@ import {
   buildProjectFromTemplate,
   importProjectJson,
   listTemplates,
+  validateProjectBundle,
   type ProjectStoreAdapter,
   type TemplateId
 } from "@gph/core";
@@ -75,6 +76,7 @@ async function openSavedProject(
   }
 
   const imported = importProjectJson(loaded.json);
+  validateProjectBundle(imported.bundle);
   setBundle(imported.bundle, {
     storageKey: imported.bundle.project.id,
     storagePath: loaded.metadata.displayPath,
@@ -451,6 +453,7 @@ export function OpenProjectView() {
         throw new Error(`No saved project found for ${filename}.`);
       }
       const imported = importProjectJson(loaded.json);
+      validateProjectBundle(imported.bundle);
       setBundle(imported.bundle, {
         storageKey: imported.bundle.project.id,
         storagePath: loaded.metadata.displayPath,
