@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { exportProjectCsv, exportProjectJson, exportProjectMarkdown, importProjectJson, type Member, type PriorityDefinition, type StatusDefinition, type WorkItemTypeDefinition } from "@gph/core";
+import { exportProjectCsv, exportProjectJson, exportProjectMarkdown, importProjectJson, validateProjectBundle, type Member, type PriorityDefinition, type StatusDefinition, type WorkItemTypeDefinition } from "@gph/core";
 import { useProjectStore } from "../../store/project-store";
 import { useTheme } from "../../theme/theme-provider";
 import { PROJECT_NAV_ITEMS } from "../../nav-config";
@@ -869,6 +869,7 @@ function ExportPanel() {
           const text = await file.text();
           try {
             const r = importProjectJson(text);
+            validateProjectBundle(r.bundle);
             useProjectStore.getState().setBundle(r.bundle, { storageKey: null, storagePath: null, storageTrust: "browser" });
           } catch (err) {
             alert(`Import failed: ${(err as Error).message}`);

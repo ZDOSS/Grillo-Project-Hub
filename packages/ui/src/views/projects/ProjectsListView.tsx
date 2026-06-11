@@ -403,6 +403,7 @@ export function OpenProjectView() {
     try {
       const text = await file.text();
       const r = importProjectJson(text);
+      validateProjectBundle(r.bundle);
       setBundle(r.bundle, { storageKey: r.bundle.project.id, storagePath: null, storageTrust: "browser" });
       recordRecent({ key: r.bundle.project.id, name: r.bundle.project.name, storagePath: null, trust: "browser", lastOpenedAt: new Date().toISOString() });
       navigate("/board");

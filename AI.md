@@ -73,6 +73,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - desktop storage now only writes to the filesystem when a folder path has actually been attached; otherwise the desktop shell behaves as browser-local storage on purpose instead of pretending to be folder-backed
 - recent-project reopen uses the active adapter's `load()` path rather than forcing JSON import; desktop recents restore the remembered folder path before loading
 - launcher reopen paths now validate imported bundles before calling `setBundle()`, matching the startup restore and direct storage-load paths so corrupt saved data is rejected consistently instead of silently entering the UI store
+- the two UI JSON-import entry points now also perform an explicit `validateProjectBundle()` immediately before `setBundle()`, mirroring the reopen paths even though `importProjectJson()` already validates internally; this keeps the UI-side contract obvious and avoids review drift about where store writes are gated
 - the desktop recent-project reopen path still depends on `DesktopAdapter.load()` reading the active folder from `localStorage` at call time; `ProjectsListView` now documents that ordering explicitly so later adapter refactors do not accidentally cache the folder too early
 - the browser adapter now repairs older browser-local saves whose metadata index is missing by falling back to the raw `localStorage` project blob and reconstructing the saved-project index entry on load
 - the active project session is now persisted in `localStorage` (`gph.active.project`) and restored on startup through `restoreLastProjectSession()`, so reloads in both web and desktop shells reopen the last project instead of dropping the user into an empty shell
@@ -226,6 +227,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - restoring the last active project after reload and repairing legacy browser-local saves whose index metadata is missing
   - converting members/statuses/priorities/types settings rows to explicit edit/save/cancel flows with color dropdowns
   - aligning launcher reopen validation with every other bundle load path, fixing the simple-kanban starter doc's seeded item link, and unifying the installed web storage adapter instance used by startup restore and auto-save
+  - making both JSON-file import surfaces perform explicit pre-store bundle validation so every visible import/reopen path now shows the same guard at the UI edge
   - making plugin trust settings use the same explicit save/cancel pattern
   - fixing docs pane selection sync and board-card whole-card navigation
   - tightening the docs editor reset so same-doc external refreshes do not wipe unsaved drafts, and restoring proper link semantics for whole-card board navigation

@@ -58,6 +58,7 @@ Note: This is a static client-side demo only. All data lives in the browser (loc
 - Reloading now restores the last active project from browser state instead of dropping you into an empty shell.
 - Older browser-local saves are repaired on load if their saved-project index metadata is missing, so reopening an existing project no longer depends on that index staying intact.
 - Reopening a saved project from the launcher now runs the same bundle validation used by startup restore and direct storage loads, so corrupt saved data is rejected consistently instead of loading halfway into the app.
+- The visible JSON import flows now also perform that same explicit validation right before the project store is replaced, so manual imports and reopen flows follow the same safety pattern.
 - Corrupt saved-session startup state is cleared automatically instead of breaking the app boot path, and canceling the browser folder picker is treated as a normal dismissal rather than a workspace error.
 - The web runtime now uses one shared storage-adapter instance for both auto-save and startup restore, which keeps the PWA's browser-local and folder-backed persistence paths aligned.
 - In the **desktop shell**, you can still work browser-locally, or attach a folder path for `.pm-suite` saves and reopen those folder-backed projects from the launcher.
