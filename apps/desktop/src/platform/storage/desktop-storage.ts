@@ -63,13 +63,7 @@ class DesktopAdapter implements ProjectStoreAdapter {
     if (tauri) {
       const folder = getFolder();
       const path = `${folder}/.pm-suite/${key}.pms.json`;
-      try {
-        await tauri.invoke("plugin:fs|write_text_file", { path, contents: json });
-      } catch (e) {
-        // Fall back to localStorage if FS not available.
-        console.warn("Tauri fs write failed, using localStorage", e);
-        if (typeof localStorage !== "undefined") localStorage.setItem(NAMESPACE + key, json);
-      }
+      await tauri.invoke("plugin:fs|write_text_file", { path, contents: json });
       const meta: StorageMetadata = { key, displayPath: path, externalRevision: this.nextRevisionFor(key), trust: "folder" };
       if (typeof localStorage !== "undefined") {
         const next = [meta, ...this.listSync().filter((m) => m.key !== key)];

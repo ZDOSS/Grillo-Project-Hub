@@ -165,7 +165,7 @@ function ProjectViewTabs() {
           key={item.to}
           to={item.to}
           role="tab"
-          aria-current={location.pathname.startsWith(item.to)}
+          aria-current={location.pathname.startsWith(item.to) ? "page" : undefined}
           className="viewbar-tab"
         >
           {item.label}

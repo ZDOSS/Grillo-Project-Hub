@@ -12,7 +12,7 @@ export function CreateItemDialog() {
   const [open, setOpen] = useState(isCreateItemOpen());
   const [prefill, setPrefill] = useState(getCreateItemPrefill());
   const [title, setTitle] = useState("");
-  const [typeId, setTypeId] = useState("task");
+  const [typeId, setTypeId] = useState(bundle?.project.defaultTypeId ?? "task");
   const [description, setDescription] = useState("");
   const [priorityId, setPriorityId] = useState<string>("");
   const navigate = useNavigate();
@@ -25,7 +25,7 @@ export function CreateItemDialog() {
       setTitle("");
       setDescription("");
       setPriorityId("");
-      setTypeId(prefill?.typeId ?? "task");
+      setTypeId(prefill?.typeId ?? bundle?.project.defaultTypeId ?? "task");
     }
   }, [open, prefill?.typeId]);
 

@@ -37,6 +37,7 @@ import { nowTimestamp } from "../domain/dates";
 import { bumpRevision, type TrashRecord } from "../domain/project";
 import { createBoardView, createBacklogView, createTableView, createRoadmapView, createDocsView, createCalendarView, createBugsView, createMyWorkView, findColumnForStatus } from "../domain/view";
 import { createSeverity } from "../domain/bug";
+import { searchProject } from "../search/local-search";
 
 /**
  * Result of dispatching a command. Includes the new bundle, generated events, and any
@@ -860,55 +861,11 @@ function deleteViewCommand(bundle: ProjectBundle, payload: { projectId: string; 
 
 /* ----- search ----- */
 
-type SearchHit = { type: "item" | "doc" | "comment" | "label"; id: string; title: string; snippet?: string };
-
 function searchCommand(
   bundle: ProjectBundle,
   payload: { projectId: string; query: string; scope?: Array<"items" | "docs" | "comments" | "labels">; filters?: { typeIds?: string[]; statusIds?: string[]; assigneeIds?: string[]; milestoneIds?: string[]; labelIds?: string[] } }
 ): DispatchResult {
-  const q = payload.query.trim().toLowerCase();
-  const scope = payload.scope ?? ["items", "docs", "comments", "labels"];
-  const hits: SearchHit[] = [];
-  if (!q) {
-    return { bundle, events: [], output: { hits: [] } };
-  }
-  if (scope.includes("items")) {
-    for (const item of bundle.core.items) {
-      if (item.trashedAt) continue;
-      if (payload.filters?.typeIds && !payload.filters.typeIds.includes(item.typeId)) continue;
-      if (payload.filters?.statusIds && !payload.filters.statusIds.includes(item.statusId)) continue;
-      if (payload.filters?.assigneeIds && !payload.filters.assigneeIds.includes(item.assigneeId ?? "")) continue;
-      if (payload.filters?.milestoneIds && !payload.filters.milestoneIds.includes(item.milestoneId ?? "")) continue;
-      if (payload.filters?.labelIds && !item.labelIds.some((l) => payload.filters!.labelIds!.includes(l))) continue;
-      if (item.title.toLowerCase().includes(q) || item.description.toLowerCase().includes(q)) {
-        hits.push({ type: "item", id: item.id, title: item.title, snippet: item.description.slice(0, 160) });
-      }
-    }
-  }
-  if (scope.includes("docs")) {
-    for (const doc of bundle.core.documents) {
-      if (doc.title.toLowerCase().includes(q) || doc.body.toLowerCase().includes(q)) {
-        hits.push({ type: "doc", id: doc.id, title: doc.title, snippet: doc.body.slice(0, 160) });
-      }
-    }
-  }
-  if (scope.includes("comments")) {
-    for (const item of bundle.core.items) {
-      for (const c of item.comments) {
-        if (c.deleted) continue;
-        if (c.body.toLowerCase().includes(q)) {
-          hits.push({ type: "comment", id: c.id, title: `Comment on ${item.title}`, snippet: c.body.slice(0, 160) });
-        }
-      }
-    }
-  }
-  if (scope.includes("labels")) {
-    for (const l of bundle.core.labels) {
-      if (l.name.toLowerCase().includes(q)) {
-        hits.push({ type: "label", id: l.id, title: l.name });
-      }
-    }
-  }
+  const hits = searchProject(bundle, payload.query, { scope: payload.scope, filters: payload.filters });
   return { bundle, events: [], output: { hits } };
 }
 
