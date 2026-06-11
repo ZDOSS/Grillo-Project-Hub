@@ -106,4 +106,65 @@ describe("command dispatcher", () => {
     expect(doc.body).not.toContain(`[[item:${aId}`);
     expect(doc.body).toContain("(deleted item)");
   });
+
+  it("updates project settings through the command surface", () => {
+    const bundle = createProjectBundle({ name: "P" });
+    const r = dispatchCommand(
+      bundle,
+      envelopeFor(
+        {
+          type: "project.updateSettings",
+          projectId: bundle.project.id,
+          patch: {
+            pluginTrustMode: "curated",
+            hiddenViewIds: ["docs", "calendar"]
+          }
+        } as never,
+        "ui",
+        null
+      )
+    );
+
+    expect(r.bundle.projectSettings.pluginTrustMode).toBe("curated");
+    expect((r.bundle.projectSettings as typeof r.bundle.projectSettings & { hiddenViewIds?: string[] }).hiddenViewIds).toEqual(["docs", "calendar"]);
+  });
+
+  it("archives a member and unassigns their items", () => {
+    const bundle = createProjectBundle({ name: "P" });
+    const withMember = dispatchCommand(
+      bundle,
+      envelopeFor({ type: "member.create", projectId: bundle.project.id, displayName: "Ada" }, "ui", null)
+    ).bundle;
+    const memberId = withMember.core.members[0].id;
+    const withItem = dispatchCommand(
+      withMember,
+      envelopeFor(
+        {
+          type: "item.create",
+          projectId: withMember.project.id,
+          typeId: "task",
+          title: "Assigned item",
+          assigneeId: memberId
+        },
+        "ui",
+        null
+      )
+    ).bundle;
+
+    const r = dispatchCommand(
+      withItem,
+      envelopeFor(
+        {
+          type: "member.delete",
+          projectId: withItem.project.id,
+          memberId
+        } as never,
+        "ui",
+        null
+      )
+    );
+
+    expect(r.bundle.core.members[0].archived).toBe(true);
+    expect(r.bundle.core.items[0].assigneeId).toBeNull();
+  });
 });

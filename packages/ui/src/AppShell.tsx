@@ -172,15 +172,15 @@ const GrilloLogo = () => (
 // ── Nav config ───────────────────────────────────────────────────────────────
 
 const NAV_ITEMS = [
-  { to: "/board",    label: "Board",      icon: <IconBoard /> },
-  { to: "/backlog",  label: "Backlog",    icon: <IconBacklog /> },
-  { to: "/table",    label: "Table",      icon: <IconTable /> },
-  { to: "/roadmap",  label: "Roadmap",    icon: <IconRoadmap /> },
-  { to: "/calendar", label: "Calendar",   icon: <IconCalendar /> },
-  { to: "/docs",     label: "Docs",       icon: <IconDocs /> },
-  { to: "/bugs",     label: "Bug triage", icon: <IconBug /> },
-  { to: "/mywork",   label: "My work",    icon: <IconMyWork /> },
-  { to: "/search",   label: "Search",     icon: <IconSearch /> },
+  { id: "board", to: "/board",    label: "Board",      icon: <IconBoard /> },
+  { id: "backlog", to: "/backlog",  label: "Backlog",    icon: <IconBacklog /> },
+  { id: "table", to: "/table",    label: "Table",      icon: <IconTable /> },
+  { id: "roadmap", to: "/roadmap",  label: "Roadmap",    icon: <IconRoadmap /> },
+  { id: "calendar", to: "/calendar", label: "Calendar",   icon: <IconCalendar /> },
+  { id: "docs", to: "/docs",     label: "Docs",       icon: <IconDocs /> },
+  { id: "bugs", to: "/bugs",     label: "Bug triage", icon: <IconBug /> },
+  { id: "mywork", to: "/mywork",   label: "My work",    icon: <IconMyWork /> },
+  { id: "search", to: "/search",   label: "Search",     icon: <IconSearch /> },
 ];
 
 const SECONDARY = [
@@ -243,6 +243,11 @@ export function AppShell({ appMode, children }: AppShellProps) {
   }, [toggle, navigate]);
 
   const trust = bundle?.projectSettings.storageTrust ?? "unsaved";
+  const hiddenViewIds = bundle?.projectSettings.hiddenViewIds ?? [];
+  const visibleNavItems = useMemo(
+    () => NAV_ITEMS.filter((item) => !hiddenViewIds.includes(item.id)),
+    [hiddenViewIds]
+  );
   const isProjectRoute = useMemo(
     () =>
       location.pathname !== "/" &&
@@ -286,7 +291,7 @@ export function AppShell({ appMode, children }: AppShellProps) {
 
         <div className="sidebar-section">
           <div className="sidebar-section-title">Project</div>
-          {NAV_ITEMS.map((item) => (
+          {visibleNavItems.map((item) => (
             <Link
               key={item.to}
               to={item.to}
@@ -350,7 +355,7 @@ export function AppShell({ appMode, children }: AppShellProps) {
       </header>
 
       <main className="app-main">
-        {isProjectRoute && bundle ? <ProjectViewTabs /> : null}
+        {isProjectRoute && bundle ? <ProjectViewTabs items={visibleNavItems} /> : null}
         <div className="view-content">{children}</div>
       </main>
 
@@ -359,11 +364,11 @@ export function AppShell({ appMode, children }: AppShellProps) {
   );
 }
 
-function ProjectViewTabs() {
+function ProjectViewTabs({ items }: { items: typeof NAV_ITEMS }) {
   const location = useLocation();
   return (
     <div className="viewbar" role="tablist" aria-label="Project views">
-      {NAV_ITEMS.map((item) => (
+      {items.map((item) => (
         <Link
           key={item.to}
           to={item.to}

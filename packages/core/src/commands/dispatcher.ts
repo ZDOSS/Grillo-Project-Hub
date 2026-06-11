@@ -82,6 +82,7 @@ export function dispatchCommand(bundle: ProjectBundle, envelope: CommandEnvelope
 
 const dispatchers: Record<string, (b: ProjectBundle, env: CommandEnvelope) => DispatchResult> = {
   "project.rename": (b, env) => renameProject(b, env.payload as { name: string }),
+  "project.updateSettings": (b, env) => updateProjectSettings(b, env.payload as Parameters<typeof updateProjectSettings>[1]),
   "item.create": (b, env) => createItem(b, env.payload as Parameters<typeof createItem>[1]),
   "item.update": (b, env) => updateItem(b, env.payload as Parameters<typeof updateItem>[1]),
   "item.moveStatus": (b, env) => moveItemStatus(b, env.payload as Parameters<typeof moveItemStatus>[1]),
@@ -105,6 +106,8 @@ const dispatchers: Record<string, (b: ProjectBundle, env: CommandEnvelope) => Di
   "label.create": (b, env) => createLabelCommand(b, env.payload as Parameters<typeof createLabelCommand>[1]),
   "label.update": (b, env) => updateLabelCommand(b, env.payload as Parameters<typeof updateLabelCommand>[1]),
   "member.create": (b, env) => createMemberCommand(b, env.payload as Parameters<typeof createMemberCommand>[1]),
+  "member.update": (b, env) => updateMemberCommand(b, env.payload as Parameters<typeof updateMemberCommand>[1]),
+  "member.delete": (b, env) => deleteMemberCommand(b, env.payload as Parameters<typeof deleteMemberCommand>[1]),
   "status.create": (b, env) => createStatusCommand(b, env.payload as Parameters<typeof createStatusCommand>[1]),
   "status.update": (b, env) => updateStatusCommand(b, env.payload as Parameters<typeof updateStatusCommand>[1]),
   "priority.create": (b, env) => createPriorityCommand(b, env.payload as Parameters<typeof createPriorityCommand>[1]),
@@ -146,6 +149,33 @@ function renameProject(bundle: ProjectBundle, payload: { name: string }): Dispat
   const next: ProjectBundle = bumpRevision({ ...bundle, project: { ...bundle.project, name: payload.name } });
   const event = createEvent({ type: "item.updated", projectId: bundle.project.id, data: { name: payload.name } });
   return { bundle: { ...next, core: { ...next.core, events: [...next.core.events, event] } }, events: [event] };
+}
+
+function updateProjectSettings(
+  bundle: ProjectBundle,
+  payload: {
+    projectId: string;
+    patch: {
+      defaultViewId?: string | null;
+      enabledModuleIds?: string[];
+      hiddenViewIds?: string[];
+      pluginTrustMode?: "first-party" | "curated" | "unrestricted";
+    };
+  }
+): DispatchResult {
+  if (payload.patch.pluginTrustMode && !["first-party", "curated", "unrestricted"].includes(payload.patch.pluginTrustMode)) {
+    throw new Error(`Invalid plugin trust mode: ${payload.patch.pluginTrustMode}`);
+  }
+  const next = bumpRevision({
+    ...bundle,
+    projectSettings: {
+      ...bundle.projectSettings,
+      ...payload.patch,
+      enabledModuleIds: payload.patch.enabledModuleIds ? [...payload.patch.enabledModuleIds] : bundle.projectSettings.enabledModuleIds,
+      hiddenViewIds: payload.patch.hiddenViewIds ? [...payload.patch.hiddenViewIds] : bundle.projectSettings.hiddenViewIds
+    }
+  });
+  return { bundle: next, events: [] };
 }
 
 /* ----- items ----- */
@@ -578,6 +608,28 @@ function updateLabelCommand(bundle: ProjectBundle, payload: { projectId: string;
 function createMemberCommand(bundle: ProjectBundle, payload: { projectId: string; displayName: string; color?: string | null }): DispatchResult {
   const member = createMember({ displayName: payload.displayName, color: payload.color ?? null });
   const nextBundle = withCore(bundle, (c) => ({ ...c, members: [...c.members, member] }));
+  return { bundle: nextBundle, events: [] };
+}
+
+function updateMemberCommand(
+  bundle: ProjectBundle,
+  payload: { projectId: string; memberId: string; patch: { displayName?: string; color?: string | null; archived?: boolean } }
+): DispatchResult {
+  const nextBundle = withCore(bundle, (c) => ({
+    ...c,
+    members: c.members.map((m) => (m.id === payload.memberId ? { ...m, ...stripReadOnly(payload.patch) } : m))
+  }));
+  return { bundle: nextBundle, events: [] };
+}
+
+function deleteMemberCommand(bundle: ProjectBundle, payload: { projectId: string; memberId: string }): DispatchResult {
+  const member = bundle.core.members.find((m) => m.id === payload.memberId);
+  if (!member) throw new Error("Member not found");
+  const nextBundle = withCore(bundle, (c) => ({
+    ...c,
+    members: c.members.map((m) => (m.id === payload.memberId ? { ...m, archived: true } : m)),
+    items: c.items.map((item) => (item.assigneeId === payload.memberId ? { ...item, assigneeId: null, updatedAt: nowTimestamp() } : item))
+  }));
   return { bundle: nextBundle, events: [] };
 }
 

@@ -28,6 +28,7 @@ export type CommandEnvelope<T extends CommandPayload = CommandPayload> = {
 export type CommandPayload =
   | ProjectCreatePayload
   | ProjectRenamePayload
+  | ProjectUpdateSettingsPayload
   | ItemCreatePayload
   | ItemUpdatePayload
   | ItemMoveStatusPayload
@@ -51,6 +52,8 @@ export type CommandPayload =
   | LabelCreatePayload
   | LabelUpdatePayload
   | MemberCreatePayload
+  | MemberUpdatePayload
+  | MemberDeletePayload
   | StatusCreatePayload
   | StatusUpdatePayload
   | PriorityCreatePayload
@@ -85,6 +88,16 @@ export type ProjectRenamePayload = {
   type: "project.rename";
   projectId: ProjectId;
   name: string;
+};
+export type ProjectUpdateSettingsPayload = {
+  type: "project.updateSettings";
+  projectId: ProjectId;
+  patch: {
+    defaultViewId?: string | null;
+    enabledModuleIds?: string[];
+    hiddenViewIds?: string[];
+    pluginTrustMode?: "first-party" | "curated" | "unrestricted";
+  };
 };
 
 /* Items */
@@ -247,6 +260,21 @@ export type MemberCreatePayload = {
   projectId: ProjectId;
   displayName: string;
   color?: string | null;
+};
+export type MemberUpdatePayload = {
+  type: "member.update";
+  projectId: ProjectId;
+  memberId: string;
+  patch: {
+    displayName?: string;
+    color?: string | null;
+    archived?: boolean;
+  };
+};
+export type MemberDeletePayload = {
+  type: "member.delete";
+  projectId: ProjectId;
+  memberId: string;
 };
 
 /* Status / Priority / Type */

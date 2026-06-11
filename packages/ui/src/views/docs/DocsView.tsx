@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { type MouseEvent, useMemo, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import DOMPurify, { type Config as DOMPurifyConfig } from "dompurify";
 import { useProjectStore } from "../../store/project-store";
 import { deriveBacklinks, parseDocLinks, type Document } from "@gph/core";
@@ -42,15 +42,15 @@ export function DocsView() {
         <div className="col" style={{ gap: 2 }}>
           {docs.length === 0 && <div className="text-muted text-sm">No docs yet</div>}
           {docs.map((d) => (
-            <a
+            <Link
               key={d.id}
-              href={`/doc/${d.id}`}
+              to={`/doc/${d.id}`}
               className="doc-tree-node"
               aria-current={d.id === current?.id}
             >
               <span>📄</span>
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.title}</span>
-            </a>
+            </Link>
           ))}
         </div>
       </aside>
@@ -81,6 +81,7 @@ export function DocsView() {
 function DocEditor({ doc, backlinks }: { doc: Document; backlinks: Document[] }) {
   const bundle = useProjectStore((s) => s.bundle);
   const applyCommand = useProjectStore((s) => s.applyCommand);
+  const navigate = useNavigate();
   const [title, setTitle] = useState(doc.title);
   const [body, setBody] = useState(doc.body);
   const [tab, setTab] = useState<"edit" | "preview">("preview");
@@ -89,6 +90,16 @@ function DocEditor({ doc, backlinks }: { doc: Document; backlinks: Document[] })
 
   const save = () => {
     applyCommand({ type: "doc.update", projectId: bundle.project.id, docId: doc.id, patch: { title, body } });
+  };
+
+  const handlePreviewClick = (event: MouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement | null;
+    const anchor = target?.closest("a.docs-link") as HTMLAnchorElement | null;
+    if (!anchor) return;
+    const href = anchor.getAttribute("href");
+    if (!href?.startsWith("/")) return;
+    event.preventDefault();
+    navigate(href);
   };
 
   return (
@@ -120,7 +131,7 @@ function DocEditor({ doc, backlinks }: { doc: Document; backlinks: Document[] })
           style={{ flex: 1, minHeight: 400 }}
         />
       ) : (
-        <div className="docs-content" style={{ padding: 0 }}>
+        <div className="docs-content" style={{ padding: 0 }} onClick={handlePreviewClick}>
           <RenderMarkdown body={body} />
         </div>
       )}
@@ -128,7 +139,7 @@ function DocEditor({ doc, backlinks }: { doc: Document; backlinks: Document[] })
         <div className="col" style={{ gap: 4, marginTop: 12 }}>
           <h3 style={{ fontSize: "var(--font-size-xs)", textTransform: "uppercase", color: "var(--color-text-secondary)" }}>Backlinks</h3>
           {backlinks.map((b) => (
-            <a key={b.id} href={`/doc/${b.id}`} className="tag tag-info">{b.title}</a>
+            <Link key={b.id} to={`/doc/${b.id}`} className="tag tag-info">{b.title}</Link>
           ))}
         </div>
       )}

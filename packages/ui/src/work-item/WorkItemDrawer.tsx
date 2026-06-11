@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useProjectStore } from "../store/project-store";
 import { getBugData, setBugData, type WorkItem, type BugItemData } from "@gph/core";
 
@@ -497,7 +497,7 @@ function ParentLink({ parentId }: { parentId: string }) {
   const bundle = useProjectStore((s) => s.bundle);
   const parent = bundle?.core.items.find((i) => i.id === parentId);
   if (!parent) return <div className="text-muted text-sm">Parent not found</div>;
-  return <a href={`/item/${parent.id}`} className="tag tag-info">{parent.title}</a>;
+  return <Link to={`/item/${parent.id}`} className="tag tag-info">{parent.title}</Link>;
 }
 
 function SubtaskList({ itemId }: { itemId: string }) {
@@ -507,7 +507,7 @@ function SubtaskList({ itemId }: { itemId: string }) {
   return (
     <div className="col" style={{ gap: 4 }}>
       {children.map((c) => (
-        <a key={c.id} href={`/item/${c.id}`} className="tag tag-info">{c.title}</a>
+        <Link key={c.id} to={`/item/${c.id}`} className="tag tag-info">{c.title}</Link>
       ))}
     </div>
   );

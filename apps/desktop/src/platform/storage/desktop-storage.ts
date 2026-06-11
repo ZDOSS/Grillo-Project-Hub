@@ -44,12 +44,13 @@ class DesktopAdapter implements ProjectStoreAdapter {
   }
   async load(key: string): Promise<{ json: string; metadata: StorageMetadata } | null> {
     const tauri = getTauri();
-    if (tauri) {
-      const path = `${getFolder()}/.pm-suite/${key}.pms.json`;
+    const meta = this.listSync().find((m) => m.key === key);
+    const folder = getFolder();
+    const folderBackedPath = meta?.displayPath ?? (folder ? `${folder}/.pm-suite/${key}.pms.json` : null);
+    if (tauri && folderBackedPath) {
       try {
-        const json = await tauri.invoke("plugin:fs|read_text_file", { path }) as string;
-        const meta = this.listSync().find((m) => m.key === key);
-        return { json, metadata: { key, displayPath: path, externalRevision: meta?.externalRevision ?? null, trust: "folder" } };
+        const json = await tauri.invoke("plugin:fs|read_text_file", { path: folderBackedPath }) as string;
+        return { json, metadata: { key, displayPath: folderBackedPath, externalRevision: meta?.externalRevision ?? null, trust: "folder" } };
       } catch {
         return null;
       }
@@ -67,8 +68,8 @@ class DesktopAdapter implements ProjectStoreAdapter {
       }
     }
     const tauri = getTauri();
-    if (tauri) {
-      const folder = getFolder();
+    const folder = getFolder();
+    if (tauri && folder) {
       const path = `${folder}/.pm-suite/${key}.pms.json`;
       await tauri.invoke("plugin:fs|write_text_file", { path, contents: json });
       const meta: StorageMetadata = { key, displayPath: path, externalRevision: this.nextRevisionFor(key), trust: "folder" };
@@ -86,6 +87,15 @@ class DesktopAdapter implements ProjectStoreAdapter {
     return meta;
   }
   async delete(key: string): Promise<void> {
+    const tauri = getTauri();
+    const existing = this.listSync().find((m) => m.key === key);
+    if (tauri && existing?.trust === "folder" && existing.displayPath) {
+      try {
+        await tauri.invoke("plugin:fs|remove_file", { path: existing.displayPath });
+      } catch {
+        // Keep recents cleanup even if the file is already gone.
+      }
+    }
     if (typeof localStorage === "undefined") return;
     localStorage.removeItem(NAMESPACE + key);
     localStorage.setItem(INDEX_KEY, JSON.stringify(this.listSync().filter((m) => m.key !== key)));
