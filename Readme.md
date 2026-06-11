@@ -37,6 +37,19 @@ npm run build         # production build
 npm run dev:desktop   # desktop shell (Tauri; in production)
 ```
 
+## Deployment (GitHub Pages)
+
+The hosted web/PWA version deploys automatically to GitHub Pages on pushes to `main` (and on manual trigger).
+
+- Workflow file: [.github/workflows/deploy-web.yml](.github/workflows/deploy-web.yml)
+- It builds via `npm run build:web` (the monorepo web workspace target), configures the Vite `base` for the `/Grillo-Project-Hub/` subpath, and adds a `404.html` copy of `index.html` so React Router client-side routes work on GitHub Pages.
+- The PWA (service worker, manifest, offline support) is included in the static build.
+- **One-time repo setup required**: In GitHub → Settings → Pages → "Build and deployment" → Source = "GitHub Actions".
+
+Live demo (once enabled): https://ZDOSS.github.io/Grillo-Project-Hub/
+
+Note: This is a static client-side demo only. All data lives in the browser (localStorage + PWA storage). See AI.md ("public-internet hosting plan" is noted as out-of-MVP scope for richer features).
+
 ## Architecture
 
 ```

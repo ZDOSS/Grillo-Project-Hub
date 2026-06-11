@@ -4,6 +4,9 @@ import { VitePWA } from "vite-plugin-pwa";
 import { fileURLToPath, URL } from "node:url";
 
 export default defineConfig({
+  // For GitHub Pages deployment under /Grillo-Project-Hub/ (project site).
+  // Set GITHUB_PAGES=true in the deploy workflow so the built assets use the correct subpath.
+  base: process.env.GITHUB_PAGES ? '/Grillo-Project-Hub/' : '/',
   plugins: [
     react(),
     VitePWA({
