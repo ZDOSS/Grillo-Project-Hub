@@ -39,7 +39,7 @@ jobs:
 
       - name: Build web app
         env:
-          GITHUB_PAGES: 'true'
+          VITE_GITHUB_PAGES: 'true'
         run: npm run build:web
 
       - name: Prepare SPA fallback for GitHub Pages (client-side routing)

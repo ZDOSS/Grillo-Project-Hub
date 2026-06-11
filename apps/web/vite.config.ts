@@ -5,8 +5,9 @@ import { fileURLToPath, URL } from "node:url";
 
 export default defineConfig({
   // For GitHub Pages deployment under /Grillo-Project-Hub/ (project site).
-  // Set GITHUB_PAGES=true in the deploy workflow so the built assets use the correct subpath.
-  base: process.env.GITHUB_PAGES ? '/Grillo-Project-Hub/' : '/',
+  // Set VITE_GITHUB_PAGES=true in the deploy workflow (non-reserved prefix) so the built assets use the correct subpath.
+  // VITE_ prefix also makes it available client-side via import.meta.env if needed.
+  base: process.env.VITE_GITHUB_PAGES ? '/Grillo-Project-Hub/' : '/',
   plugins: [
     react(),
     VitePWA({
@@ -16,13 +17,13 @@ export default defineConfig({
         name: "Grillo Project Hub",
         short_name: "GPH",
         description: "A free, open source, hybrid project management suite.",
-        start_url: "/",
+        start_url: "./",
         display: "standalone",
         background_color: "#f7f5f0",
         theme_color: "#4f8a55",
         icons: [
-          { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
-          { src: "/icon-512.png", sizes: "512x512", type: "image/png" }
+          { src: "./icon-192.png", sizes: "192x192", type: "image/png" },
+          { src: "./icon-512.png", sizes: "512x512", type: "image/png" }
         ]
       },
       workbox: {
