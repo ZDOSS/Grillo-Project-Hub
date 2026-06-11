@@ -306,6 +306,7 @@ function MemberRow({ member }: { member: Member }) {
   const applyCommand = useProjectStore((s) => s.applyCommand);
   const [displayName, setDisplayName] = useState(member.displayName);
   const [color, setColor] = useState(member.color ?? "");
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
 
   const assignedItems = bundle.core.items.filter((item) => item.assigneeId === member.id && !item.trashedAt);
   const openAssigned = assignedItems.filter((item) => bundle.core.statuses.find((status) => status.id === item.statusId)?.category !== "completed");
@@ -332,15 +333,29 @@ function MemberRow({ member }: { member: Member }) {
       <div className="settings-row-actions">
         <input className="input" value={color} onChange={(e) => setColor(e.target.value)} onBlur={save} placeholder="Color" />
         <button className="btn btn-sm" onClick={save}>Save</button>
-        <button
-          className="btn btn-sm btn-danger"
-          onClick={() => {
-            if (!window.confirm(`Remove ${member.displayName} from this project? Assigned items will become unassigned.`)) return;
-            applyCommand({ type: "member.delete", projectId: bundle.project.id, memberId: member.id });
-          }}
-        >
-          Remove
-        </button>
+        {confirmingRemove ? (
+          <>
+            <span className="text-xs text-muted">
+              Remove {member.displayName} from this project? Assigned items will become unassigned.
+            </span>
+            <button
+              className="btn btn-sm btn-danger"
+              onClick={() => {
+                applyCommand({ type: "member.delete", projectId: bundle.project.id, memberId: member.id });
+                setConfirmingRemove(false);
+              }}
+            >
+              Confirm remove
+            </button>
+            <button className="btn btn-sm" onClick={() => setConfirmingRemove(false)}>
+              Cancel
+            </button>
+          </>
+        ) : (
+          <button className="btn btn-sm btn-danger" onClick={() => setConfirmingRemove(true)}>
+            Remove
+          </button>
+        )}
       </div>
     </div>
   );

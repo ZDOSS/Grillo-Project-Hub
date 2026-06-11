@@ -71,4 +71,39 @@ describe("ProjectsListView", () => {
     });
     expect(useProjectStore.getState().bundle?.project.name).toBe("Saved Project");
   });
+
+  it("uses inline confirmation before deleting a saved browser project", async () => {
+    const bundle = buildProjectFromTemplate("software-project", "Delete Me");
+    const adapter = new InMemoryProjectStore();
+    await adapter.save(bundle.project.id, exportProjectJson(bundle));
+    (window as typeof window & { __gph_store?: unknown }).__gph_store = adapter;
+
+    useWorkspaceStore.setState({
+      ...useWorkspaceStore.getState(),
+      recents: [
+        {
+          key: bundle.project.id,
+          name: bundle.project.name,
+          storagePath: null,
+          trust: "browser",
+          lastOpenedAt: new Date("2026-06-11T12:00:00.000Z").toISOString()
+        }
+      ]
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <ProjectsListView />
+      </MemoryRouter>
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+
+    expect(screen.getByText(/Delete this saved browser project/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Delete project" }));
+
+    await waitFor(async () => {
+      expect(await adapter.load(bundle.project.id)).toBeNull();
+    });
+  });
 });

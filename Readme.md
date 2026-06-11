@@ -6,11 +6,11 @@ A free, open source, hybrid day-one project management suite for practical softw
 
 The MVP implementation is in place. The current build supports:
 
-- **Workspace** with new/open/demo project flow, recent-project reopen, browser-vs-folder storage guidance, and delete/remove confirmation
+- **Workspace** with new/open/demo project flow, recent-project reopen, browser-vs-folder storage guidance, and inline delete/remove confirmation
 - **Board** with drag-and-drop, WIP limits (warn + hard modes), and column-based status grouping
 - **Backlog** with priority-sorted items
 - **Table** with sort, group, filter, and column visibility
-- **Docs** with Markdown editing, sanitized rendering, internal embeds, backlinks, and router-safe in-app navigation
+- **Docs** with Markdown editing, sanitized rendering, internal embeds, backlinks, and router-safe in-app navigation for preview links
 - **Roadmap / timeline** with date drag/resize, milestone lanes, and dependency awareness
 - **Calendar** with month grid and date-based item visibility
 - **Bug triage** with severity, reproduction steps, expected/actual behavior, environment, affected version, and a visible new-bug entry point
@@ -54,6 +54,7 @@ Note: This is a static client-side demo only. All data lives in the browser (loc
 
 - In the **PWA/web app**, projects are browser-local by default. The launcher now makes that explicit and lets you reopen saved browser projects from recents instead of forcing JSON import every time.
 - In the **desktop shell**, you can still work browser-locally, or attach a folder path for `.pm-suite` saves and reopen those folder-backed projects from the launcher.
+- The command layer now hard-fails unknown member edits and preserves `hiddenViewIds` defaults when opening older bundles, so settings updates do not silently no-op or regress legacy projects.
 - JSON import/export remains the portable handoff path across machines or runtimes.
 
 ## Architecture
@@ -72,8 +73,8 @@ tests/e2e        # Playwright parity tests
 
 | Suite | Count | Notes |
 | --- | --- | --- |
-| `packages/core` | 27 | Domain, storage, dispatcher, export, import |
-| `packages/ui` | 7 | AppShell, BoardView, BacklogView, CommandPalette, launcher, docs |
+| `packages/core` | 29 | Domain, storage, dispatcher, export, import |
+| `packages/ui` | 10 | AppShell, BoardView, BacklogView, CommandPalette, launcher, docs, settings |
 | `tests/e2e` | 7 | Hybrid parity, project workflow, theme, palette, export, search |
 
 Run them all with `npm test` (unit) and `npm run test:e2e` (browser).

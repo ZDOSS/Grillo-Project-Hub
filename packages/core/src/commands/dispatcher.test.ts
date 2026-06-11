@@ -167,4 +167,49 @@ describe("command dispatcher", () => {
     expect(r.bundle.core.members[0].archived).toBe(true);
     expect(r.bundle.core.items[0].assigneeId).toBeNull();
   });
+
+  it("rejects member updates for unknown members", () => {
+    const bundle = createProjectBundle({ name: "P" });
+    expect(() =>
+      dispatchCommand(
+        bundle,
+        envelopeFor(
+          {
+            type: "member.update",
+            projectId: bundle.project.id,
+            memberId: "member_missing",
+            patch: { displayName: "Nope" }
+          } as never,
+          "ui",
+          null
+        )
+      )
+    ).toThrow(/Member not found/);
+  });
+
+  it("preserves an empty hiddenViewIds array for legacy bundles", () => {
+    const bundle = createProjectBundle({ name: "Legacy" });
+    const legacy = {
+      ...bundle,
+      projectSettings: {
+        ...bundle.projectSettings,
+        hiddenViewIds: undefined as unknown as string[]
+      }
+    };
+
+    const r = dispatchCommand(
+      legacy,
+      envelopeFor(
+        {
+          type: "project.updateSettings",
+          projectId: legacy.project.id,
+          patch: { pluginTrustMode: "curated" }
+        } as never,
+        "ui",
+        null
+      )
+    );
+
+    expect(r.bundle.projectSettings.hiddenViewIds).toEqual([]);
+  });
 });

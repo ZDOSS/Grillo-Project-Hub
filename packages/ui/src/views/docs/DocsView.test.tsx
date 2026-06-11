@@ -62,4 +62,44 @@ describe("DocsView", () => {
     expect(screen.getByTestId("location")).toHaveTextContent(`/doc/${secondId}`);
     expect(screen.getByTestId("location").textContent).not.toBe("/docs");
   });
+
+  it("intercepts markdown preview links using a data attribute instead of a CSS class contract", async () => {
+    const baseBundle = useProjectStore.getState().bundle!;
+    const firstDoc = useProjectStore.getState().applyCommand({
+      type: "doc.create",
+      projectId: baseBundle.project.id,
+      title: "Target Doc"
+    }).bundle.core.documents.at(-1)!;
+    const sourceDoc = useProjectStore.getState().applyCommand({
+      type: "doc.create",
+      projectId: baseBundle.project.id,
+      title: "Source Doc",
+      body: `See [[doc:${firstDoc.id}|Target Doc]]`
+    }).bundle.core.documents.at(-1)!;
+
+    render(
+      <MemoryRouter initialEntries={[`/doc/${sourceDoc.id}`]}>
+        <Routes>
+          <Route
+            path="*"
+            element={
+              <>
+                <LocationProbe />
+                <Routes>
+                  <Route path="/docs" element={<DocsView />} />
+                  <Route path="/doc/:docId" element={<DocsView />} />
+                </Routes>
+              </>
+            }
+          />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    const previewLink = document.querySelector(`a[data-route="/doc/${firstDoc.id}"]`) as HTMLAnchorElement | null;
+    expect(previewLink).not.toBeNull();
+    await userEvent.click(previewLink!);
+
+    expect(screen.getAllByTestId("location").at(-1)).toHaveTextContent(`/doc/${firstDoc.id}`);
+  });
 });

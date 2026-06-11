@@ -71,6 +71,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - trust status is surfaced in the UI as a `Folder-backed` / `Browser-local` / `Unsaved` badge
 - desktop storage now only writes to the filesystem when a folder path has actually been attached; otherwise the desktop shell behaves as browser-local storage on purpose instead of pretending to be folder-backed
 - recent-project reopen uses the active adapter's `load()` path rather than forcing JSON import; desktop recents restore the remembered folder path before loading
+- the desktop recent-project reopen path still depends on `DesktopAdapter.load()` reading the active folder from `localStorage` at call time; `ProjectsListView` now documents that ordering explicitly so later adapter refactors do not accidentally cache the folder too early
 
 ## Command surface
 
@@ -82,6 +83,9 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - `project.updateSettings` for plugin trust mode and left-panel visibility (`hiddenViewIds`)
   - `member.update` for inline member edits
   - `member.delete` for archiving a member and unassigning any items still assigned to them
+- dispatcher hardening added after review:
+  - `member.update` now throws `Error("Member not found")` for unknown IDs instead of silently succeeding
+  - `project.updateSettings` now preserves `hiddenViewIds: []` for legacy bundles that predate that field instead of reintroducing `undefined`
 
 ## Platform differences between web and desktop
 
@@ -127,6 +131,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - per-project view tabs across board, backlog, table, roadmap, calendar, docs, bug triage, my work, search
 - work item drawer at `/item/:id` with full edit, checklist conversion, comments, subtasks, activity
 - settings view with theme, left-panel visibility, editable members, editable statuses, editable priorities, editable types, labels, milestones, custom fields, plugins, export/import, AI bridge
+- launcher and member removal flows now use inline confirmation UI instead of `window.confirm`, which keeps the behavior testable in jsdom/Vitest and avoids blocking browser-native modal prompts
 - command palette (`Ctrl/Cmd+K`) and `C` shortcut
 - export downloads `.pms.json`, `.md`, or `.csv` from Settings
 - import accepts a `.pms.json` and replaces the active bundle
@@ -135,12 +140,19 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - sidebar doc links use React Router links
   - backlink pills use React Router links
   - rendered `[[doc:id]]` / `[[item:id]]` preview links are intercepted client-side instead of hard-navigating to a 404
+  - preview interception now keys off a stable `data-route` attribute rather than the styling-only `docs-link` class, so class-name or sanitizer changes do not silently break routing
 - bug triage now exposes a visible `New bug` action in the intake column
 
 ## Testing strategy
 
 - TDD for the shared core: domain rules, command handlers, storage contract, and export/import
 - Vitest component tests for `AppShell`, `BoardView`, `BacklogView`, `CommandPalette`, `ProjectsListView`, and `DocsView`
+- review-follow-up regressions now have dedicated tests for:
+  - unknown-member updates in the dispatcher
+  - legacy `hiddenViewIds` fallback behavior
+  - inline delete confirmation in the launcher
+  - inline member removal confirmation in Settings
+  - docs preview routing via `data-route`
 - Playwright e2e for hybrid parity, theme toggle, command palette, project creation, item creation with `C` shortcut, JSON export download, and search
 - `npm test` runs unit + component tests; `npm run test:e2e` runs Playwright against the running web dev server
 
@@ -165,6 +177,11 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - added project-level left-panel visibility preferences and wired them into the shared AppShell nav + viewbar filtering
 - fixed PWA/router breakage caused by hard `href="/doc/..."` and `href="/item/..."` links in docs and work-item detail surfaces
 - updated unit and e2e tests to cover reopen-from-recents and router-safe docs navigation, and refreshed shell/e2e selectors to match the current UI
+- closed the Greptile follow-up robustness pass by:
+  - hardening dispatcher behavior for unknown member IDs and legacy `hiddenViewIds`
+  - documenting the folder-restore ordering contract used by desktop recents reopen
+  - replacing `window.confirm` with inline confirmation in launcher and member-removal flows
+  - switching docs preview click interception from a CSS-class dependency to a stable data attribute
 
 ## Open follow-on planning
 

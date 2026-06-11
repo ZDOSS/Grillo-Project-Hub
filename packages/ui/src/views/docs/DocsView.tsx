@@ -94,12 +94,12 @@ function DocEditor({ doc, backlinks }: { doc: Document; backlinks: Document[] })
 
   const handlePreviewClick = (event: MouseEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement | null;
-    const anchor = target?.closest("a.docs-link") as HTMLAnchorElement | null;
+    const anchor = target?.closest("a[data-route]") as HTMLAnchorElement | null;
     if (!anchor) return;
-    const href = anchor.getAttribute("href");
-    if (!href?.startsWith("/")) return;
+    const route = anchor.dataset.route;
+    if (!route?.startsWith("/")) return;
     event.preventDefault();
-    navigate(href);
+    navigate(route);
   };
 
   return (
@@ -154,8 +154,8 @@ function DocEditor({ doc, backlinks }: { doc: Document; backlinks: Document[] })
  *  - Emits a constrained HTML subset (headings, lists, paragraphs, strong/em, code, internal links).
  *  - Sanitizes the final HTML through DOMPurify so any HTML the user types in the source
  *    (including `javascript:` URIs, `on*` handlers, and `<script>`/`<iframe>` tags) is stripped
- *    before injection. Internal `docs-link` / `docs-embed` markers and their `href`s / `data-*`
- *    attributes are allowlisted explicitly.
+ *    before injection. Internal preview routing uses a stable `data-route` attribute so click
+ *    interception does not depend on a presentational CSS class name.
  */
 function RenderMarkdown({ body }: { body: string }) {
   const html = useMemo(() => renderMarkdownSafe(body), [body]);
@@ -164,7 +164,7 @@ function RenderMarkdown({ body }: { body: string }) {
 
 const PURIFY_CONFIG: DOMPurifyConfig = {
   ALLOWED_TAGS: ["a", "div", "h1", "h2", "h3", "h4", "h5", "h6", "p", "ul", "ol", "li", "strong", "em", "code", "br", "span"],
-  ALLOWED_ATTR: ["href", "class", "data-doc", "data-item", "data-attachment"],
+  ALLOWED_ATTR: ["href", "class", "data-route", "data-doc", "data-item", "data-attachment"],
   ALLOW_DATA_ATTR: false
 };
 
@@ -173,8 +173,8 @@ function renderMarkdownSafe(input: string): string {
   // is the controlled subset above, so DOMPurify's allowlist is sufficient.
   let text = input;
   // Internal links: emit safe, no user-supplied attribute values that bypass sanitization.
-  text = text.replace(/\[\[doc:([a-zA-Z0-9_-]+)(?:\|([^\]]+))?\]\]/g, (_, id, label) => `<a class="docs-link" href="/doc/${id}">${escapeHtml(label ?? id)}</a>`);
-  text = text.replace(/\[\[item:([a-zA-Z0-9_-]+)(?:\|([^\]]+))?\]\]/g, (_, id, label) => `<a class="docs-link" href="/item/${id}">${escapeHtml(label ?? id)}</a>`);
+  text = text.replace(/\[\[doc:([a-zA-Z0-9_-]+)(?:\|([^\]]+))?\]\]/g, (_, id, label) => `<a class="docs-link" href="/doc/${id}" data-route="/doc/${id}">${escapeHtml(label ?? id)}</a>`);
+  text = text.replace(/\[\[item:([a-zA-Z0-9_-]+)(?:\|([^\]]+))?\]\]/g, (_, id, label) => `<a class="docs-link" href="/item/${id}" data-route="/item/${id}">${escapeHtml(label ?? id)}</a>`);
   text = text.replace(/!\[\[doc:([a-zA-Z0-9_-]+)\]\]/g, (_, id) => `<div class="docs-embed" data-doc="${id}">[doc embed: ${escapeHtml(id)}]</div>`);
   text = text.replace(/!\[\[item:([a-zA-Z0-9_-]+)\]\]/g, (_, id) => `<div class="docs-embed" data-item="${id}">[item embed: ${escapeHtml(id)}]</div>`);
   // Headings

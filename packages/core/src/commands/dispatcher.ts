@@ -172,7 +172,7 @@ function updateProjectSettings(
       ...bundle.projectSettings,
       ...payload.patch,
       enabledModuleIds: payload.patch.enabledModuleIds ? [...payload.patch.enabledModuleIds] : bundle.projectSettings.enabledModuleIds,
-      hiddenViewIds: payload.patch.hiddenViewIds ? [...payload.patch.hiddenViewIds] : bundle.projectSettings.hiddenViewIds
+      hiddenViewIds: payload.patch.hiddenViewIds ? [...payload.patch.hiddenViewIds] : (bundle.projectSettings.hiddenViewIds ?? [])
     }
   });
   return { bundle: next, events: [] };
@@ -615,6 +615,8 @@ function updateMemberCommand(
   bundle: ProjectBundle,
   payload: { projectId: string; memberId: string; patch: { displayName?: string; color?: string | null; archived?: boolean } }
 ): DispatchResult {
+  const member = bundle.core.members.find((entry) => entry.id === payload.memberId);
+  if (!member) throw new Error("Member not found");
   const nextBundle = withCore(bundle, (c) => ({
     ...c,
     members: c.members.map((m) => (m.id === payload.memberId ? { ...m, ...stripReadOnly(payload.patch) } : m))

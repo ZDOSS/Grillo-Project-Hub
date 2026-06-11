@@ -60,6 +60,8 @@ async function openSavedProject(
 
   const folder = deriveFolderFromStoragePath(recent.storagePath);
   if (recent.trust === "folder" && folder) {
+    // DesktopAdapter.load() currently reads the active folder from localStorage on demand.
+    // Restore the folder path before load() so folder-backed recents resolve correctly.
     setDesktopFolderPath(folder);
   }
 
@@ -110,6 +112,7 @@ export function ProjectsListView() {
   const [templateId, setTemplateId] = useState<TemplateId>("software-project");
   const [folderPath, setFolderPath] = useState(getDesktopFolderPath());
   const [busyRecentKey, setBusyRecentKey] = useState<string | null>(null);
+  const [pendingDeleteRecentKey, setPendingDeleteRecentKey] = useState<string | null>(null);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
   const setBundle = useProjectStore((s) => s.setBundle);
   const recordRecent = useWorkspaceStore((s) => s.recordRecent);
@@ -155,15 +158,12 @@ export function ProjectsListView() {
   };
 
   const handleDeleteProject = async (recent: RecentProject) => {
-    const actionLabel = recent.trust === "folder" ? "remove this recent shortcut" : "delete this saved browser project";
-    if (!window.confirm(`Are you sure you want to ${actionLabel}?`)) {
-      return;
-    }
     try {
       if (recent.trust === "browser") {
         await deleteSavedProject(recent);
       }
       removeRecent(recent.key);
+      setPendingDeleteRecentKey(null);
     } catch (error) {
       setWorkspaceError((error as Error).message);
     }
@@ -215,16 +215,32 @@ export function ProjectsListView() {
                       <span className="storage-dot" />
                       {r.trust === "folder" ? "Folder" : "Browser"}
                     </span>
-                    <button
-                      className="btn btn-sm btn-primary"
-                      onClick={() => void openRecentProject(r)}
-                      disabled={busyRecentKey === r.key}
-                    >
-                      {busyRecentKey === r.key ? "Opening..." : "Open"}
-                    </button>
-                    <button className="btn btn-sm" onClick={() => void handleDeleteProject(r)}>
-                      {r.trust === "folder" ? "Remove recent" : "Delete"}
-                    </button>
+                    {pendingDeleteRecentKey === r.key ? (
+                      <>
+                        <span className="text-xs text-muted">
+                          {r.trust === "folder" ? "Remove this recent shortcut?" : "Delete this saved browser project?"}
+                        </span>
+                        <button className="btn btn-sm btn-danger" onClick={() => void handleDeleteProject(r)}>
+                          {r.trust === "folder" ? "Remove recent" : "Delete project"}
+                        </button>
+                        <button className="btn btn-sm" onClick={() => setPendingDeleteRecentKey(null)}>
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          className="btn btn-sm btn-primary"
+                          onClick={() => void openRecentProject(r)}
+                          disabled={busyRecentKey === r.key}
+                        >
+                          {busyRecentKey === r.key ? "Opening..." : "Open"}
+                        </button>
+                        <button className="btn btn-sm" onClick={() => setPendingDeleteRecentKey(r.key)}>
+                          {r.trust === "folder" ? "Remove recent" : "Delete"}
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}
