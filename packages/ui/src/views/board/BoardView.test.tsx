@@ -1,33 +1,41 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { BoardView } from "./BoardView";
 import { useProjectStore } from "../../store/project-store";
 import { buildProjectFromTemplate } from "@gph/core";
-
-const { navigateSpy } = vi.hoisted(() => ({
-  navigateSpy: vi.fn()
-}));
-
-vi.mock("react-router-dom", async () => {
-  const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
-  return {
-    ...actual,
-    useNavigate: () => navigateSpy
-  };
-});
 
 function LocationProbe() {
   const location = useLocation();
   return <div data-testid="location">{location.pathname}</div>;
 }
 
+function renderBoard(view: Parameters<typeof BoardView>[0]["view"]) {
+  render(
+    <MemoryRouter initialEntries={["/board"]}>
+      <Routes>
+        <Route
+          path="/board"
+          element={
+            <>
+              <BoardView view={view} />
+              <LocationProbe />
+            </>
+          }
+        />
+        <Route path="/item/:id" element={<LocationProbe />} />
+      </Routes>
+    </MemoryRouter>
+  );
+}
+
 describe("BoardView", () => {
   beforeEach(() => {
+    cleanup();
     useProjectStore.setState({ bundle: null });
-    navigateSpy.mockReset();
   });
+
   it("groups cards by status column", () => {
     const bundle = buildProjectFromTemplate("simple-kanban", "Test");
     useProjectStore.setState({ bundle });
@@ -39,13 +47,13 @@ describe("BoardView", () => {
     const kanbanModule = updated.modules["builtin.kanban"];
     const views = (kanbanModule.data as { views?: Record<string, { id: string; type: string; name: string; columns: Array<{ id: string; name: string; statusIds: string[]; defaultDropStatusId: string; wipLimit?: number | null; wipMode?: "warn" | "hard"; order: number }> }> }).views ?? {};
     const view = Object.values(views).find((v) => v.type === "board")!;
-    render(<MemoryRouter><BoardView view={view} /></MemoryRouter>);
+    renderBoard(view);
     expect(screen.getByText(/To Do/i)).toBeInTheDocument();
     expect(screen.getByText(/Fix auth bug/i)).toBeInTheDocument();
     expect(screen.getByText(/Ship docs/i)).toBeInTheDocument();
   });
 
-  it("opens the work item when the card body is clicked", async () => {
+  it("opens the work item when the card title link is clicked", async () => {
     const bundle = buildProjectFromTemplate("simple-kanban", "Test");
     useProjectStore.setState({ bundle });
     const created = useProjectStore.getState().applyCommand({
@@ -61,17 +69,14 @@ describe("BoardView", () => {
     const views = (kanbanModule.data as { views?: Record<string, { id: string; type: string; name: string; columns: Array<{ id: string; name: string; statusIds: string[]; defaultDropStatusId: string; wipLimit?: number | null; wipMode?: "warn" | "hard"; order: number }> }> }).views ?? {};
     const view = Object.values(views).find((entry) => entry.type === "board")!;
 
-    render(<MemoryRouter><BoardView view={view} /></MemoryRouter>);
+    renderBoard(view);
 
-    const card = screen
-      .getAllByRole("link")
-      .find((entry) => entry.textContent?.includes("Open me"));
-    expect(card).toBeDefined();
-    const title = card?.querySelector(".board-card-title");
-    expect(title).toBeTruthy();
-    fireEvent.click(title!);
+    const link = screen.getByRole("link", { name: "Open me" });
+    expect(link).toHaveAttribute("href", `/item/${item.id}`);
 
-    expect(navigateSpy).toHaveBeenCalledWith(`/item/${item.id}`);
+    await userEvent.click(link);
+
+    expect(screen.getAllByTestId("location").at(-1)).toHaveTextContent(`/item/${item.id}`);
   });
 
   it("opens the work item from keyboard activation with link semantics", async () => {
@@ -90,16 +95,12 @@ describe("BoardView", () => {
     const views = (kanbanModule.data as { views?: Record<string, { id: string; type: string; name: string; columns: Array<{ id: string; name: string; statusIds: string[]; defaultDropStatusId: string; wipLimit?: number | null; wipMode?: "warn" | "hard"; order: number }> }> }).views ?? {};
     const view = Object.values(views).find((entry) => entry.type === "board")!;
 
-    render(<MemoryRouter><BoardView view={view} /></MemoryRouter>);
+    renderBoard(view);
 
-    const card = screen
-      .getAllByRole("link")
-      .find((entry) => entry.textContent?.includes("Keyboard open"));
-    expect(card).toBeDefined();
-
-    card!.focus();
+    const link = screen.getByRole("link", { name: "Keyboard open" });
+    link.focus();
     await userEvent.keyboard("{Enter}");
 
-    expect(navigateSpy).toHaveBeenCalledWith(`/item/${item.id}`);
+    expect(screen.getAllByTestId("location").at(-1)).toHaveTextContent(`/item/${item.id}`);
   });
 });

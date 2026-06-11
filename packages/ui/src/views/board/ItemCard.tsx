@@ -1,5 +1,5 @@
-import type { DragEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useRef, type DragEvent } from "react";
+import { Link } from "react-router-dom";
 import type { WorkItem, StatusDefinition, PriorityDefinition, Label } from "@gph/core";
 import { getBugData } from "@gph/core";
 
@@ -20,7 +20,7 @@ export function ItemCard({
   onDragStart: (e: DragEvent<HTMLDivElement>) => void;
   onDragEnd: () => void;
 }) {
-  const navigate = useNavigate();
+  const suppressLinkClick = useRef(false);
   const status = statuses.find((s) => s.id === item.statusId);
   const priority = priorities.find((p) => p.id === item.priorityId);
   const itemLabels = item.labelIds.map((id) => labels.find((l) => l.id === id)).filter(Boolean) as Label[];
@@ -33,23 +33,28 @@ export function ItemCard({
       className="board-card"
       draggable
       data-dragging={dragging}
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
-      role="link"
-      tabIndex={0}
-      onClick={() => {
-        if (!dragging) navigate(`/item/${item.id}`);
+      onDragStart={(event) => {
+        suppressLinkClick.current = true;
+        onDragStart(event);
       }}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" && !dragging) {
-          event.preventDefault();
-          navigate(`/item/${item.id}`);
-        }
+      onDragEnd={() => {
+        onDragEnd();
       }}
+      role="article"
     >
-      <div className="board-card-title">
+      <Link
+        to={`/item/${item.id}`}
+        className="board-card-title"
+        style={{ color: "inherit", textDecoration: "none" }}
+        onClick={(event) => {
+          if (dragging || suppressLinkClick.current) {
+            event.preventDefault();
+            suppressLinkClick.current = false;
+          }
+        }}
+      >
         {item.title}
-      </div>
+      </Link>
       <div className="board-card-labels">
         {itemLabels.map((l) => (
           <span key={l.id} className="board-card-label" style={{ background: l.color ? colorForLabel(l.color) : "var(--color-accent-soft)" }}>
