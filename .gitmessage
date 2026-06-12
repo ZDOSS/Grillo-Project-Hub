@@ -1,0 +1,10 @@
+# <subject> (max 72 chars)
+#
+# <optional body>
+#
+# Every commit must include a DCO sign-off for the DCO GitHub App.
+# Use: git commit -s
+# Or add manually:
+# Signed-off-by: Your Name <your.email@example.com>
+#
+# See CONTRIBUTING.md and DCO for details.

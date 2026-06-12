@@ -1,3 +1,9 @@
+/**
+ * Grillo Project Hub — @gph/core
+ * Copyright (C) 2026 ZDOSS
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 export * from "./domain/index";
 export * from "./storage/index";
 export * from "./export/index";
