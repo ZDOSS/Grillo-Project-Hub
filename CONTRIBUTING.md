@@ -49,9 +49,15 @@ git push --force-with-lease
 ## How to contribute
 
 1. Fork the repository and create a feature branch from `main`.
-2. Make your changes with tests where behavior changes.
-3. Commit with `git commit -s` so the DCO check passes.
-4. Run the local checks before opening a pull request:
+2. Enable the local commit template so Git reminds you to sign off:
+
+   ```bash
+   git config commit.template .gitmessage
+   ```
+
+3. Make your changes with tests where behavior changes.
+4. Commit with `git commit -s` so the DCO check passes.
+5. Run the local checks before opening a pull request:
 
    ```bash
    npm install
@@ -60,8 +66,8 @@ git push --force-with-lease
    npm run build:web
    ```
 
-5. Open a pull request against `main` with a clear summary and test notes.
-6. Wait for CI and required checks (including DCO) to pass before merging.
+6. Open a pull request against `main` with a clear summary and test notes.
+7. Wait for CI and required checks (including DCO) to pass before merging.
 
 Direct pushes to `main` are discouraged; use pull requests so CI and review
 can run first.
