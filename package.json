@@ -2,6 +2,7 @@
   "name": "grillo-project-hub",
   "version": "0.1.0",
   "private": true,
+  "license": "GPL-3.0-or-later",
   "description": "Grillo Project Hub - a free, open source, hybrid project management suite",
   "workspaces": [
     "packages/*",

@@ -21,3 +21,7 @@
 # Root config and scripts
 /package.json @zeidalidiez
 /tsconfig*.json @zeidalidiez
+/LICENSE @zeidalidiez
+/COPYING @zeidalidiez
+/DCO @zeidalidiez
+/CONTRIBUTING.md @zeidalidiez

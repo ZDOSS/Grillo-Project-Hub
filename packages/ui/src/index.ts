@@ -1,3 +1,9 @@
+/**
+ * Grillo Project Hub — @gph/ui
+ * Copyright (C) 2026 ZDOSS
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 import "./theme/global.css";
 
 export * from "./theme";

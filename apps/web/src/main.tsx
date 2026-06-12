@@ -1,3 +1,9 @@
+/**
+ * Grillo Project Hub — web/PWA shell
+ * Copyright (C) 2026 ZDOSS
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router-dom";

@@ -93,4 +93,16 @@ Run them all with `npm test` (unit) and `npm run test:e2e` (browser).
 
 ## License
 
-See `LICENSE` in the repository root.
+Copyright (C) 2026 ZDOSS
+
+Grillo Project Hub is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option) any
+later version.
+
+- Full license text: [LICENSE](LICENSE)
+- Short notice: [COPYING](COPYING)
+- How to contribute under GPL: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Contributor sign-off policy: [DCO](DCO) (use `git commit -s`)
+
+SPDX identifier: `GPL-3.0-or-later`
