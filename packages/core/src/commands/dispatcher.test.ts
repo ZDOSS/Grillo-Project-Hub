@@ -450,4 +450,23 @@ describe("command dispatcher", () => {
 
     expect(r.bundle.projectSettings.hiddenViewIds).toEqual([]);
   });
+
+  it("rejects project settings updates for a different project", () => {
+    const bundle = createProjectBundle({ name: "P" });
+
+    expect(() =>
+      dispatchCommand(
+        bundle,
+        envelopeFor(
+          {
+            type: "project.updateSettings",
+            projectId: "project_other",
+            patch: { pluginTrustMode: "unrestricted" }
+          },
+          "ui",
+          null
+        )
+      )
+    ).toThrow(/Project mismatch/);
+  });
 });

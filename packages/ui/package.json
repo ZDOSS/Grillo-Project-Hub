@@ -18,6 +18,7 @@
     "./work-item": "./src/work-item/index.ts",
     "./projects": "./src/views/projects/index.ts",
     "./theme": "./src/theme/index.ts",
+    "./theme/global.css": "./src/theme/global.css",
     "./commands": "./src/commands/index.ts",
     "./search": "./src/views/search/index.ts"
   },

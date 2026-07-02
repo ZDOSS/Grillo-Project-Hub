@@ -96,6 +96,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - `project.updateSettings` now preserves `hiddenViewIds: []` for legacy bundles that predate that field instead of reintroducing `undefined`
   - item create/update paths now validate referenced type, status, priority, member, label, milestone, and parent IDs before mutating the bundle
   - checklist reorder commands must include every existing checklist entry exactly once, so partial client payloads cannot silently delete entries
+  - `project.updateSettings` now rejects project-id mismatches before applying settings patches
   - relationship, comment, milestone, label, status, priority, type, doc, reminder, attachment, view, and search commands now reject project mismatches or unknown mutation targets instead of silently bumping revisions
   - saved view create/update paths validate board status references and my-work member filters before mutating the active bundle, matching the import validator's saved-view checks
   - JSON import now performs deep bundle reference validation through `validateProjectBundle()`, rejecting dangling item, relationship, reminder, attachment, folder, and board-view references before the UI can call `setBundle()`
@@ -195,6 +196,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - item-reference validation and unknown-target rejection in dispatcher commands
   - reminder target validation on create and update commands
   - saved-view reference validation for `view.create` and `view.update`
+  - project-id mismatch rejection for `project.updateSettings`
   - lossy checklist reorder rejection
   - deep JSON import reference validation
   - whole-card board-card link activation
@@ -266,6 +268,9 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - applied the saved-view Greptile follow-up by:
   - validating `view.create` board columns against known statuses before persistence
   - validating `view.update` board columns and my-work member filters before persistence
+- applied the project-settings Greptile follow-up by:
+  - adding the missing `assertProjectId` guard to `project.updateSettings`
+  - exporting `@gph/ui/theme/global.css` through the UI package boundary used by both app entrypoints
 
 ## Open follow-on planning
 

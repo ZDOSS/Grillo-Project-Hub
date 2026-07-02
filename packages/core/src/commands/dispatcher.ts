@@ -251,6 +251,7 @@ function updateProjectSettings(
     };
   }
 ): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
   if (payload.patch.pluginTrustMode && !["first-party", "curated", "unrestricted"].includes(payload.patch.pluginTrustMode)) {
     throw new Error(`Invalid plugin trust mode: ${payload.patch.pluginTrustMode}`);
   }

@@ -65,7 +65,7 @@ Note: This is a static client-side demo only. All data lives in the browser (loc
 - In the **desktop shell**, you can still work browser-locally, or attach a folder path for `.pm-suite` saves and reopen those folder-backed projects from the launcher.
 - Desktop folder-backed saves, loads, existence checks, and deletes now call the registered Tauri commands (`save_project`, `load_project`, `project_exists`, `delete_project`) instead of unregistered filesystem-plugin command names.
 - Removing a folder-backed recent from the launcher only removes the shortcut; it does not delete the underlying filesystem project.
-- The command layer now hard-fails unknown member edits, validates item and saved-view references, rejects unknown mutation targets, preserves `hiddenViewIds` defaults when opening older bundles, and rejects lossy checklist reorders.
+- The command layer now hard-fails unknown member edits, validates item and saved-view references, rejects project-id mismatches, rejects unknown mutation targets, preserves `hiddenViewIds` defaults when opening older bundles, and rejects lossy checklist reorders.
 - JSON import now performs deeper bundle integrity checks, so dangling item, relationship, reminder, attachment, and board-view references are rejected before replacing the active project.
 - Starter templates now carry different left-panel defaults, and the bug-tracker template seeds bug-safe defaults so creating a new bug does not fail on status mismatch.
 - The simple-kanban starter template now seeds a working welcome-doc link to its sample task instead of rendering a broken placeholder token.
@@ -89,7 +89,7 @@ tests/e2e        # Playwright parity tests
 
 | Suite | Count | Notes |
 | --- | --- | --- |
-| `packages/core` | 38 | Domain, storage, dispatcher, export, import |
+| `packages/core` | 39 | Domain, storage, dispatcher, export, import |
 | `packages/ui` | 19 | AppShell, BoardView, BacklogView, CommandPalette, launcher, docs, settings |
 | `apps/desktop` | 2 | Desktop storage adapter command wiring |
 | `tests/e2e` | 7 | Hybrid parity, project workflow, theme, palette, export, search |
