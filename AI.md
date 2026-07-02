@@ -40,7 +40,7 @@ docs/                        # current product/architecture plan
 - browser and desktop differences live behind storage/platform adapters
 - the Rust/Tauri boundary is narrow: `save_project`, `load_project`, `project_exists`, `delete_project`, `list_projects_in_folder`
 - UI, automation, import, and MCP/AI actions all route through the same validated command surface (`packages/core/src/commands/`)
-- shared UI composition now lives under `packages/ui/src/components/`; routes should prefer those primitives for buttons, fields, toolbars, page headers, feedback, dialogs, data tables, and work-item metadata before adding route-local control markup
+- shared UI composition now lives under `packages/ui/src/components/`; routes should prefer those primitives for buttons, fields, surfaces, toolbars, page headers, feedback, dialogs, data tables, and work-item metadata before adding route-local control markup
 - the canonical project bundle lives in `project.pms.json`; module data and unknown module sections are preserved across save/load
 - the desktop folder-backed adapter and the browser `localStorage` adapter implement the same `ProjectStoreAdapter` interface and emit equivalent `WatchEvent` shapes for external-change detection
 
@@ -149,7 +149,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - PWA/browser folder picker for creating and reopening local-folder projects when File System Access is available
   - automatic last-project restore after reload via persisted active-session metadata
 - per-project view tabs across board, backlog, table, roadmap, calendar, docs, bug triage, my work, search
-- modal-style work item detail at `/item/:id` with full edit, checklist conversion, comments, subtasks, activity; `WorkItemModal` currently wraps the legacy detail implementation while the visual presentation has moved from right drawer to wide modal
+- modal-style work item detail at `/item/:id` with full edit, checklist conversion, comments, subtasks, activity; `WorkItemModal` now routes through the shared `Modal` primitive with `size="work-item"` while preserving the existing detail editing controls and command-dispatch behavior
 - settings view with theme, left-panel visibility, editable members, editable statuses, editable priorities, editable types, labels, milestones, custom fields, plugins, export/import, AI bridge
 - settings sections now expose tab semantics, the edit icon comes from `lucide-react`, and import failures render as inline alerts instead of browser-native `alert()`
 - settings registry tables now follow a consistent edit flow for members/statuses/priorities/types:
@@ -178,19 +178,20 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - the simple-kanban starter doc now writes a real `[[item:<id>]]` reference for its seeded welcome task instead of rendering a broken literal `sample.id` token
 - board cards are now rendered as a single React Router link over the whole card, preserving native link semantics, letting assistive technology compute the link name from visible title/metadata text, and avoiding a title-only click target while still suppressing accidental post-drag navigation
 - the UI/UX overhaul implementation pass has started in code:
-  - `packages/ui/src/components/` now exports shared button/icon-button, field, page-header, toolbar, empty-state, inline-alert, modal/dialog, data-table, and work-item metadata primitives
+  - `packages/ui/src/components/` now exports shared button/icon-button, field, page-header, surface, toolbar, empty-state, inline-alert, modal/dialog, data-table, and work-item metadata primitives
   - `AppShell` uses a named workspace navigation landmark, shared header buttons, and lucide icons for command/theme actions
   - board, backlog, table, bug triage, my work, search, roadmap, calendar, docs, and settings now use shared primitives for major controls, feedback, metadata, or layout
   - board hard-WIP rejection now surfaces visible status feedback instead of silently dropping the move
   - search results are grouped by surface type while preserving URL query/scope state
   - roadmap and calendar controls now sit in shared toolbars with accessible names
   - docs use shared confirmation for document delete and lucide document icons instead of emoji UI markers
+  - `/item/:id` now renders through the shared modal shell instead of the legacy drawer route shell
 
 ## Testing strategy
 
 - TDD for the shared core: domain rules, command handlers, storage contract, and export/import
 - Vitest component tests for `AppShell`, `BoardView`, `BacklogView`, `CommandPalette`, `ProjectsListView`, and `DocsView`
-- UI foundation coverage now includes `components/button/Button.test.tsx`, and AppShell tests assert banner, workspace navigation, and command-search affordances
+- UI foundation coverage now includes `components/button/Button.test.tsx`, `components/layout/Surface.test.tsx`, and `work-item/WorkItemModal.test.tsx`; AppShell tests assert banner, workspace navigation, and command-search affordances
 - review-follow-up regressions now have dedicated tests for:
   - unknown-member updates in the dispatcher
   - legacy `hiddenViewIds` fallback behavior
@@ -290,10 +291,15 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - presenting `/item/:id` through `WorkItemModal` with modal-style overlay geometry
   - replacing docs delete confirmation and settings import failure `alert()` with shared in-app feedback
   - updating route and e2e tests for the new navigation/search/settings semantics and adding button primitive coverage
+- applied the UI/UX PR-body follow-up by:
+  - adding and exporting the missing `Surface` primitive with token-backed surface variants, padding options, interactive state, and regression coverage
+  - updating the UI/UX implementation plan so later workspace-card migration steps reference an actual exported `Surface` primitive
+  - moving the `/item/:id` route shell onto the shared `Modal` primitive and adding WorkItemModal regression coverage that guards against reintroducing the legacy `.drawer` shell
+  - removing the extra blank line at EOF in the UI/UX design spec so `git diff --check` stays clean
 
 ## Open follow-on planning
 
-- UI/UX overhaul planning lives in `docs/superpowers/specs/2026-07-02-ui-ux-overhaul-design.md` and `docs/superpowers/plans/2026-07-02-ui-ux-overhaul-implementation-plan.md`; the first implementation pass is now in code, but deeper follow-on work remains for a fully componentized item detail modal, mobile navigation sheet, richer settings information architecture, and final accessibility QA
+- UI/UX overhaul planning lives in `docs/superpowers/specs/2026-07-02-ui-ux-overhaul-design.md` and `docs/superpowers/plans/2026-07-02-ui-ux-overhaul-implementation-plan.md`; the first implementation pass is now in code, but deeper follow-on work remains for extracting item-detail internals into smaller components, mobile navigation sheet, richer settings information architecture, and final accessibility QA
 - a deeper roadmap interaction plan (multi-day bars, dependencies, swimlanes)
 - a security-first plugin runtime plan before any third-party plugin execution
 - a public-internet hosting plan (currently out of MVP scope; only trusted internal hosting is supported)

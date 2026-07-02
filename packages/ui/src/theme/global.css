@@ -960,6 +960,9 @@
 .gph-modal-work-item {
   width: min(1040px, calc(100vw - 32px));
 }
+.gph-modal-work-item .gph-modal-body {
+  padding: 0;
+}
 .gph-data-table th {
   padding: 0;
 }
@@ -1041,6 +1044,44 @@
   justify-content: center;
   flex-wrap: wrap;
 }
+.gph-surface {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+}
+.gph-surface-default {
+  background: var(--color-bg-surface);
+}
+.gph-surface-muted {
+  background: var(--color-bg-muted);
+}
+.gph-surface-elevated {
+  background: var(--color-bg-elevated);
+  box-shadow: var(--shadow-1);
+}
+.gph-surface-padding-none {
+  padding: 0;
+}
+.gph-surface-padding-sm {
+  padding: var(--space-3);
+}
+.gph-surface-padding-md {
+  padding: var(--space-4);
+}
+.gph-surface-padding-lg {
+  padding: var(--space-5);
+}
+.gph-surface-interactive {
+  transition:
+    background var(--duration-fast, 120ms) var(--ease-standard, ease),
+    border-color var(--duration-fast, 120ms) var(--ease-standard, ease),
+    box-shadow var(--duration-fast, 120ms) var(--ease-standard, ease);
+}
+.gph-surface-interactive:hover {
+  background: var(--color-bg-row-hover);
+  border-color: var(--color-border-strong);
+  box-shadow: var(--shadow-1);
+}
 
 /* ---- Workspace launcher ---- */
 .workspace-page {
@@ -1110,6 +1151,29 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+}
+.item-detail-titlebar {
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--color-border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.item-detail-titlebar .col {
+  flex: 1;
+}
+.item-detail-scroll {
+  padding: var(--space-5);
+  overflow: auto;
+}
+.item-detail-footer {
+  padding: var(--space-3) var(--space-5);
+  border-top: 1px solid var(--color-border-subtle);
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
 }
 .item-detail-section h3 {
   font-size: var(--font-size-xs);

@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useProjectStore } from "../store/project-store";
 import { getBugData, setBugData, type WorkItem, type BugItemData } from "@gph/core";
+import { Modal } from "../components";
 
 /**
- * Work-item detail drawer.
+ * Work-item detail route implementation.
  *
  *  - Opens when route is /item/:itemId
  *  - Edits title, description, status, priority, type, assignee, milestone, dates, labels
@@ -12,7 +13,7 @@ import { getBugData, setBugData, type WorkItem, type BugItemData } from "@gph/co
  *  - Manages checklist, comments, relationships, attachments, activity
  *  - Subtask creation, conversion from checklist, archive/trash
  */
-export function WorkItemDrawer() {
+export function WorkItemDetailModal() {
   const { itemId } = useParams<{ itemId: string }>();
   const navigate = useNavigate();
   const bundle = useProjectStore((s) => s.bundle);
@@ -35,28 +36,17 @@ export function WorkItemDrawer() {
   }, [item?.id]);
 
   const close = () => navigate(-1);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        close();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
 
   if (!bundle || !itemId) return null;
   if (!item) {
     return (
-      <div className="drawer-backdrop" onClick={() => navigate(-1)}>
-        <div className="drawer" onClick={(e) => e.stopPropagation()}>
-          <div className="drawer-header">
-            <strong>Item not found</strong>
-            <button className="btn btn-ghost" onClick={() => navigate(-1)}>Close</button>
-          </div>
-        </div>
-      </div>
+      <Modal
+        title="Item not found"
+        onClose={close}
+        footer={<button className="btn btn-ghost" onClick={close}>Close</button>}
+      >
+        <p className="text-sm text-muted">This work item no longer exists.</p>
+      </Modal>
     );
   }
 
@@ -96,10 +86,13 @@ export function WorkItemDrawer() {
   };
 
   return (
-    <>
-      <div className="drawer-backdrop" onClick={close} />
-      <aside className="drawer" role="dialog" aria-label={`Work item: ${item.title}`}>
-        <div className="drawer-header">
+    <Modal
+      label={`Work item: ${item.title}`}
+      onClose={close}
+      size="work-item"
+      title="Work item"
+    >
+        <div className="item-detail-titlebar">
           <div className="col" style={{ gap: 2, flex: 1 }}>
             <span className="text-xs text-muted">
               {types.find((t) => t.id === item.typeId)?.name ?? "Item"} · #{item.id.slice(-6)}
@@ -120,10 +113,9 @@ export function WorkItemDrawer() {
               style={{ fontSize: "var(--font-size-lg)", fontWeight: 600 }}
             />
           </div>
-          <button className="btn btn-ghost" onClick={close} aria-label="Close">✕</button>
         </div>
 
-        <div className="drawer-body">
+        <div className="item-detail-scroll">
           <div className="item-detail">
             <div className="item-detail-section">
               <div className="item-detail-grid">
@@ -462,7 +454,7 @@ export function WorkItemDrawer() {
           </div>
         </div>
 
-        <div className="drawer-footer">
+        <div className="item-detail-footer">
           <div className="row">
             <button className="btn btn-sm" onClick={() => {
               applyCommand({ type: "item.archive", projectId: bundle.project.id, itemId: item.id });
@@ -488,9 +480,12 @@ export function WorkItemDrawer() {
             <button className="btn btn-sm btn-primary" onClick={close}>Done</button>
           </div>
         </div>
-      </aside>
-    </>
+    </Modal>
   );
+}
+
+export function WorkItemDrawer() {
+  return <WorkItemDetailModal />;
 }
 
 function ParentLink({ parentId }: { parentId: string }) {

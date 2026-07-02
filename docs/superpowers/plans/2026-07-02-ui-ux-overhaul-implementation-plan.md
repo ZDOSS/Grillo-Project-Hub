@@ -20,6 +20,8 @@ Create:
 - `packages/ui/src/components/form/fields.tsx`
 - `packages/ui/src/components/layout/AppFrame.tsx`
 - `packages/ui/src/components/layout/PageHeader.tsx`
+- `packages/ui/src/components/layout/Surface.tsx`
+- `packages/ui/src/components/layout/Surface.test.tsx`
 - `packages/ui/src/components/layout/ViewToolbar.tsx`
 - `packages/ui/src/components/feedback/EmptyState.tsx`
 - `packages/ui/src/components/feedback/InlineAlert.tsx`
@@ -100,6 +102,7 @@ export * from "./button/Button";
 export * from "./form/fields";
 export * from "./layout/AppFrame";
 export * from "./layout/PageHeader";
+export * from "./layout/Surface";
 export * from "./layout/ViewToolbar";
 export * from "./feedback/EmptyState";
 export * from "./feedback/InlineAlert";
@@ -177,6 +180,7 @@ In `global.css`, add grouped sections for:
 .gph-button {}
 .gph-field {}
 .gph-page-header {}
+.gph-surface {}
 .gph-view-toolbar {}
 .gph-empty-state {}
 .gph-modal {}
@@ -211,6 +215,8 @@ git commit -s -m "feat: expand ui theme tokens"
 - Create: `packages/ui/src/components/button/Button.tsx`
 - Create: `packages/ui/src/components/button/Button.test.tsx`
 - Create: `packages/ui/src/components/form/fields.tsx`
+- Create: `packages/ui/src/components/layout/Surface.tsx`
+- Create: `packages/ui/src/components/layout/Surface.test.tsx`
 
 - [ ] **Step 1: Write button tests**
 

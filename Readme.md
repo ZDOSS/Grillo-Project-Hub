@@ -7,7 +7,7 @@ A free, open source, hybrid day-one project management suite for practical softw
 The MVP implementation is in place. The current build supports:
 
 - **Workspace** with new/open/demo project flow, recent-project reopen, browser-vs-folder storage guidance, inline delete/remove confirmation, and automatic restore of the last active project after reload
-- **Shared UI foundation** with reusable buttons, icon buttons, fields, page headers, toolbars, empty states, inline alerts, modal/dialog primitives, data tables, and work-item metadata components
+- **Shared UI foundation** with reusable buttons, icon buttons, fields, page headers, surfaces, toolbars, empty states, inline alerts, modal/dialog primitives, data tables, and work-item metadata components
 - **Board** with drag-and-drop, WIP limits (warn + hard modes), explicit hard-limit feedback, column-based status grouping, and whole-card link navigation that keeps visible card metadata available to assistive technology
 - **Backlog** with priority-sorted items, a shared toolbar, and a visible new-item entry point
 - **Table** with accessible sortable header buttons, shared filter controls, type filtering, and shared metadata badges
@@ -21,7 +21,7 @@ The MVP implementation is in place. The current build supports:
 - **Consistent settings editing** for members, statuses, priorities, types, and plugin trust with explicit edit or save/cancel flows instead of always-live row inputs
 - **Shared navigation config** so sidebar navigation and left-panel visibility toggles stay in sync
 - **Command palette** with `Ctrl/Cmd+K` and `C` to create items
-- **Modal-style work item detail** with full edit, checklist (with convert-to-subtask), comments with threads and edit history, subtasks, relationships, archive/trash/restore
+- **Modal-style work item detail** backed by the shared modal primitive, with full edit, checklist (with convert-to-subtask), comments with threads and edit history, subtasks, relationships, archive/trash/restore
 - **Local full-text search** with structured filters
 - **JSON, Markdown, and CSV export/import**
 - **Light and dark themes** with system preference detection
@@ -86,14 +86,14 @@ tests/e2e        # Playwright parity tests
 
 `AI.md` is the living architecture ledger. `docs/FullSpec.md` is the current source of truth for product direction.
 
-The UI/UX overhaul planning package lives in `docs/superpowers/specs/2026-07-02-ui-ux-overhaul-design.md` and `docs/superpowers/plans/2026-07-02-ui-ux-overhaul-implementation-plan.md`. The implementation now starts that plan in code with a shared UI component layer, migrated work-management surfaces, route-level toolbar/empty-state patterns, accessible settings tabs, and a modal-style work-item detail surface.
+The UI/UX overhaul planning package lives in `docs/superpowers/specs/2026-07-02-ui-ux-overhaul-design.md` and `docs/superpowers/plans/2026-07-02-ui-ux-overhaul-implementation-plan.md`. The implementation now starts that plan in code with a shared UI component layer, including the `Surface` primitive, migrated work-management surfaces, route-level toolbar/empty-state patterns, accessible settings tabs, and a modal-backed work-item detail surface.
 
 ## Tests
 
 | Suite | Count | Notes |
 | --- | --- | --- |
 | `packages/core` | 39 | Domain, storage, dispatcher, export, import |
-| `packages/ui` | 22 | AppShell, shared button primitive, BoardView, BacklogView, CommandPalette, launcher, docs, settings |
+| `packages/ui` | 26 | AppShell, shared button and surface primitives, WorkItemModal, BoardView, BacklogView, CommandPalette, launcher, docs, settings |
 | `apps/desktop` | 2 | Desktop storage adapter command wiring |
 | `tests/e2e` | 7 | Hybrid parity, project workflow, theme, palette, export, search |
 

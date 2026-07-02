@@ -534,4 +534,3 @@ The overhaul is complete when:
 - light and dark themes are both visually coherent
 - keyboard operation and focus management are verified
 - docs and `AI.md` reflect meaningful architecture or implementation changes from the actual code work
-

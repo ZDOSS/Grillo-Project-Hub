@@ -35,7 +35,7 @@ export function Modal({
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className="modal-header gph-modal-header">
-          <strong>{title}</strong>
+          {typeof title === "string" ? <strong>{title}</strong> : title}
           <IconButton aria-label="Close" onClick={onClose}>
             <X aria-hidden="true" />
           </IconButton>
