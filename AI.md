@@ -274,9 +274,10 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 
 ## Open follow-on planning
 
+- UI/UX overhaul planning now lives in `docs/superpowers/specs/2026-07-02-ui-ux-overhaul-design.md` and `docs/superpowers/plans/2026-07-02-ui-ux-overhaul-implementation-plan.md`; it sequences foundation-first UI primitives, surface-by-surface migration, and workflow/accessibility completion
 - a deeper roadmap interaction plan (multi-day bars, dependencies, swimlanes)
 - a security-first plugin runtime plan before any third-party plugin execution
 - a public-internet hosting plan (currently out of MVP scope; only trusted internal hosting is supported)
 - a sync-backend plan if richer collaboration is pursued
 
-The current `docs/FullSpec.md` and `docs/plans/2026-06-10-hybrid-day-one-implementation-plan.md` remain the product source of truth. The implementation in this repository implements the MVP slice of that plan.
+The current `docs/FullSpec.md`, `docs/plans/2026-06-10-hybrid-day-one-implementation-plan.md`, and UI/UX overhaul planning package remain the product source of truth. The implementation in this repository implements the MVP slice of the original plan; the UI/UX overhaul is planned but not implemented yet.

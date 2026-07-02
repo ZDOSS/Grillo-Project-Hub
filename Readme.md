@@ -85,6 +85,8 @@ tests/e2e        # Playwright parity tests
 
 `AI.md` is the living architecture ledger. `docs/FullSpec.md` is the current source of truth for product direction.
 
+The next UI/UX planning package is now documented in `docs/superpowers/specs/2026-07-02-ui-ux-overhaul-design.md` and `docs/superpowers/plans/2026-07-02-ui-ux-overhaul-implementation-plan.md`. It sequences a shared UI foundation, surface-by-surface migration, and final workflow/accessibility verification pass.
+
 ## Tests
 
 | Suite | Count | Notes |
