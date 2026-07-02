@@ -44,6 +44,12 @@ docs/                        # current product/architecture plan
 - the canonical project bundle lives in `project.pms.json`; module data and unknown module sections are preserved across save/load
 - the desktop folder-backed adapter and the browser `localStorage` adapter implement the same `ProjectStoreAdapter` interface and emit equivalent `WatchEvent` shapes for external-change detection
 
+## Agent operating rules
+
+- after pushing PR updates, do not immediately poll Greptile or summarize Greptile check state; Greptile review is asynchronous and usually remains pending for a while, so an immediate `gh pr checks` read only burns context without producing useful signal
+- only inspect Greptile after the user explicitly asks, after a reasonable review delay, or when there is a concrete Greptile comment/body update to act on
+- normal GitHub Actions or deploy checks may still be inspected when debugging CI/deploy failures, but keep that separate from Greptile's long-running review check
+
 ## Domain model summary
 
 The core domain in `packages/core/src/domain/` covers the entities the plan calls out:
