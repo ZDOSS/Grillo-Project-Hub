@@ -171,7 +171,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - bug triage now exposes a visible `New bug` action in the intake column
 - the bug-tracker template now seeds a bug-compatible default project/type/status configuration, while other starter templates apply different `hiddenViewIds` defaults so the left panel reflects the template's purpose out of the box
 - the simple-kanban starter doc now writes a real `[[item:<id>]]` reference for its seeded welcome task instead of rendering a broken literal `sample.id` token
-- board cards are now rendered as a single React Router link over the whole card, preserving native link semantics and avoiding a title-only click target while still suppressing accidental post-drag navigation
+- board cards are now rendered as a single React Router link over the whole card, preserving native link semantics, letting assistive technology compute the link name from visible title/metadata text, and avoiding a title-only click target while still suppressing accidental post-drag navigation
 
 ## Testing strategy
 
@@ -202,6 +202,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - `apps/desktop` now has a Vitest/jsdom test harness for the desktop storage adapter
 - Playwright e2e for hybrid parity, theme toggle, command palette, project creation, item creation with `C` shortcut, JSON export download, and search
 - `npm test` runs core, UI, and desktop adapter tests; `npm run test:e2e` runs `apps/web/scripts/run-e2e.mjs`, which starts Vite as an owned child process, waits for readiness, runs Playwright, and shuts Vite down before returning; `npm run typecheck` covers all packages and apps; `npm run lint` currently aliases typecheck until a dedicated lint stack is added
+- `apps/web/scripts/run-e2e.mjs` owns the e2e base URL and passes it through `PLAYWRIGHT_BASE_URL`; `apps/web/playwright.config.ts` reads that environment value with a fixed local fallback so runner and config cannot silently drift.
 
 ## Recent architecture-affecting changes
 
@@ -256,6 +257,10 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - removing stale `@gph/ui` package export paths and pointing project/search exports at existing view modules
   - replacing the root lint placeholder with a real typecheck-backed command and adding app-level typecheck scripts
   - deepening command/import validation and adding regression coverage for reference integrity, checklist reorders, board-card links, and desktop storage wiring
+- applied the Greptile PR follow-up by:
+  - making Playwright consume the e2e runner's `PLAYWRIGHT_BASE_URL`
+  - removing the board-card `aria-label` so screen readers include visible card metadata in the link name
+  - updating the desktop delete catch comment to reflect that Rust handles missing files
 
 ## Open follow-on planning
 

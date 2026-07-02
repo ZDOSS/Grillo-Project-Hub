@@ -53,7 +53,7 @@ describe("BoardView", () => {
     expect(screen.getByText(/Ship docs/i)).toBeInTheDocument();
   });
 
-  it("opens the work item when the card title link is clicked", async () => {
+  it("opens the work item when the card link is clicked", async () => {
     const bundle = buildProjectFromTemplate("simple-kanban", "Test");
     useProjectStore.setState({ bundle });
     const created = useProjectStore.getState().applyCommand({
@@ -71,7 +71,7 @@ describe("BoardView", () => {
 
     renderBoard(view);
 
-    const link = screen.getByRole("link", { name: "Open me" });
+    const link = screen.getByRole("link", { name: /Open me\s+Ready/ });
     expect(link).toHaveAttribute("href", `/item/${item.id}`);
 
     await userEvent.click(link);
@@ -124,7 +124,7 @@ describe("BoardView", () => {
 
     renderBoard(view);
 
-    const link = screen.getByRole("link", { name: "Drag then open" });
+    const link = screen.getByRole("link", { name: /Drag then open\s+Ready/ });
     const card = link.closest(".board-card");
     expect(card).toBeTruthy();
 
@@ -160,7 +160,7 @@ describe("BoardView", () => {
 
     renderBoard(view);
 
-    const link = screen.getByRole("link", { name: "Keyboard open" });
+    const link = screen.getByRole("link", { name: /Keyboard open\s+Ready/ });
     link.focus();
     await userEvent.keyboard("{Enter}");
 

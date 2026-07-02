@@ -98,7 +98,8 @@ class DesktopAdapter implements ProjectStoreAdapter {
       try {
         await tauri.invoke("delete_project", { path: existing.displayPath });
       } catch {
-        // Keep recents cleanup even if the file is already gone.
+        // Keep recents cleanup running after unexpected filesystem failures;
+        // NotFound is already handled by the Rust command.
       }
     }
     if (typeof localStorage === "undefined") return;

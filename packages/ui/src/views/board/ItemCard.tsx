@@ -34,7 +34,6 @@ export function ItemCard({
       className="board-card"
       draggable
       data-dragging={dragging}
-      aria-label={item.title}
       onDragStart={(event) => {
         suppressLinkClick.current = true;
         onDragStart(event);

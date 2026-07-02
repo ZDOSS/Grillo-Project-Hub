@@ -7,7 +7,7 @@ A free, open source, hybrid day-one project management suite for practical softw
 The MVP implementation is in place. The current build supports:
 
 - **Workspace** with new/open/demo project flow, recent-project reopen, browser-vs-folder storage guidance, inline delete/remove confirmation, and automatic restore of the last active project after reload
-- **Board** with drag-and-drop, WIP limits (warn + hard modes), column-based status grouping, and whole-card link navigation
+- **Board** with drag-and-drop, WIP limits (warn + hard modes), column-based status grouping, and whole-card link navigation that keeps visible card metadata available to assistive technology
 - **Backlog** with priority-sorted items
 - **Table** with sort, group, filter, and column visibility
 - **Docs** with Markdown editing, sanitized rendering, internal embeds, backlinks, router-safe in-app navigation for preview links, correct pane updates when switching documents, and draft-preserving editor resets
@@ -94,7 +94,7 @@ tests/e2e        # Playwright parity tests
 | `apps/desktop` | 2 | Desktop storage adapter command wiring |
 | `tests/e2e` | 7 | Hybrid parity, project workflow, theme, palette, export, search |
 
-Run them all with `npm test` (unit) and `npm run test:e2e` (browser). The e2e runner starts Vite as an owned child process and shuts it down after Playwright exits, which keeps the command reliable on Windows and CI.
+Run them all with `npm test` (unit) and `npm run test:e2e` (browser). The e2e runner starts Vite as an owned child process, passes `PLAYWRIGHT_BASE_URL` into Playwright, and shuts Vite down after Playwright exits, which keeps the command reliable on Windows and CI.
 `npm run typecheck` covers all packages and apps, and `npm run lint` currently aliases that same check until a dedicated lint rule set is introduced.
 
 ## License
