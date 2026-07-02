@@ -35,7 +35,7 @@ describe("SettingsView", () => {
       </ThemeProvider>
     );
 
-    await userEvent.click(screen.getByRole("button", { name: "Members" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Members" }));
     await userEvent.click(screen.getByRole("button", { name: "Remove" }));
 
     expect(screen.getByText(/Remove Ada from this project/i)).toBeInTheDocument();
@@ -53,7 +53,7 @@ describe("SettingsView", () => {
       </ThemeProvider>
     );
 
-    const membersTab = screen.getAllByRole("button", { name: "Members" }).at(-1);
+    const membersTab = screen.getAllByRole("tab", { name: "Members" }).at(-1);
     expect(membersTab).toBeDefined();
     await userEvent.click(membersTab!);
     const editButton = screen.getAllByRole("button", { name: /edit/i }).at(-1);

@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useProjectStore } from "../../store/project-store";
 import type { WorkItem } from "@gph/core";
+import { Button, IconButton, ViewToolbar } from "../../components";
+import { useProjectStore } from "../../store/project-store";
 
 /**
  * Calendar view. Lightweight month grid showing items by start/due date.
@@ -9,10 +11,14 @@ import type { WorkItem } from "@gph/core";
  */
 export function CalendarView() {
   const bundle = useProjectStore((s) => s.bundle);
-  const [anchor, setAnchor] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [anchor, setAnchor] = useState<string>(
+    new Date().toISOString().slice(0, 10)
+  );
 
   if (!bundle) return null;
-  const items = bundle.core.items.filter((i) => !i.trashedAt && !i.archived && (i.startDate || i.dueDate));
+  const items = bundle.core.items.filter(
+    (item) => !item.trashedAt && !item.archived && (item.startDate || item.dueDate)
+  );
 
   const { weeks, label } = useMemo(() => {
     const start = new Date(anchor + "T00:00:00Z");
@@ -22,15 +28,23 @@ export function CalendarView() {
     gridStart.setUTCDate(first.getUTCDate() - firstWeekday);
     const days: { date: string; other: boolean; today: boolean }[] = [];
     const today = new Date().toISOString().slice(0, 10);
-    for (let i = 0; i < 42; i++) {
-      const d = new Date(gridStart);
-      d.setUTCDate(gridStart.getUTCDate() + i);
-      const iso = d.toISOString().slice(0, 10);
-      days.push({ date: iso, other: d.getUTCMonth() !== first.getUTCMonth(), today: iso === today });
+    for (let index = 0; index < 42; index += 1) {
+      const day = new Date(gridStart);
+      day.setUTCDate(gridStart.getUTCDate() + index);
+      const iso = day.toISOString().slice(0, 10);
+      days.push({
+        date: iso,
+        other: day.getUTCMonth() !== first.getUTCMonth(),
+        today: iso === today
+      });
     }
     return {
       weeks: chunk(days, 7),
-      label: first.toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })
+      label: first.toLocaleString("en-US", {
+        month: "long",
+        year: "numeric",
+        timeZone: "UTC"
+      })
     };
   }, [anchor]);
 
@@ -53,21 +67,42 @@ export function CalendarView() {
 
   return (
     <div className="calendar">
-      <div className="row" style={{ marginBottom: 8 }}>
-        <button className="btn btn-sm" onClick={() => shiftMonth(setAnchor, anchor, -1)}>‹</button>
+      <ViewToolbar>
+        <IconButton
+          aria-label="Previous month"
+          onClick={() => shiftMonth(setAnchor, anchor, -1)}
+        >
+          <ChevronLeft aria-hidden="true" />
+        </IconButton>
         <strong style={{ minWidth: 160, textAlign: "center" }}>{label}</strong>
-        <button className="btn btn-sm" onClick={() => shiftMonth(setAnchor, anchor, 1)}>›</button>
-        <button className="btn btn-sm" onClick={() => setAnchor(new Date().toISOString().slice(0, 10))}>Today</button>
-      </div>
+        <IconButton
+          aria-label="Next month"
+          onClick={() => shiftMonth(setAnchor, anchor, 1)}
+        >
+          <ChevronRight aria-hidden="true" />
+        </IconButton>
+        <Button size="sm" onClick={() => setAnchor(new Date().toISOString().slice(0, 10))}>
+          Today
+        </Button>
+      </ViewToolbar>
       <div className="calendar-grid" role="grid" aria-label="Calendar">
-        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-          <div key={d} className="roadmap-month" style={{ textAlign: "left" }}>{d}</div>
+        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+          <div key={day} className="roadmap-month" style={{ textAlign: "left" }}>
+            {day}
+          </div>
         ))}
-        {weeks.flat().map((d) => (
-          <div key={d.date} className="calendar-day" data-other-month={d.other} data-today={d.today}>
-            <div className="calendar-day-num">{Number(d.date.slice(-2))}</div>
-            {(itemsByDate.get(d.date) ?? []).map((item) => (
-              <Link key={item.id} to={`/item/${item.id}`} className="calendar-pill">{item.title}</Link>
+        {weeks.flat().map((day) => (
+          <div
+            key={day.date}
+            className="calendar-day"
+            data-other-month={day.other}
+            data-today={day.today}
+          >
+            <div className="calendar-day-num">{Number(day.date.slice(-2))}</div>
+            {(itemsByDate.get(day.date) ?? []).map((item) => (
+              <Link key={item.id} to={`/item/${item.id}`} className="calendar-pill">
+                {item.title}
+              </Link>
             ))}
           </div>
         ))}
@@ -76,14 +111,16 @@ export function CalendarView() {
   );
 }
 
-function shiftMonth(set: (v: string) => void, anchor: string, dir: number) {
-  const d = new Date(anchor + "T00:00:00Z");
-  d.setUTCMonth(d.getUTCMonth() + dir);
-  set(d.toISOString().slice(0, 10));
+function shiftMonth(set: (value: string) => void, anchor: string, dir: number) {
+  const date = new Date(anchor + "T00:00:00Z");
+  date.setUTCMonth(date.getUTCMonth() + dir);
+  set(date.toISOString().slice(0, 10));
 }
 
 function chunk<T>(arr: T[], size: number): T[][] {
   const out: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  for (let index = 0; index < arr.length; index += size) {
+    out.push(arr.slice(index, index + size));
+  }
   return out;
 }

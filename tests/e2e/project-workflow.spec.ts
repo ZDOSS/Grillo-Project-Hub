@@ -9,7 +9,7 @@ test("the user can create an item, change its status, and see the activity log",
   await expect(page.getByRole("dialog", { name: /create work item/i })).toBeVisible();
   await page.getByRole("dialog").getByRole("textbox").first().fill("Test task from E2E");
   await page.getByRole("button", { name: "Create" }).click();
-  // Item drawer should open
+  // Item detail should open
   await expect(page.getByRole("dialog", { name: /work item/i })).toBeVisible();
   // Close
   await page.keyboard.press("Escape");
@@ -23,7 +23,7 @@ test("export downloads a JSON project bundle", async ({ page }) => {
   await expect(page).toHaveURL(/\/board/);
   // Navigate to settings and export
   await page.getByRole("link", { name: "Settings" }).click();
-  await page.getByRole("button", { name: "Export & import" }).click();
+  await page.getByRole("tab", { name: "Export & import" }).click();
   const [download] = await Promise.all([
     page.waitForEvent("download"),
     page.getByRole("button", { name: /JSON/i }).click()
@@ -43,13 +43,13 @@ test("search finds items by title", async ({ page }) => {
   await expect(page.locator(".modal").getByText("New work item")).toBeVisible();
   await page.locator(".modal .input").first().fill("Findable unicorn");
   await page.locator(".modal-footer button.btn-primary").click();
-  // Item drawer should open at /item/:id
+  // Item detail should open at /item/:id
   await expect(page).toHaveURL(/\/item\//);
-  // Close the drawer
+  // Close the item detail
   await page.keyboard.press("Escape");
   await expect(page).toHaveURL(/\/board/);
   // Open search via palette
-  await page.getByRole("button", { name: /Search \/ Commands/i }).click();
+  await page.getByRole("button", { name: /Search commands/i }).click();
   await page.getByPlaceholder(/Search commands/i).fill("unicorn");
   await page.waitForTimeout(300);
   await expect(page.locator(".cmdk-list").getByText("Findable unicorn")).toBeVisible();

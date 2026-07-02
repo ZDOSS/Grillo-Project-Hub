@@ -2,6 +2,8 @@ import { useState, useMemo, useRef, type DragEvent } from "react";
 import { useProjectStore } from "../../store/project-store";
 import type { WorkItem, BoardView as BoardViewDef, BoardColumn, StatusDefinition, PriorityDefinition, Label } from "@gph/core";
 import { findColumnForStatus } from "@gph/core";
+import { Button, EmptyState, InlineAlert, ViewToolbar } from "../../components";
+import { openCreateItem } from "../../commands/palette-bus";
 import { ItemCard } from "./ItemCard";
 
 export type BoardViewProps = {
@@ -13,6 +15,7 @@ export function BoardView({ view }: BoardViewProps) {
   const applyCommand = useProjectStore((s) => s.applyCommand);
   const [draggingItem, setDraggingItem] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
+  const [dropFeedback, setDropFeedback] = useState<string | null>(null);
   const dragCounter = useRef(0);
   const statuses = bundle?.core.statuses ?? [];
   const priorities = bundle?.core.priorities ?? [];
@@ -74,71 +77,86 @@ export function BoardView({ view }: BoardViewProps) {
     if (col.wipMode === "hard" && col.wipLimit != null) {
       const wouldExceed = itemsForColumn(col).length + 1 > col.wipLimit;
       if (wouldExceed) {
-        // reject silently (could show a toast in real UI)
+        setDropFeedback(`${col.name} is at its WIP limit of ${col.wipLimit}.`);
         return;
       }
     }
+    setDropFeedback(null);
     applyCommand({ type: "item.moveStatus", projectId: bundle.project.id, itemId, toStatusId: targetStatus });
   };
 
   return (
-    <div className="board" role="region" aria-label={`${view.name} board`}>
-      {view.columns.map((col) => {
-        const items = itemsForColumn(col);
-        const over = items.length > (col.wipLimit ?? Infinity);
-        const warn = !over && items.length === (col.wipLimit ?? Infinity);
-        const state = over ? "exceeded" : warn ? "warn" : "ok";
-        return (
-          <div
-            key={col.id}
-            className="board-column"
-            data-wip-state={state}
-            aria-label={`${col.name} column`}
-          >
-            <div className="board-column-header">
-              <span className="board-column-title">{col.name}</span>
-              <span className="board-column-count">
-                {items.length}
-                {col.wipLimit != null ? ` / ${col.wipLimit}` : ""}
-              </span>
-            </div>
+    <div className="board-view">
+      <ViewToolbar>
+        <Button variant="primary" size="sm" onClick={() => openCreateItem()}>
+          New item
+        </Button>
+        {dropFeedback ? <InlineAlert tone="warning">{dropFeedback}</InlineAlert> : null}
+      </ViewToolbar>
+      <div className="board" role="region" aria-label={`${view.name} board`}>
+        {view.columns.length === 0 ? (
+          <EmptyState
+            title="No board columns"
+            description="Configure statuses and board columns in settings before using this view."
+          />
+        ) : null}
+        {view.columns.map((col) => {
+          const items = itemsForColumn(col);
+          const over = items.length > (col.wipLimit ?? Infinity);
+          const warn = !over && items.length === (col.wipLimit ?? Infinity);
+          const state = over ? "exceeded" : warn ? "warn" : "ok";
+          return (
             <div
-              className="board-column-body"
-              data-drop-active={dropTarget === col.id}
-              onDragOver={(e) => {
-                e.preventDefault();
-                e.dataTransfer.dropEffect = "move";
-                if (dropTarget !== col.id) setDropTarget(col.id);
-              }}
-              onDragLeave={() => {
-                dragCounter.current -= 1;
-                if (dragCounter.current <= 0) setDropTarget(null);
-              }}
-              onDragEnter={() => {
-                dragCounter.current += 1;
-              }}
-              onDrop={(e) => onDrop(e, col)}
+              key={col.id}
+              className="board-column"
+              data-wip-state={state}
+              aria-label={`${col.name} column`}
             >
-              {items.length === 0 ? (
-                <div className="text-muted text-xs" style={{ padding: "8px 4px" }}>Drop items here</div>
-              ) : (
-                items.map((item) => (
-                  <ItemCard
-                    key={item.id}
-                    item={item}
-                    statuses={statuses}
-                    priorities={priorities}
-                    labels={labels}
-                    dragging={draggingItem === item.id}
-                    onDragStart={(e) => onDragStart(e, item.id)}
-                    onDragEnd={onDragEnd}
-                  />
-                ))
-              )}
+              <div className="board-column-header">
+                <span className="board-column-title">{col.name}</span>
+                <span className="board-column-count">
+                  {items.length}
+                  {col.wipLimit != null ? ` / ${col.wipLimit}` : ""}
+                </span>
+              </div>
+              <div
+                className="board-column-body"
+                data-drop-active={dropTarget === col.id}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                  if (dropTarget !== col.id) setDropTarget(col.id);
+                }}
+                onDragLeave={() => {
+                  dragCounter.current -= 1;
+                  if (dragCounter.current <= 0) setDropTarget(null);
+                }}
+                onDragEnter={() => {
+                  dragCounter.current += 1;
+                }}
+                onDrop={(e) => onDrop(e, col)}
+              >
+                {items.length === 0 ? (
+                  <div className="text-muted text-xs" style={{ padding: "8px 4px" }}>Drop items here</div>
+                ) : (
+                  items.map((item) => (
+                    <ItemCard
+                      key={item.id}
+                      item={item}
+                      statuses={statuses}
+                      priorities={priorities}
+                      labels={labels}
+                      dragging={draggingItem === item.id}
+                      onDragStart={(e) => onDragStart(e, item.id)}
+                      onDragEnd={onDragEnd}
+                    />
+                  ))
+                )}
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }

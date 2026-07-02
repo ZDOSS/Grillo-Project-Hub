@@ -3,6 +3,7 @@ import { useProjectStore } from "../../store/project-store";
 import type { WorkItem } from "@gph/core";
 import { isDateOnlyOrderValid } from "@gph/core";
 import { Link } from "react-router-dom";
+import { SelectField, TextField, ViewToolbar } from "../../components";
 
 /**
  * Roadmap / timeline view.
@@ -61,22 +62,26 @@ export function RoadmapView() {
 
   return (
     <div className="roadmap">
-      <div className="row" style={{ marginBottom: 8 }}>
-        <label className="label label-row">
-          Zoom
-          <select className="select" value={zoom} onChange={(e) => setZoom(e.target.value as Zoom)}>
-            <option value="week">Week</option>
-            <option value="month">Month</option>
-            <option value="quarter">Quarter</option>
-          </select>
-        </label>
-        <label className="label label-row">
-          Anchor
-          <input className="input" type="month" value={anchor.slice(0, 7)} onChange={(e) => setAnchor(e.target.value + "-01")} />
-        </label>
-        <span className="spacer" />
-        <span className="text-xs text-muted">Drag a bar to move dates. Resize the right edge to extend the due date.</span>
-      </div>
+      <ViewToolbar>
+        <SelectField
+          label="Zoom"
+          value={zoom}
+          onChange={(event) => setZoom(event.target.value as Zoom)}
+        >
+          <option value="week">Week</option>
+          <option value="month">Month</option>
+          <option value="quarter">Quarter</option>
+        </SelectField>
+        <TextField
+          label="Anchor"
+          type="month"
+          value={anchor.slice(0, 7)}
+          onChange={(event) => setAnchor(event.target.value + "-01")}
+        />
+        <span className="text-xs text-muted">
+          Drag a bar to move dates. Resize the right edge to extend the due date.
+        </span>
+      </ViewToolbar>
       <div className="roadmap-grid" style={{ gridTemplateColumns: `200px repeat(${months}, 1fr)` }}>
         <div className="roadmap-row-lane">Item</div>
         {monthStarts.map((m) => (

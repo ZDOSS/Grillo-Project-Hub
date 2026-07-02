@@ -5,7 +5,7 @@ test("web app shows the same shell labels across both distributions", async ({ p
   // Dismiss the auto-opening New Project modal so the test can interact with the shell
   await page.keyboard.press("Escape");
   await expect(page.getByRole("banner", { name: /Grillo Project Hub/i })).toBeVisible();
-  await expect(page.getByRole("complementary", { name: /primary navigation/i })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: /workspace/i })).toBeVisible();
 });
 
 test("a user can create a project and see the board", async ({ page }) => {
@@ -22,7 +22,7 @@ test("opening the command palette lists navigation commands", async ({ page }) =
   await expect(page).toHaveURL(/\/board/);
   // Wait for the AppShell to register core commands (effects run after first paint)
   await page.waitForTimeout(150);
-  await page.getByRole("button", { name: /Search \/ Commands/i }).click();
+  await page.getByRole("button", { name: /Search commands/i }).click();
   await expect(page.getByPlaceholder(/Search commands/i)).toBeVisible();
   // Type a query to filter to the navigation group
   await page.getByPlaceholder(/Search commands/i).fill("board");
