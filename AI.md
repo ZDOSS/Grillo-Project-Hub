@@ -234,6 +234,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - added the PWA manifest, service worker registration, favicon, and auto-save bridge for the web app
 - added Playwright e2e and Vitest unit/component tests across the monorepo
 - added GitHub Actions workflow (`.github/workflows/deploy-web.yml`) to automatically build and deploy the `apps/web` PWA to GitHub Pages on pushes to `main` (and manual dispatch). Includes Vite `base` configuration for the project subpath, `BrowserRouter` `basename` support for client routing, SPA `404.html` fallback, and full PWA assets. Updated `vite.config.ts`, `main.tsx`, `Readme.md`, and this file. Provides a static demo of the web shell (data remains browser-local).
+- the GitHub Pages deploy job now gives `actions/deploy-pages@v4` a 30-minute deployment timeout, matching the observed failure mode where artifact upload succeeded but GitHub Pages kept the deployment in `deployment_queued` until the action's default timeout failed the workflow.
 - stabilized the launcher and startup UX after the visual pass:
   - recents can now actually reopen saved projects
   - the no-project state has direct recovery actions
