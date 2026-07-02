@@ -37,7 +37,7 @@ docs/                        # current product/architecture plan
 
 - preserve one shared domain model across web and desktop
 - browser and desktop differences live behind storage/platform adapters
-- the Rust/Tauri boundary is narrow: `save_project`, `load_project`, `project_exists`, `list_projects_in_folder`
+- the Rust/Tauri boundary is narrow: `save_project`, `load_project`, `project_exists`, `delete_project`, `list_projects_in_folder`
 - UI, automation, import, and MCP/AI actions all route through the same validated command surface (`packages/core/src/commands/`)
 - the canonical project bundle lives in `project.pms.json`; module data and unknown module sections are preserved across save/load
 - the desktop folder-backed adapter and the browser `localStorage` adapter implement the same `ProjectStoreAdapter` interface and emit equivalent `WatchEvent` shapes for external-change detection
@@ -66,7 +66,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - adapter contract: `ProjectStoreAdapter` in `packages/core/src/storage/store.ts`
 - `WebLocalStorageAdapter` for browser/PWA mode
 - the web adapter is now hybrid: browser-local storage remains the default, but browsers with File System Access support can persist project files into a user-chosen local folder and remember that folder handle through IndexedDB
-- `DesktopAdapter` for Tauri (calls the Rust commands and falls back to `localStorage` when Tauri is absent in dev)
+- `DesktopAdapter` for Tauri (calls the registered Rust commands and falls back to `localStorage` when Tauri is absent in dev)
 - `InMemoryProjectStore` is available for tests
 - external change detection uses the adapter's `externalRevision` counter and `WatchEvent` notifications
 - trust status is surfaced in the UI as a `Folder-backed` / `Browser-local` / `Unsaved` badge
@@ -79,6 +79,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - the active project session is now persisted in `localStorage` (`gph.active.project`) and restored on startup through `restoreLastProjectSession()`, so reloads in both web and desktop shells reopen the last project instead of dropping the user into an empty shell
 - session restore now treats corrupt or invalid persisted bundles as stale state: failed import/validation clears `gph.active.project` instead of bubbling an unhandled rejection through the startup hook
 - the web runtime now installs the same `WebLocalStorageAdapter` instance into both `window.__gph_store` and `WebStorageAdapter.adapter`, preventing auto-save and startup restore from drifting onto different adapter instances if adapter-local state is added later
+- the desktop runtime now installs the same `DesktopStorageAdapter.adapter` instance into `window.__gph_store`; folder-backed desktop saves/loads/existence checks/deletes call `save_project`, `load_project`, `project_exists`, and `delete_project`
 
 ## Command surface
 
@@ -93,6 +94,12 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - dispatcher hardening added after review:
   - `member.update` now throws `Error("Member not found")` for unknown IDs instead of silently succeeding
   - `project.updateSettings` now preserves `hiddenViewIds: []` for legacy bundles that predate that field instead of reintroducing `undefined`
+  - item create/update paths now validate referenced type, status, priority, member, label, milestone, and parent IDs before mutating the bundle
+  - checklist reorder commands must include every existing checklist entry exactly once, so partial client payloads cannot silently delete entries
+  - `project.updateSettings` now rejects project-id mismatches before applying settings patches
+  - relationship, comment, milestone, label, status, priority, type, doc, reminder, attachment, view, and search commands now reject project mismatches or unknown mutation targets instead of silently bumping revisions
+  - saved view create/update paths validate board status references and my-work member filters before mutating the active bundle, matching the import validator's saved-view checks
+  - JSON import now performs deep bundle reference validation through `validateProjectBundle()`, rejecting dangling item, relationship, reminder, attachment, folder, and board-view references before the UI can call `setBundle()`
 
 ## Platform differences between web and desktop
 
@@ -166,8 +173,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - bug triage now exposes a visible `New bug` action in the intake column
 - the bug-tracker template now seeds a bug-compatible default project/type/status configuration, while other starter templates apply different `hiddenViewIds` defaults so the left panel reflects the template's purpose out of the box
 - the simple-kanban starter doc now writes a real `[[item:<id>]]` reference for its seeded welcome task instead of rendering a broken literal `sample.id` token
-- board cards now navigate on whole-card click/keyboard activation instead of requiring the title link target
-- board cards expose `role="link"` plus Enter-key activation on the whole card, preserving accessible navigation semantics while keeping the larger click target
+- board cards are now rendered as a single React Router link over the whole card, preserving native link semantics, letting assistive technology compute the link name from visible title/metadata text, and avoiding a title-only click target while still suppressing accidental post-drag navigation
 
 ## Testing strategy
 
@@ -187,10 +193,20 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - board-card keyboard activation with link semantics
   - silent handling of cancelled browser folder picks
   - settings-row draft reset when upstream bundle data changes
+  - item-reference validation and unknown-target rejection in dispatcher commands
+  - reminder target validation on create and update commands
+  - saved-view reference validation for `view.create` and `view.update`
+  - project-id mismatch rejection for `project.updateSettings`
+  - lossy checklist reorder rejection
+  - deep JSON import reference validation
+  - whole-card board-card link activation
+  - desktop storage adapter command wiring and shared adapter installation
 - the Settings view test now always seeds a fresh project-store bundle per run instead of reusing any stale Zustand singleton state from prior tests
 - UI test setup now installs a memory-backed `localStorage` shim when jsdom's storage implementation is unavailable or misconfigured, which keeps persistence-oriented tests deterministic
+- `apps/desktop` now has a Vitest/jsdom test harness for the desktop storage adapter
 - Playwright e2e for hybrid parity, theme toggle, command palette, project creation, item creation with `C` shortcut, JSON export download, and search
-- `npm test` runs unit + component tests; `npm run test:e2e` runs Playwright against the running web dev server
+- `npm test` runs core, UI, and desktop adapter tests; `npm run test:e2e` runs `apps/web/scripts/run-e2e.mjs`, which starts Vite as an owned child process, waits for readiness, runs Playwright, and shuts Vite down before returning; `npm run typecheck` covers all packages and apps; `npm run lint` currently aliases typecheck until a dedicated lint stack is added
+- `apps/web/scripts/run-e2e.mjs` owns the e2e base URL and passes it through `PLAYWRIGHT_BASE_URL`; `apps/web/playwright.config.ts` reads that environment value with a fixed local fallback so runner and config cannot silently drift.
 
 ## Recent architecture-affecting changes
 
@@ -238,6 +254,23 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - treating folder-picker cancel as a non-error
   - resyncing settings row draft state from upstream bundle updates
   - moving `DocEditor` hook usage ahead of the null return to preserve Rules-of-Hooks safety
+- closed the repository-standards hardening pass by:
+  - aligning desktop storage with the registered Tauri Rust command boundary and adding `delete_project`
+  - adding missing web and desktop PNG app icons so PWA and Tauri manifests reference tracked assets
+  - replacing Playwright's built-in `webServer` lifecycle with `apps/web/scripts/run-e2e.mjs` so `npm run test:e2e` works from the web workspace and exits cleanly on Windows
+  - removing stale `@gph/ui` package export paths and pointing project/search exports at existing view modules
+  - replacing the root lint placeholder with a real typecheck-backed command and adding app-level typecheck scripts
+  - deepening command/import validation and adding regression coverage for reference integrity, checklist reorders, board-card links, and desktop storage wiring
+- applied the Greptile PR follow-up by:
+  - making Playwright consume the e2e runner's `PLAYWRIGHT_BASE_URL`
+  - removing the board-card `aria-label` so screen readers include visible card metadata in the link name
+  - updating the desktop delete catch comment to reflect that Rust handles missing files
+- applied the saved-view Greptile follow-up by:
+  - validating `view.create` board columns against known statuses before persistence
+  - validating `view.update` board columns and my-work member filters before persistence
+- applied the project-settings Greptile follow-up by:
+  - adding the missing `assertProjectId` guard to `project.updateSettings`
+  - exporting `@gph/ui/theme/global.css` through the UI package boundary used by both app entrypoints
 
 ## Open follow-on planning
 

@@ -53,7 +53,7 @@ describe("BoardView", () => {
     expect(screen.getByText(/Ship docs/i)).toBeInTheDocument();
   });
 
-  it("opens the work item when the card title link is clicked", async () => {
+  it("opens the work item when the card link is clicked", async () => {
     const bundle = buildProjectFromTemplate("simple-kanban", "Test");
     useProjectStore.setState({ bundle });
     const created = useProjectStore.getState().applyCommand({
@@ -71,10 +71,37 @@ describe("BoardView", () => {
 
     renderBoard(view);
 
-    const link = screen.getByRole("link", { name: "Open me" });
+    const link = screen.getByRole("link", { name: /Open me\s+Ready/ });
     expect(link).toHaveAttribute("href", `/item/${item.id}`);
 
     await userEvent.click(link);
+
+    expect(screen.getAllByTestId("location").at(-1)).toHaveTextContent(`/item/${item.id}`);
+  });
+
+  it("opens the work item when the card body is clicked", async () => {
+    const bundle = buildProjectFromTemplate("simple-kanban", "Test");
+    useProjectStore.setState({ bundle });
+    const created = useProjectStore.getState().applyCommand({
+      type: "item.create",
+      projectId: bundle.project.id,
+      typeId: "task",
+      title: "Whole card",
+      statusId: "ready"
+    }).bundle;
+
+    const item = created.core.items.find((entry) => entry.title === "Whole card")!;
+    const kanbanModule = created.modules["builtin.kanban"];
+    const views = (kanbanModule.data as { views?: Record<string, { id: string; type: string; name: string; columns: Array<{ id: string; name: string; statusIds: string[]; defaultDropStatusId: string; wipLimit?: number | null; wipMode?: "warn" | "hard"; order: number }> }> }).views ?? {};
+    const view = Object.values(views).find((entry) => entry.type === "board")!;
+
+    renderBoard(view);
+
+    const link = screen.getByRole("link", { name: /Whole card/ });
+    const card = link.closest(".board-card");
+    expect(card).toBeTruthy();
+
+    await userEvent.click(card!);
 
     expect(screen.getAllByTestId("location").at(-1)).toHaveTextContent(`/item/${item.id}`);
   });
@@ -97,7 +124,7 @@ describe("BoardView", () => {
 
     renderBoard(view);
 
-    const link = screen.getByRole("link", { name: "Drag then open" });
+    const link = screen.getByRole("link", { name: /Drag then open\s+Ready/ });
     const card = link.closest(".board-card");
     expect(card).toBeTruthy();
 
@@ -133,7 +160,7 @@ describe("BoardView", () => {
 
     renderBoard(view);
 
-    const link = screen.getByRole("link", { name: "Keyboard open" });
+    const link = screen.getByRole("link", { name: /Keyboard open\s+Ready/ });
     link.focus();
     await userEvent.keyboard("{Enter}");
 

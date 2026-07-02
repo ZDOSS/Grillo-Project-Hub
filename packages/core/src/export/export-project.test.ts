@@ -36,6 +36,35 @@ describe("import", () => {
     expect(() => importProjectJson("{not-json")).toThrow();
   });
 
+  it("rejects JSON bundles with dangling references", () => {
+    const project = createProjectBundle({ name: "Demo" });
+    const parsed = JSON.parse(exportProjectJson(project));
+    parsed.core.items = [
+      {
+        id: "item_bad",
+        projectId: parsed.project.id,
+        typeId: "task",
+        title: "Bad item",
+        description: "",
+        statusId: "status_missing",
+        priorityId: null,
+        assigneeId: null,
+        reporterId: null,
+        labelIds: [],
+        milestoneId: null,
+        parentId: null,
+        startDate: null,
+        dueDate: null,
+        createdAt: "2024-01-01T00:00:00.000Z",
+        updatedAt: "2024-01-01T00:00:00.000Z",
+        checklist: [],
+        comments: []
+      }
+    ];
+
+    expect(() => importProjectJson(JSON.stringify(parsed))).toThrow(/Status not found/);
+  });
+
   it("remaps every cross-reference when idPrefix is supplied", () => {
     const project = createProjectBundle({ name: "Demo" });
     // Add a child item with full cross-refs and a relationship + a board view status ref.

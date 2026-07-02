@@ -43,7 +43,7 @@ export function BoardView({ view }: BoardViewProps) {
     return all;
   };
 
-  const onDragStart = (e: DragEvent<HTMLDivElement>, itemId: string) => {
+  const onDragStart = (e: DragEvent<HTMLElement>, itemId: string) => {
     e.dataTransfer.setData("text/plain", itemId);
     e.dataTransfer.effectAllowed = "move";
     setDraggingItem(itemId);

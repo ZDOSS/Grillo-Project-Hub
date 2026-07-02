@@ -35,7 +35,7 @@ import { createAttachment } from "../domain/attachment";
 import { createEvent } from "../domain/event";
 import { nowTimestamp } from "../domain/dates";
 import { bumpRevision, type TrashRecord } from "../domain/project";
-import { createBoardView, createBacklogView, createTableView, createRoadmapView, createDocsView, createCalendarView, createBugsView, createMyWorkView, findColumnForStatus } from "../domain/view";
+import { createBoardView, createBacklogView, createTableView, createRoadmapView, createDocsView, createCalendarView, createBugsView, createMyWorkView, findColumnForStatus, type View } from "../domain/view";
 import { createSeverity } from "../domain/bug";
 import { generateId } from "../domain/ids";
 import { searchProject } from "../search/local-search";
@@ -142,6 +142,94 @@ function findItemOrThrow(bundle: ProjectBundle, itemId: string): WorkItem {
   return item;
 }
 
+function findRecordOrThrow<T extends { id: string }>(records: T[], id: string, label: string): T {
+  const record = records.find((entry) => entry.id === id);
+  if (!record) throw new Error(`${label} not found: ${id}`);
+  return record;
+}
+
+function assertProjectId(bundle: ProjectBundle, projectId: string): void {
+  if (projectId !== bundle.project.id) {
+    throw new Error(`Project mismatch: ${projectId}`);
+  }
+}
+
+function assertNullableRecordExists<T extends { id: string }>(
+  records: T[],
+  id: string | null | undefined,
+  label: string
+): void {
+  if (id == null) return;
+  findRecordOrThrow(records, id, label);
+}
+
+function assertLabelsExist(bundle: ProjectBundle, labelIds: string[] | undefined): void {
+  if (!labelIds) return;
+  for (const labelId of labelIds) {
+    findRecordOrThrow(bundle.core.labels, labelId, "Label");
+  }
+}
+
+function validateItemReferences(bundle: ProjectBundle, item: WorkItem): void {
+  findRecordOrThrow(bundle.core.itemTypes, item.typeId, "Type");
+  findRecordOrThrow(bundle.core.statuses, item.statusId, "Status");
+  assertNullableRecordExists(bundle.core.priorities, item.priorityId, "Priority");
+  assertNullableRecordExists(bundle.core.members, item.assigneeId, "Member");
+  assertNullableRecordExists(bundle.core.members, item.reporterId, "Member");
+  assertNullableRecordExists(bundle.core.milestones, item.milestoneId, "Milestone");
+  assertLabelsExist(bundle, item.labelIds);
+  if (item.parentId) {
+    const parent = findItemOrThrow(bundle, item.parentId);
+    if (parent.projectId !== bundle.project.id) throw new Error("Cross-project parent");
+    if (parent.parentId !== null) {
+      throw new Error("MVP allows only one level of subtasks; parent is already a subtask");
+    }
+  }
+}
+
+function assertReminderTargetExists(
+  bundle: ProjectBundle,
+  targetType: "workItem" | "milestone" | "document",
+  targetId: string
+): void {
+  switch (targetType) {
+    case "workItem":
+      findRecordOrThrow(bundle.core.items, targetId, "Reminder item");
+      break;
+    case "milestone":
+      findRecordOrThrow(bundle.core.milestones, targetId, "Reminder milestone");
+      break;
+    case "document":
+      findRecordOrThrow(bundle.core.documents, targetId, "Reminder document");
+      break;
+    default:
+      throw new Error(`Unsupported reminder target type: ${String(targetType)}`);
+  }
+}
+
+function isReminderTargetType(value: unknown): value is "workItem" | "milestone" | "document" {
+  return value === "workItem" || value === "milestone" || value === "document";
+}
+
+function validateViewReferences(bundle: ProjectBundle, view: View): void {
+  switch (view.type) {
+    case "board": {
+      for (const column of view.columns) {
+        findRecordOrThrow(bundle.core.statuses, column.defaultDropStatusId, "Board default drop status");
+        for (const statusId of column.statusIds) {
+          findRecordOrThrow(bundle.core.statuses, statusId, "Board column status");
+        }
+      }
+      break;
+    }
+    case "myWork":
+      if (view.filterMemberId) {
+        findRecordOrThrow(bundle.core.members, view.filterMemberId, "My Work member");
+      }
+      break;
+  }
+}
+
 /* ----- project ----- */
 
 function renameProject(bundle: ProjectBundle, payload: { name: string }): DispatchResult {
@@ -163,6 +251,7 @@ function updateProjectSettings(
     };
   }
 ): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
   if (payload.patch.pluginTrustMode && !["first-party", "curated", "unrestricted"].includes(payload.patch.pluginTrustMode)) {
     throw new Error(`Invalid plugin trust mode: ${payload.patch.pluginTrustMode}`);
   }
@@ -197,6 +286,7 @@ function createItem(
     dueDate?: string | null;
   }
 ): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
   const typeDef = bundle.core.itemTypes.find((t) => t.id === payload.typeId);
   if (!typeDef) throw new Error(`Unknown type: ${payload.typeId}`);
   if (payload.parentId) {
@@ -213,6 +303,10 @@ function createItem(
     ?? bundle.project.defaultInitialStatusId;
   const statusDef = findStatus(bundle.core.statuses, statusId);
   if (!statusDef) throw new Error(`Unknown status: ${statusId}`);
+  assertNullableRecordExists(bundle.core.priorities, payload.priorityId ?? typeDef.defaultPriorityId ?? null, "Priority");
+  assertNullableRecordExists(bundle.core.members, payload.assigneeId ?? null, "Member");
+  assertLabelsExist(bundle, payload.labelIds);
+  assertNullableRecordExists(bundle.core.milestones, payload.milestoneId ?? null, "Milestone");
 
   const item = createWorkItem({
     projectId: bundle.project.id,
@@ -229,16 +323,19 @@ function createItem(
     dueDate: (payload.dueDate as never) ?? null
   });
   validateWorkItem(item);
+  validateItemReferences(bundle, item);
   const next = withCore(bundle, (c) => ({ ...c, items: [...c.items, item] }));
   const event = createEvent({ type: "item.created", projectId: bundle.project.id, itemId: item.id, data: { title: item.title } });
   return { bundle: appendEvent(next, event), events: [event] };
 }
 
 function updateItem(bundle: ProjectBundle, payload: { projectId: string; itemId: string; patch: Record<string, unknown> }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
   const item = findItemOrThrow(bundle, payload.itemId);
   const previousStatusId = item.statusId;
   const next: WorkItem = { ...item, ...stripReadOnly(payload.patch), updatedAt: nowTimestamp() };
   validateWorkItem(next);
+  validateItemReferences(bundle, next);
   if (next.parentId !== item.parentId) {
     if (next.parentId === item.id) throw new Error("Item cannot be its own parent");
     if (next.parentId && wouldCreateCycle(bundle.core.items, item.id, next.parentId)) {
@@ -260,6 +357,7 @@ function updateItem(bundle: ProjectBundle, payload: { projectId: string; itemId:
 }
 
 function moveItemStatus(bundle: ProjectBundle, payload: { projectId: string; itemId: string; toStatusId: string }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
   const item = findItemOrThrow(bundle, payload.itemId);
   const statusDef = findStatus(bundle.core.statuses, payload.toStatusId);
   if (!statusDef) throw new Error(`Unknown status: ${payload.toStatusId}`);
@@ -275,6 +373,7 @@ function moveItemStatus(bundle: ProjectBundle, payload: { projectId: string; ite
 }
 
 function moveItemParent(bundle: ProjectBundle, payload: { projectId: string; itemId: string; toParentId: string | null }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
   const item = findItemOrThrow(bundle, payload.itemId);
   if (payload.toParentId === item.id) throw new Error("Item cannot be its own parent");
   if (payload.toParentId && wouldCreateCycle(bundle.core.items, item.id, payload.toParentId)) {
@@ -294,6 +393,7 @@ function moveItemParent(bundle: ProjectBundle, payload: { projectId: string; ite
 }
 
 function archiveItem(bundle: ProjectBundle, payload: { projectId: string; itemId: string }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
   const item = findItemOrThrow(bundle, payload.itemId);
   const next = { ...item, archived: true, updatedAt: nowTimestamp() };
   const nextBundle = withCore(bundle, (c) => ({ ...c, items: c.items.map((i) => (i.id === item.id ? next : i)) }));
@@ -302,6 +402,7 @@ function archiveItem(bundle: ProjectBundle, payload: { projectId: string; itemId
 }
 
 function trashItem(bundle: ProjectBundle, payload: { projectId: string; itemId: string }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
   const item = findItemOrThrow(bundle, payload.itemId);
   const now = nowTimestamp();
   const trash: TrashRecord = { recordType: "workItem", recordId: item.id, payload: item, trashedAt: now };
@@ -316,6 +417,7 @@ function trashItem(bundle: ProjectBundle, payload: { projectId: string; itemId: 
 }
 
 function restoreItem(bundle: ProjectBundle, payload: { projectId: string; itemId: string }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
   const item = findItemOrThrow(bundle, payload.itemId);
   if (!item.trashedAt) {
     return { bundle, events: [] };
@@ -336,6 +438,7 @@ function restoreItem(bundle: ProjectBundle, payload: { projectId: string; itemId
  * from document bodies. Permanent: cannot be restored.
  */
 function permanentlyDeleteItem(bundle: ProjectBundle, payload: { projectId: string; itemId: string }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
   const item = findItemOrThrow(bundle, payload.itemId);
   const id = item.id;
   // Drop the item, related relationships, reminders and attachments, plus any trash entry
@@ -383,6 +486,7 @@ function duplicateItem(
   bundle: ProjectBundle,
   payload: { projectId: string; itemId: string; includeRelationships?: boolean; includeAttachments?: boolean }
 ): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
   const source = findItemOrThrow(bundle, payload.itemId);
   const now = nowTimestamp();
   const newItem: WorkItem = {
@@ -433,6 +537,7 @@ function generateChecklistId(): string {
 /* ----- checklist ----- */
 
 function addChecklistEntry(bundle: ProjectBundle, payload: { projectId: string; itemId: string; text: string }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
   const item = findItemOrThrow(bundle, payload.itemId);
   const nextEntry = createChecklistEntry({ text: payload.text, order: (item.checklist[item.checklist.length - 1]?.order ?? 0) + 1024 });
   const next: WorkItem = { ...item, checklist: [...item.checklist, nextEntry], updatedAt: nowTimestamp() };
@@ -442,7 +547,11 @@ function addChecklistEntry(bundle: ProjectBundle, payload: { projectId: string; 
 }
 
 function toggleChecklistEntry(bundle: ProjectBundle, payload: { projectId: string; itemId: string; entryId: string }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
   const item = findItemOrThrow(bundle, payload.itemId);
+  if (!item.checklist.some((entry) => entry.id === payload.entryId)) {
+    throw new Error(`Checklist entry not found: ${payload.entryId}`);
+  }
   const next: WorkItem = {
     ...item,
     checklist: item.checklist.map((e) => (e.id === payload.entryId ? { ...e, completed: !e.completed } : e)),
@@ -454,7 +563,20 @@ function toggleChecklistEntry(bundle: ProjectBundle, payload: { projectId: strin
 }
 
 function reorderChecklist(bundle: ProjectBundle, payload: { projectId: string; itemId: string; orderedIds: string[] }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
   const item = findItemOrThrow(bundle, payload.itemId);
+  if (payload.orderedIds.length !== item.checklist.length) {
+    throw new Error("Checklist reorder must include every checklist entry exactly once");
+  }
+  const uniqueIds = new Set(payload.orderedIds);
+  if (uniqueIds.size !== payload.orderedIds.length) {
+    throw new Error("Checklist reorder must include every checklist entry exactly once");
+  }
+  for (const entry of item.checklist) {
+    if (!uniqueIds.has(entry.id)) {
+      throw new Error("Checklist reorder must include every checklist entry exactly once");
+    }
+  }
   const map = new Map(item.checklist.map((e) => [e.id, e]));
   const next: WorkItem = {
     ...item,
@@ -473,6 +595,7 @@ function convertChecklistToSubtask(
   bundle: ProjectBundle,
   payload: { projectId: string; itemId: string; entryId: string }
 ): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
   const source = findItemOrThrow(bundle, payload.itemId);
   const entry = source.checklist.find((e) => e.id === payload.entryId);
   if (!entry) throw new Error(`Unknown checklist entry: ${payload.entryId}`);
@@ -510,6 +633,7 @@ function createRelationshipCommand(
   bundle: ProjectBundle,
   payload: { projectId: string; relationshipType: "blocks" | "relatesTo"; sourceItemId: string; targetItemId: string }
 ): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
   if (payload.relationshipType === "relatesTo") {
     const { source, target } = canonicalizeRelatesTo(payload.sourceItemId, payload.targetItemId);
     payload = { ...payload, sourceItemId: source, targetItemId: target };
@@ -537,6 +661,8 @@ function createRelationshipCommand(
 }
 
 function deleteRelationship(bundle: ProjectBundle, payload: { projectId: string; relationshipId: string }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
+  findRecordOrThrow(bundle.core.relationships, payload.relationshipId, "Relationship");
   const nextBundle = withCore(bundle, (c) => ({ ...c, relationships: c.relationships.filter((r) => r.id !== payload.relationshipId) }));
   return { bundle: nextBundle, events: [] };
 }
@@ -544,7 +670,11 @@ function deleteRelationship(bundle: ProjectBundle, payload: { projectId: string;
 /* ----- comments ----- */
 
 function createCommentCommand(bundle: ProjectBundle, payload: { projectId: string; itemId: string; body: string; parentCommentId?: string | null }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
   const item = findItemOrThrow(bundle, payload.itemId);
+  if (payload.parentCommentId && !item.comments.some((comment) => comment.id === payload.parentCommentId)) {
+    throw new Error(`Parent comment not found: ${payload.parentCommentId}`);
+  }
   const comment = createComment({ authorId: null, body: payload.body, parentCommentId: payload.parentCommentId ?? null });
   const next: WorkItem = { ...item, comments: [...item.comments, comment], updatedAt: nowTimestamp() };
   const nextBundle = withCore(bundle, (c) => ({ ...c, items: c.items.map((i) => (i.id === item.id ? next : i)) }));
@@ -553,7 +683,11 @@ function createCommentCommand(bundle: ProjectBundle, payload: { projectId: strin
 }
 
 function editCommentCommand(bundle: ProjectBundle, payload: { projectId: string; itemId: string; commentId: string; body: string }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
   const item = findItemOrThrow(bundle, payload.itemId);
+  if (!item.comments.some((comment) => comment.id === payload.commentId)) {
+    throw new Error(`Comment not found: ${payload.commentId}`);
+  }
   const next: WorkItem = {
     ...item,
     comments: item.comments.map((c) => (c.id === payload.commentId ? editComment(c, payload.body) : c)),
@@ -564,7 +698,11 @@ function editCommentCommand(bundle: ProjectBundle, payload: { projectId: string;
 }
 
 function deleteCommentCommand(bundle: ProjectBundle, payload: { projectId: string; itemId: string; commentId: string }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
   const item = findItemOrThrow(bundle, payload.itemId);
+  if (!item.comments.some((comment) => comment.id === payload.commentId)) {
+    throw new Error(`Comment not found: ${payload.commentId}`);
+  }
   const next: WorkItem = {
     ...item,
     comments: item.comments.map((c) => (c.id === payload.commentId ? softDeleteComment(c) : c)),
@@ -577,12 +715,15 @@ function deleteCommentCommand(bundle: ProjectBundle, payload: { projectId: strin
 /* ----- milestone ----- */
 
 function createMilestoneCommand(bundle: ProjectBundle, payload: { projectId: string; name: string; description?: string; targetDate?: string | null }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
   const milestone = createMilestone({ name: payload.name, description: payload.description ?? null, targetDate: (payload.targetDate as never) ?? null });
   const nextBundle = withCore(bundle, (c) => ({ ...c, milestones: [...c.milestones, milestone] }));
   return { bundle: nextBundle, events: [] };
 }
 
 function updateMilestoneCommand(bundle: ProjectBundle, payload: { projectId: string; milestoneId: string; patch: Record<string, unknown> }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
+  findRecordOrThrow(bundle.core.milestones, payload.milestoneId, "Milestone");
   const nextBundle = withCore(bundle, (c) => ({
     ...c,
     milestones: c.milestones.map((m) => (m.id === payload.milestoneId ? { ...m, ...stripReadOnly(payload.patch) } : m))
@@ -593,12 +734,15 @@ function updateMilestoneCommand(bundle: ProjectBundle, payload: { projectId: str
 /* ----- labels ----- */
 
 function createLabelCommand(bundle: ProjectBundle, payload: { projectId: string; name: string; color?: string | null; description?: string | null }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
   const label = createLabel({ name: payload.name, color: payload.color ?? null, description: payload.description ?? null });
   const nextBundle = withCore(bundle, (c) => ({ ...c, labels: [...c.labels, label] }));
   return { bundle: nextBundle, events: [] };
 }
 
 function updateLabelCommand(bundle: ProjectBundle, payload: { projectId: string; labelId: string; patch: Record<string, unknown> }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
+  findRecordOrThrow(bundle.core.labels, payload.labelId, "Label");
   const nextBundle = withCore(bundle, (c) => ({ ...c, labels: c.labels.map((l) => (l.id === payload.labelId ? { ...l, ...stripReadOnly(payload.patch) } : l)) }));
   return { bundle: nextBundle, events: [] };
 }
@@ -606,6 +750,7 @@ function updateLabelCommand(bundle: ProjectBundle, payload: { projectId: string;
 /* ----- members ----- */
 
 function createMemberCommand(bundle: ProjectBundle, payload: { projectId: string; displayName: string; color?: string | null }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
   const member = createMember({ displayName: payload.displayName, color: payload.color ?? null });
   const nextBundle = withCore(bundle, (c) => ({ ...c, members: [...c.members, member] }));
   return { bundle: nextBundle, events: [] };
@@ -615,6 +760,7 @@ function updateMemberCommand(
   bundle: ProjectBundle,
   payload: { projectId: string; memberId: string; patch: { displayName?: string; color?: string | null; archived?: boolean } }
 ): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
   const member = bundle.core.members.find((entry) => entry.id === payload.memberId);
   if (!member) throw new Error("Member not found");
   const nextBundle = withCore(bundle, (c) => ({
@@ -625,6 +771,7 @@ function updateMemberCommand(
 }
 
 function deleteMemberCommand(bundle: ProjectBundle, payload: { projectId: string; memberId: string }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
   const member = bundle.core.members.find((m) => m.id === payload.memberId);
   if (!member) throw new Error("Member not found");
   const nextBundle = withCore(bundle, (c) => ({
@@ -638,15 +785,17 @@ function deleteMemberCommand(bundle: ProjectBundle, payload: { projectId: string
 /* ----- status / priority / type ----- */
 
 function createStatusCommand(bundle: ProjectBundle, payload: { projectId: string; name: string; category: "planned" | "active" | "completed" | "canceled"; color?: string | null }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
   const status = createStatus({ name: payload.name, category: payload.category, color: payload.color ?? null });
   const nextBundle = withCore(bundle, (c) => ({ ...c, statuses: [...c.statuses, status] }));
   return { bundle: nextBundle, events: [] };
 }
 
 function updateStatusCommand(bundle: ProjectBundle, payload: { projectId: string; statusId: string; patch: Record<string, unknown>; replacementStatusId?: string }): DispatchResult {
-  const removed = !bundle.core.statuses.find((s) => s.id === payload.statusId);
-  if (removed && !payload.replacementStatusId) {
-    throw new Error("Replacement status required when removing a referenced status");
+  assertProjectId(bundle, payload.projectId);
+  findRecordOrThrow(bundle.core.statuses, payload.statusId, "Status");
+  if (payload.replacementStatusId) {
+    findRecordOrThrow(bundle.core.statuses, payload.replacementStatusId, "Replacement status");
   }
   let nextStatuses = bundle.core.statuses.map((s) => (s.id === payload.statusId ? { ...s, ...stripReadOnly(payload.patch) } : s));
   if (payload.patch.archived === true) {
@@ -661,6 +810,7 @@ function updateStatusCommand(bundle: ProjectBundle, payload: { projectId: string
 }
 
 function createPriorityCommand(bundle: ProjectBundle, payload: { projectId: string; name: string; rank: number; color?: string | null }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
   const priority = createPriority({ name: payload.name, rank: payload.rank, color: payload.color ?? null });
   const allPriorities = [...bundle.core.priorities, priority];
   validateStatusesHaveNoDuplicateRanks(allPriorities);
@@ -669,9 +819,12 @@ function createPriorityCommand(bundle: ProjectBundle, payload: { projectId: stri
 }
 
 function updatePriorityCommand(bundle: ProjectBundle, payload: { projectId: string; priorityId: string; patch: Record<string, unknown>; replacementPriorityId?: string | null }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
+  findRecordOrThrow(bundle.core.priorities, payload.priorityId, "Priority");
   let nextItems = bundle.core.items;
   if (payload.replacementPriorityId !== undefined) {
     const replacement = payload.replacementPriorityId;
+    assertNullableRecordExists(bundle.core.priorities, replacement, "Replacement priority");
     nextItems = bundle.core.items.map((i) =>
       i.priorityId === payload.priorityId ? { ...i, priorityId: replacement } : i
     );
@@ -683,6 +836,9 @@ function updatePriorityCommand(bundle: ProjectBundle, payload: { projectId: stri
 }
 
 function createTypeCommand(bundle: ProjectBundle, payload: { projectId: string; name: string; icon?: string | null; color?: string | null; description?: string | null; defaultStatusId?: string | null; defaultPriorityId?: string | null }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
+  assertNullableRecordExists(bundle.core.statuses, payload.defaultStatusId ?? null, "Default status");
+  assertNullableRecordExists(bundle.core.priorities, payload.defaultPriorityId ?? null, "Default priority");
   const typeDef = createWorkItemType({
     name: payload.name,
     icon: payload.icon ?? null,
@@ -696,6 +852,13 @@ function createTypeCommand(bundle: ProjectBundle, payload: { projectId: string; 
 }
 
 function updateTypeCommand(bundle: ProjectBundle, payload: { projectId: string; typeId: string; patch: Record<string, unknown>; replacementTypeId?: string }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
+  findRecordOrThrow(bundle.core.itemTypes, payload.typeId, "Type");
+  if (payload.replacementTypeId) {
+    findRecordOrThrow(bundle.core.itemTypes, payload.replacementTypeId, "Replacement type");
+  }
+  assertNullableRecordExists(bundle.core.statuses, payload.patch.defaultStatusId as string | null | undefined, "Default status");
+  assertNullableRecordExists(bundle.core.priorities, payload.patch.defaultPriorityId as string | null | undefined, "Default priority");
   let nextItems = bundle.core.items;
   if (payload.replacementTypeId) {
     nextItems = bundle.core.items.map((i) => (i.typeId === payload.typeId ? { ...i, typeId: payload.replacementTypeId! } : i));
@@ -708,6 +871,8 @@ function updateTypeCommand(bundle: ProjectBundle, payload: { projectId: string; 
 /* ----- docs ----- */
 
 function createDocCommand(bundle: ProjectBundle, payload: { projectId: string; title: string; body?: string; folderId?: string | null }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
+  assertNullableRecordExists(bundle.core.folders, payload.folderId ?? null, "Folder");
   const doc = createDocument({ title: payload.title, body: payload.body ?? "", folderId: payload.folderId ?? null });
   const nextBundle = withCore(bundle, (c) => ({ ...c, documents: [...c.documents, doc] }));
   const event = createEvent({ type: "doc.created", projectId: bundle.project.id, docId: doc.id });
@@ -715,6 +880,9 @@ function createDocCommand(bundle: ProjectBundle, payload: { projectId: string; t
 }
 
 function updateDocCommand(bundle: ProjectBundle, payload: { projectId: string; docId: string; patch: Record<string, unknown> }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
+  findRecordOrThrow(bundle.core.documents, payload.docId, "Document");
+  assertNullableRecordExists(bundle.core.folders, payload.patch.folderId as string | null | undefined, "Folder");
   const nextBundle = withCore(bundle, (c) => ({
     ...c,
     documents: c.documents.map((d) => (d.id === payload.docId ? { ...d, ...stripReadOnly(payload.patch), updatedAt: nowTimestamp() } : d))
@@ -724,6 +892,7 @@ function updateDocCommand(bundle: ProjectBundle, payload: { projectId: string; d
 }
 
 function deleteDocCommand(bundle: ProjectBundle, payload: { projectId: string; docId: string }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
   const doc = bundle.core.documents.find((d) => d.id === payload.docId);
   if (!doc) throw new Error("Document not found");
   const trash: TrashRecord = { recordType: "document", recordId: doc.id, payload: doc, trashedAt: nowTimestamp() };
@@ -736,6 +905,9 @@ function deleteDocCommand(bundle: ProjectBundle, payload: { projectId: string; d
 }
 
 function moveDocCommand(bundle: ProjectBundle, payload: { projectId: string; docId: string; toFolderId: string | null }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
+  findRecordOrThrow(bundle.core.documents, payload.docId, "Document");
+  assertNullableRecordExists(bundle.core.folders, payload.toFolderId, "Folder");
   const nextBundle = withCore(bundle, (c) => ({
     ...c,
     documents: c.documents.map((d) => (d.id === payload.docId ? { ...d, folderId: payload.toFolderId, updatedAt: nowTimestamp() } : d))
@@ -758,6 +930,12 @@ function defineCustomFieldCommand(
     };
   }
 ): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
+  if (payload.field.applicableTypeIds) {
+    for (const typeId of payload.field.applicableTypeIds) {
+      findRecordOrThrow(bundle.core.itemTypes, typeId, "Type");
+    }
+  }
   const field = createCustomField({
     name: payload.field.name,
     type: payload.field.type,
@@ -775,6 +953,8 @@ function createReminderCommand(
   bundle: ProjectBundle,
   payload: { projectId: string; targetType: "workItem" | "milestone" | "document"; targetId: string; remindAt: string; timeZone: string; message?: string | null }
 ): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
+  assertReminderTargetExists(bundle, payload.targetType, payload.targetId);
   const reminder = createReminder({
     targetType: payload.targetType,
     targetId: payload.targetId,
@@ -787,6 +967,21 @@ function createReminderCommand(
 }
 
 function updateReminderCommand(bundle: ProjectBundle, payload: { projectId: string; reminderId: string; patch: Record<string, unknown> }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
+  const reminder = findRecordOrThrow(bundle.core.reminders, payload.reminderId, "Reminder");
+  const nextTargetType = Object.prototype.hasOwnProperty.call(payload.patch, "targetType")
+    ? payload.patch.targetType
+    : reminder.targetType;
+  const nextTargetId = Object.prototype.hasOwnProperty.call(payload.patch, "targetId")
+    ? payload.patch.targetId
+    : reminder.targetId;
+  if (!isReminderTargetType(nextTargetType)) {
+    throw new Error(`Unsupported reminder target type: ${String(nextTargetType)}`);
+  }
+  if (typeof nextTargetId !== "string") {
+    throw new Error("Reminder targetId must be a string");
+  }
+  assertReminderTargetExists(bundle, nextTargetType, nextTargetId);
   const nextBundle = withCore(bundle, (c) => ({
     ...c,
     reminders: c.reminders.map((r) => (r.id === payload.reminderId ? { ...r, ...stripReadOnly(payload.patch) } : r))
@@ -795,6 +990,8 @@ function updateReminderCommand(bundle: ProjectBundle, payload: { projectId: stri
 }
 
 function deleteReminderCommand(bundle: ProjectBundle, payload: { projectId: string; reminderId: string }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
+  findRecordOrThrow(bundle.core.reminders, payload.reminderId, "Reminder");
   const nextBundle = withCore(bundle, (c) => ({ ...c, reminders: c.reminders.filter((r) => r.id !== payload.reminderId) }));
   return { bundle: nextBundle, events: [] };
 }
@@ -805,6 +1002,9 @@ function addAttachmentCommand(
   bundle: ProjectBundle,
   payload: { projectId: string; filename: string; mediaType: string; size: number; dataUri?: string | null; storagePath?: string | null; itemId?: string | null; docId?: string | null }
 ): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
+  assertNullableRecordExists(bundle.core.items, payload.itemId ?? null, "Item");
+  assertNullableRecordExists(bundle.core.documents, payload.docId ?? null, "Document");
   const att = createAttachment({
     projectId: bundle.project.id,
     filename: payload.filename,
@@ -821,6 +1021,7 @@ function addAttachmentCommand(
 }
 
 function deleteAttachmentCommand(bundle: ProjectBundle, payload: { projectId: string; attachmentId: string }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
   const att = bundle.core.attachments.find((a) => a.id === payload.attachmentId);
   if (!att) throw new Error("Attachment not found");
   const trash: TrashRecord = { recordType: "attachment", recordId: att.id, payload: att, trashedAt: nowTimestamp() };
@@ -838,6 +1039,7 @@ function createViewCommand(
   bundle: ProjectBundle,
   payload: { projectId: string; viewType: "board" | "backlog" | "table" | "roadmap" | "docs" | "calendar" | "bugs" | "myWork"; name: string; config?: Record<string, unknown> }
 ): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
   let view;
   switch (payload.viewType) {
     case "board": {
@@ -877,6 +1079,7 @@ function createViewCommand(
   if (!kanbanModule) {
     return { bundle: bumpRevision(bundle), events: [] };
   }
+  validateViewReferences(bundle, view);
   const existingViews = ((kanbanModule.data as { views?: Record<string, unknown> })?.views) ?? {};
   const nextKanbanData = { ...(kanbanModule.data ?? {}), views: { ...existingViews, [view.id]: view } };
   const nextBundle = bumpRevision({
@@ -887,12 +1090,15 @@ function createViewCommand(
 }
 
 function updateViewCommand(bundle: ProjectBundle, payload: { projectId: string; viewId: string; patch: Record<string, unknown> }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
   const kanbanModule = bundle.modules["builtin.kanban"];
   if (!kanbanModule) throw new Error("Kanban module missing");
   const existingViews = ((kanbanModule.data as { views?: Record<string, unknown> })?.views) ?? {};
   const current = existingViews[payload.viewId];
   if (!current) throw new Error("View not found");
-  const nextViews = { ...existingViews, [payload.viewId]: { ...(current as object), ...stripReadOnly(payload.patch) } };
+  const nextView = { ...(current as object), ...stripReadOnly(payload.patch) } as View;
+  validateViewReferences(bundle, nextView);
+  const nextViews = { ...existingViews, [payload.viewId]: nextView };
   const nextKanbanData = { ...(kanbanModule.data ?? {}), views: nextViews };
   const nextBundle = bumpRevision({
     ...bundle,
@@ -902,6 +1108,7 @@ function updateViewCommand(bundle: ProjectBundle, payload: { projectId: string; 
 }
 
 function deleteViewCommand(bundle: ProjectBundle, payload: { projectId: string; viewId: string }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
   const kanbanModule = bundle.modules["builtin.kanban"];
   if (!kanbanModule) throw new Error("Kanban module missing");
   const existingViews = ((kanbanModule.data as { views?: Record<string, unknown> })?.views) ?? {};
@@ -921,6 +1128,7 @@ function searchCommand(
   bundle: ProjectBundle,
   payload: { projectId: string; query: string; scope?: Array<"items" | "docs" | "comments" | "labels">; filters?: { typeIds?: string[]; statusIds?: string[]; assigneeIds?: string[]; milestoneIds?: string[]; labelIds?: string[] } }
 ): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
   const hits = searchProject(bundle, payload.query, { scope: payload.scope, filters: payload.filters });
   return { bundle, events: [], output: { hits } };
 }

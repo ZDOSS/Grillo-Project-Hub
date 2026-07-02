@@ -39,6 +39,11 @@ class DesktopAdapter implements ProjectStoreAdapter {
     } catch { return []; }
   }
   async has(key: string): Promise<boolean> {
+    const tauri = getTauri();
+    const folder = getFolder();
+    if (tauri && folder) {
+      return await tauri.invoke("project_exists", { path: projectPath(folder, key) }) as boolean;
+    }
     if (typeof localStorage === "undefined") return false;
     return localStorage.getItem(NAMESPACE + key) != null;
   }
@@ -46,10 +51,10 @@ class DesktopAdapter implements ProjectStoreAdapter {
     const tauri = getTauri();
     const meta = this.listSync().find((m) => m.key === key);
     const folder = getFolder();
-    const folderBackedPath = meta?.displayPath ?? (folder ? `${folder}/.pm-suite/${key}.pms.json` : null);
+    const folderBackedPath = meta?.displayPath ?? (folder ? projectPath(folder, key) : null);
     if (tauri && folderBackedPath) {
       try {
-        const json = await tauri.invoke("plugin:fs|read_text_file", { path: folderBackedPath }) as string;
+        const json = await tauri.invoke("load_project", { path: folderBackedPath }) as string;
         return { json, metadata: { key, displayPath: folderBackedPath, externalRevision: meta?.externalRevision ?? null, trust: "folder" } };
       } catch {
         return null;
@@ -70,8 +75,8 @@ class DesktopAdapter implements ProjectStoreAdapter {
     const tauri = getTauri();
     const folder = getFolder();
     if (tauri && folder) {
-      const path = `${folder}/.pm-suite/${key}.pms.json`;
-      await tauri.invoke("plugin:fs|write_text_file", { path, contents: json });
+      const path = projectPath(folder, key);
+      await tauri.invoke("save_project", { path, contents: json });
       const meta: StorageMetadata = { key, displayPath: path, externalRevision: this.nextRevisionFor(key), trust: "folder" };
       if (typeof localStorage !== "undefined") {
         const next = [meta, ...this.listSync().filter((m) => m.key !== key)];
@@ -91,9 +96,10 @@ class DesktopAdapter implements ProjectStoreAdapter {
     const existing = this.listSync().find((m) => m.key === key);
     if (tauri && existing?.trust === "folder" && existing.displayPath) {
       try {
-        await tauri.invoke("plugin:fs|remove_file", { path: existing.displayPath });
+        await tauri.invoke("delete_project", { path: existing.displayPath });
       } catch {
-        // Keep recents cleanup even if the file is already gone.
+        // Keep recents cleanup running after unexpected filesystem failures;
+        // NotFound is already handled by the Rust command.
       }
     }
     if (typeof localStorage === "undefined") return;
@@ -136,10 +142,14 @@ function getFolder(): string {
   return localStorage.getItem(FOLDER_KEY) ?? "";
 }
 
+function projectPath(folder: string, key: string): string {
+  return `${folder}/.pm-suite/${key}.pms.json`;
+}
+
 export const DesktopStorageAdapter = {
   install(): void {
     if (typeof window === "undefined") return;
-    (window as unknown as { __gph_store: ProjectStoreAdapter }).__gph_store = new DesktopAdapter();
+    (window as unknown as { __gph_store: ProjectStoreAdapter }).__gph_store = DesktopStorageAdapter.adapter;
   },
   adapter: new DesktopAdapter()
 };

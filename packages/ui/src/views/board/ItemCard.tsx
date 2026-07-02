@@ -17,7 +17,7 @@ export function ItemCard({
   priorities: PriorityDefinition[];
   labels: Label[];
   dragging: boolean;
-  onDragStart: (e: DragEvent<HTMLDivElement>) => void;
+  onDragStart: (e: DragEvent<HTMLElement>) => void;
   onDragEnd: () => void;
 }) {
   const suppressLinkClick = useRef(false);
@@ -29,7 +29,8 @@ export function ItemCard({
   const isOverdue = item.dueDate && item.dueDate < new Date().toISOString().slice(0, 10);
 
   return (
-    <div
+    <Link
+      to={`/item/${item.id}`}
       className="board-card"
       draggable
       data-dragging={dragging}
@@ -44,21 +45,15 @@ export function ItemCard({
           suppressLinkClick.current = false;
         }, 0);
       }}
-      role="article"
+      onClick={(event) => {
+        if (dragging || suppressLinkClick.current) {
+          event.preventDefault();
+          suppressLinkClick.current = false;
+        }
+      }}
+      style={{ color: "inherit", textDecoration: "none" }}
     >
-      <Link
-        to={`/item/${item.id}`}
-        className="board-card-title"
-        style={{ color: "inherit", textDecoration: "none" }}
-        onClick={(event) => {
-          if (dragging || suppressLinkClick.current) {
-            event.preventDefault();
-            suppressLinkClick.current = false;
-          }
-        }}
-      >
-        {item.title}
-      </Link>
+      <span className="board-card-title">{item.title}</span>
       <div className="board-card-labels">
         {itemLabels.map((l) => (
           <span key={l.id} className="board-card-label" style={{ background: l.color ? colorForLabel(l.color) : "var(--color-accent-soft)" }}>
@@ -81,7 +76,7 @@ export function ItemCard({
         )}
         {isOverdue && <span className="board-card-badge" data-kind="due" style={{ background: "var(--color-bg-status-blocked)" }}>Overdue</span>}
       </div>
-    </div>
+    </Link>
   );
 }
 
