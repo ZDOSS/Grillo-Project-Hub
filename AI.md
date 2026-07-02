@@ -97,6 +97,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - item create/update paths now validate referenced type, status, priority, member, label, milestone, and parent IDs before mutating the bundle
   - checklist reorder commands must include every existing checklist entry exactly once, so partial client payloads cannot silently delete entries
   - relationship, comment, milestone, label, status, priority, type, doc, reminder, attachment, view, and search commands now reject project mismatches or unknown mutation targets instead of silently bumping revisions
+  - saved view create/update paths validate board status references and my-work member filters before mutating the active bundle, matching the import validator's saved-view checks
   - JSON import now performs deep bundle reference validation through `validateProjectBundle()`, rejecting dangling item, relationship, reminder, attachment, folder, and board-view references before the UI can call `setBundle()`
 
 ## Platform differences between web and desktop
@@ -193,6 +194,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - settings-row draft reset when upstream bundle data changes
   - item-reference validation and unknown-target rejection in dispatcher commands
   - reminder target validation on create and update commands
+  - saved-view reference validation for `view.create` and `view.update`
   - lossy checklist reorder rejection
   - deep JSON import reference validation
   - whole-card board-card link activation
@@ -261,6 +263,9 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - making Playwright consume the e2e runner's `PLAYWRIGHT_BASE_URL`
   - removing the board-card `aria-label` so screen readers include visible card metadata in the link name
   - updating the desktop delete catch comment to reflect that Rust handles missing files
+- applied the saved-view Greptile follow-up by:
+  - validating `view.create` board columns against known statuses before persistence
+  - validating `view.update` board columns and my-work member filters before persistence
 
 ## Open follow-on planning
 

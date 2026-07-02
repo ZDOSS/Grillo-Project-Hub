@@ -35,7 +35,7 @@ import { createAttachment } from "../domain/attachment";
 import { createEvent } from "../domain/event";
 import { nowTimestamp } from "../domain/dates";
 import { bumpRevision, type TrashRecord } from "../domain/project";
-import { createBoardView, createBacklogView, createTableView, createRoadmapView, createDocsView, createCalendarView, createBugsView, createMyWorkView, findColumnForStatus } from "../domain/view";
+import { createBoardView, createBacklogView, createTableView, createRoadmapView, createDocsView, createCalendarView, createBugsView, createMyWorkView, findColumnForStatus, type View } from "../domain/view";
 import { createSeverity } from "../domain/bug";
 import { generateId } from "../domain/ids";
 import { searchProject } from "../search/local-search";
@@ -209,6 +209,25 @@ function assertReminderTargetExists(
 
 function isReminderTargetType(value: unknown): value is "workItem" | "milestone" | "document" {
   return value === "workItem" || value === "milestone" || value === "document";
+}
+
+function validateViewReferences(bundle: ProjectBundle, view: View): void {
+  switch (view.type) {
+    case "board": {
+      for (const column of view.columns) {
+        findRecordOrThrow(bundle.core.statuses, column.defaultDropStatusId, "Board default drop status");
+        for (const statusId of column.statusIds) {
+          findRecordOrThrow(bundle.core.statuses, statusId, "Board column status");
+        }
+      }
+      break;
+    }
+    case "myWork":
+      if (view.filterMemberId) {
+        findRecordOrThrow(bundle.core.members, view.filterMemberId, "My Work member");
+      }
+      break;
+  }
 }
 
 /* ----- project ----- */
@@ -1059,6 +1078,7 @@ function createViewCommand(
   if (!kanbanModule) {
     return { bundle: bumpRevision(bundle), events: [] };
   }
+  validateViewReferences(bundle, view);
   const existingViews = ((kanbanModule.data as { views?: Record<string, unknown> })?.views) ?? {};
   const nextKanbanData = { ...(kanbanModule.data ?? {}), views: { ...existingViews, [view.id]: view } };
   const nextBundle = bumpRevision({
@@ -1075,7 +1095,9 @@ function updateViewCommand(bundle: ProjectBundle, payload: { projectId: string; 
   const existingViews = ((kanbanModule.data as { views?: Record<string, unknown> })?.views) ?? {};
   const current = existingViews[payload.viewId];
   if (!current) throw new Error("View not found");
-  const nextViews = { ...existingViews, [payload.viewId]: { ...(current as object), ...stripReadOnly(payload.patch) } };
+  const nextView = { ...(current as object), ...stripReadOnly(payload.patch) } as View;
+  validateViewReferences(bundle, nextView);
+  const nextViews = { ...existingViews, [payload.viewId]: nextView };
   const nextKanbanData = { ...(kanbanModule.data ?? {}), views: nextViews };
   const nextBundle = bumpRevision({
     ...bundle,

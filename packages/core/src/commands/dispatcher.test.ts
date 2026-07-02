@@ -334,6 +334,97 @@ describe("command dispatcher", () => {
     ).toThrow(/Reminder item not found/);
   });
 
+  it("rejects created saved board views with dangling status references", () => {
+    const bundle = createProjectBundle({ name: "P" });
+    const validStatusId = bundle.project.defaultInitialStatusId;
+
+    expect(() =>
+      dispatchCommand(
+        bundle,
+        envelopeFor(
+          {
+            type: "view.create",
+            projectId: bundle.project.id,
+            viewType: "board",
+            name: "Bad board",
+            config: {
+              columns: [
+                {
+                  name: "Broken",
+                  statusIds: ["status_missing"],
+                  defaultDropStatusId: validStatusId,
+                  order: 1024
+                }
+              ]
+            }
+          } as never,
+          "ui",
+          null
+        )
+      )
+    ).toThrow(/Board column status not found/);
+  });
+
+  it("rejects patched saved views with dangling references", () => {
+    let bundle = createProjectBundle({ name: "P" });
+    const views = ((bundle.modules["builtin.kanban"].data as { views?: Record<string, { id: string; type: string }> }).views) ?? {};
+    const boardView = Object.values(views).find((view) => view.type === "board")!;
+
+    expect(() =>
+      dispatchCommand(
+        bundle,
+        envelopeFor(
+          {
+            type: "view.update",
+            projectId: bundle.project.id,
+            viewId: boardView.id,
+            patch: {
+              columns: [
+                {
+                  id: "col_broken",
+                  name: "Broken",
+                  statusIds: [bundle.project.defaultInitialStatusId],
+                  defaultDropStatusId: "status_missing",
+                  order: 1024
+                }
+              ]
+            }
+          },
+          "ui",
+          null
+        )
+      )
+    ).toThrow(/Board default drop status not found/);
+
+    bundle = dispatchCommand(
+      bundle,
+      envelopeFor({ type: "member.create", projectId: bundle.project.id, displayName: "Maya" }, "ui", null)
+    ).bundle;
+    const memberId = bundle.core.members[0].id;
+    bundle = dispatchCommand(
+      bundle,
+      envelopeFor({ type: "view.create", projectId: bundle.project.id, viewType: "myWork", name: "Mine", config: { memberId } }, "ui", null)
+    ).bundle;
+    const nextViews = ((bundle.modules["builtin.kanban"].data as { views?: Record<string, { id: string; type: string }> }).views) ?? {};
+    const myWorkView = Object.values(nextViews).find((view) => view.type === "myWork")!;
+
+    expect(() =>
+      dispatchCommand(
+        bundle,
+        envelopeFor(
+          {
+            type: "view.update",
+            projectId: bundle.project.id,
+            viewId: myWorkView.id,
+            patch: { filterMemberId: "member_missing" }
+          },
+          "ui",
+          null
+        )
+      )
+    ).toThrow(/My Work member not found/);
+  });
+
   it("preserves an empty hiddenViewIds array for legacy bundles", () => {
     const bundle = createProjectBundle({ name: "Legacy" });
     const legacy = {
