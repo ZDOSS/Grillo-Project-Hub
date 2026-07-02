@@ -47,6 +47,18 @@ describe("WorkItemModal", () => {
     expect(screen.getByLabelText("Title")).toHaveValue("Seed item");
   });
 
+  it("keeps destructive and completion actions in the pinned modal footer", () => {
+    const item = seedItem();
+
+    renderModal(item.id);
+
+    const footer = document.querySelector(".gph-modal-footer");
+    const body = document.querySelector(".gph-modal-body");
+    expect(footer).toContainElement(screen.getByRole("button", { name: "Archive" }));
+    expect(footer).toContainElement(screen.getByRole("button", { name: "Done" }));
+    expect(body).not.toContainElement(screen.getByRole("button", { name: "Done" }));
+  });
+
   it("preserves title edits through the project command dispatcher", async () => {
     const item = seedItem();
 

@@ -85,12 +85,42 @@ export function WorkItemDetailModal() {
     });
   };
 
+  const modalFooter = (
+    <div className="item-detail-footer">
+      <div className="row">
+        <button className="btn btn-sm" onClick={() => {
+          applyCommand({ type: "item.archive", projectId: bundle.project.id, itemId: item.id });
+          close();
+        }}>Archive</button>
+        <button className="btn btn-sm" onClick={() => {
+          applyCommand({ type: "item.trash", projectId: bundle.project.id, itemId: item.id });
+          close();
+        }}>Move to trash</button>
+        <button className="btn btn-sm btn-danger" onClick={() => {
+          if (confirm("Permanently delete this item? This cannot be undone.")) {
+            applyCommand({ type: "item.permanentlyDelete", projectId: bundle.project.id, itemId: item.id });
+            close();
+          }
+        }}>Delete...</button>
+      </div>
+      <div className="row">
+        <button className="btn btn-sm" onClick={() => {
+          const r = applyCommand({ type: "item.duplicate", projectId: bundle.project.id, itemId: item.id });
+          const newId = r.bundle.core.items[r.bundle.core.items.length - 1].id;
+          navigate(`/item/${newId}`);
+        }}>Duplicate</button>
+        <button className="btn btn-sm btn-primary" onClick={close}>Done</button>
+      </div>
+    </div>
+  );
+
   return (
     <Modal
       label={`Work item: ${item.title}`}
       onClose={close}
       size="work-item"
       title="Work item"
+      footer={modalFooter}
     >
         <div className="item-detail-titlebar">
           <div className="col" style={{ gap: 2, flex: 1 }}>
@@ -454,32 +484,6 @@ export function WorkItemDetailModal() {
           </div>
         </div>
 
-        <div className="item-detail-footer">
-          <div className="row">
-            <button className="btn btn-sm" onClick={() => {
-              applyCommand({ type: "item.archive", projectId: bundle.project.id, itemId: item.id });
-              close();
-            }}>Archive</button>
-            <button className="btn btn-sm" onClick={() => {
-              applyCommand({ type: "item.trash", projectId: bundle.project.id, itemId: item.id });
-              close();
-            }}>Move to trash</button>
-            <button className="btn btn-sm btn-danger" onClick={() => {
-              if (confirm("Permanently delete this item? This cannot be undone.")) {
-                applyCommand({ type: "item.permanentlyDelete", projectId: bundle.project.id, itemId: item.id });
-                close();
-              }
-            }}>Delete…</button>
-          </div>
-          <div className="row">
-            <button className="btn btn-sm" onClick={() => {
-              const r = applyCommand({ type: "item.duplicate", projectId: bundle.project.id, itemId: item.id });
-              const newId = r.bundle.core.items[r.bundle.core.items.length - 1].id;
-              navigate(`/item/${newId}`);
-            }}>Duplicate</button>
-            <button className="btn btn-sm btn-primary" onClick={close}>Done</button>
-          </div>
-        </div>
     </Modal>
   );
 }

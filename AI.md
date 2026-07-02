@@ -149,7 +149,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - PWA/browser folder picker for creating and reopening local-folder projects when File System Access is available
   - automatic last-project restore after reload via persisted active-session metadata
 - per-project view tabs across board, backlog, table, roadmap, calendar, docs, bug triage, my work, search
-- modal-style work item detail at `/item/:id` with full edit, checklist conversion, comments, subtasks, activity; `WorkItemModal` now routes through the shared `Modal` primitive with `size="work-item"` while preserving the existing detail editing controls and command-dispatch behavior
+- modal-style work item detail at `/item/:id` with full edit, checklist conversion, comments, subtasks, activity, and pinned action footer; `WorkItemModal` now routes through the shared `Modal` primitive with `size="work-item"` while preserving the existing detail editing controls and command-dispatch behavior
 - settings view with theme, left-panel visibility, editable members, editable statuses, editable priorities, editable types, labels, milestones, custom fields, plugins, export/import, AI bridge
 - settings sections now expose tab semantics, the edit icon comes from `lucide-react`, and import failures render as inline alerts instead of browser-native `alert()`
 - settings registry tables now follow a consistent edit flow for members/statuses/priorities/types:
@@ -185,7 +185,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - search results are grouped by surface type while preserving URL query/scope state
   - roadmap and calendar controls now sit in shared toolbars with accessible names
   - docs use shared confirmation for document delete and lucide document icons instead of emoji UI markers
-  - `/item/:id` now renders through the shared modal shell instead of the legacy drawer route shell
+  - `/item/:id` now renders through the shared modal shell instead of the legacy drawer route shell, with Archive/Trash/Duplicate/Done actions passed through `Modal`'s pinned footer slot
 
 ## Testing strategy
 
@@ -296,6 +296,10 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - updating the UI/UX implementation plan so later workspace-card migration steps reference an actual exported `Surface` primitive
   - moving the `/item/:id` route shell onto the shared `Modal` primitive and adding WorkItemModal regression coverage that guards against reintroducing the legacy `.drawer` shell
   - removing the extra blank line at EOF in the UI/UX design spec so `git diff --check` stays clean
+- applied the follow-up work-item modal review by:
+  - moving Archive, Trash, Delete, Duplicate, and Done actions from the scrollable modal body into `Modal`'s `footer` prop
+  - tightening `.item-detail-footer` styling so the shared modal footer owns the border, padding, and pinned placement
+  - adding WorkItemModal coverage that asserts footer actions live in `.gph-modal-footer` instead of `.gph-modal-body`
 
 ## Open follow-on planning
 
