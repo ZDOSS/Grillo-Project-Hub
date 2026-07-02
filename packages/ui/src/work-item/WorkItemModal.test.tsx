@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildProjectFromTemplate } from "@gph/core";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { useProjectStore } from "../store/project-store";
@@ -20,6 +20,35 @@ function seedItem() {
   return created.core.items.find((item) => item.title === "Seed item")!;
 }
 
+function seedItemWithComment() {
+  const item = seedItem();
+  useProjectStore.getState().applyCommand({
+    type: "comment.create",
+    projectId: useProjectStore.getState().bundle!.project.id,
+    itemId: item.id,
+    body: "Original comment"
+  });
+  return useProjectStore
+    .getState()
+    .bundle!.core.items.find((entry) => entry.id === item.id)!;
+}
+
+function seedRelatedItems() {
+  const primary = seedItem();
+  const created = useProjectStore.getState().applyCommand({
+    type: "item.create",
+    projectId: useProjectStore.getState().bundle!.project.id,
+    typeId: "task",
+    title: "Dependency item",
+    statusId: "ready"
+  }).bundle;
+
+  return {
+    primary: created.core.items.find((entry) => entry.id === primary.id)!,
+    dependency: created.core.items.find((entry) => entry.title === "Dependency item")!
+  };
+}
+
 function renderModal(itemId: string) {
   render(
     <MemoryRouter initialEntries={[`/item/${itemId}`]}>
@@ -33,6 +62,7 @@ function renderModal(itemId: string) {
 describe("WorkItemModal", () => {
   beforeEach(() => {
     cleanup();
+    vi.restoreAllMocks();
     useProjectStore.setState({ bundle: null });
   });
 
@@ -74,6 +104,77 @@ describe("WorkItemModal", () => {
         .getState()
         .bundle?.core.items.find((entry) => entry.id === item.id);
       expect(updated?.title).toBe("Renamed item");
+    });
+  });
+
+  it("edits comments inline without native prompts", async () => {
+    const item = seedItemWithComment();
+    const promptSpy = vi.spyOn(window, "prompt").mockReturnValue("Native prompt value");
+
+    renderModal(item.id);
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+
+    expect(promptSpy).not.toHaveBeenCalled();
+    const editor = screen.getByLabelText("Edit comment");
+    expect(editor).toHaveValue("Original comment");
+
+    await userEvent.clear(editor);
+    await userEvent.type(editor, "Updated comment");
+    await userEvent.click(screen.getByRole("button", { name: "Save comment" }));
+
+    await waitFor(() => {
+      const updated = useProjectStore
+        .getState()
+        .bundle?.core.items.find((entry) => entry.id === item.id);
+      expect(updated?.comments[0]?.body).toBe("Updated comment");
+    });
+  });
+
+  it("uses app confirmation for permanent delete instead of native confirm", async () => {
+    const item = seedItem();
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    renderModal(item.id);
+
+    await userEvent.click(screen.getByRole("button", { name: "Delete..." }));
+
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Permanently delete work item" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(useProjectStore.getState().bundle?.core.items.some((entry) => entry.id === item.id)).toBe(true);
+  });
+
+  it("adds and removes relationships from the work item detail", async () => {
+    const { primary, dependency } = seedRelatedItems();
+
+    renderModal(primary.id);
+
+    expect(screen.getByRole("heading", { name: "Relationships" })).toBeInTheDocument();
+
+    await userEvent.selectOptions(screen.getByLabelText("Relationship type"), "blocks");
+    await userEvent.selectOptions(screen.getByLabelText("Relationship target"), dependency.id);
+    await userEvent.click(screen.getByRole("button", { name: "Add relationship" }));
+
+    await waitFor(() => {
+      const relationship = useProjectStore.getState().bundle?.core.relationships[0];
+      expect(relationship).toMatchObject({
+        type: "blocks",
+        sourceItemId: primary.id,
+        targetItemId: dependency.id
+      });
+    });
+
+    expect(screen.getByRole("link", { name: "Dependency item" })).toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Remove relationship to Dependency item" })
+    );
+
+    await waitFor(() => {
+      expect(useProjectStore.getState().bundle?.core.relationships).toHaveLength(0);
     });
   });
 });
