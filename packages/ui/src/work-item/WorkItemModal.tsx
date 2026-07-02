@@ -6,6 +6,9 @@ import { ConfirmDialog, InlineAlert, Modal } from "../components";
 
 type RelationshipDraftType = "blocks" | "blockedBy" | "relatesTo";
 
+const EMPTY_ITEMS: WorkItem[] = [];
+const EMPTY_RELATIONSHIPS: Relationship[] = [];
+
 /**
  * Work-item detail route implementation.
  *
@@ -47,6 +50,56 @@ export function WorkItemModal() {
     setConfirmDeleteOpen(false);
   }, [item?.id]);
 
+  const items = bundle?.core.items ?? EMPTY_ITEMS;
+  const relationships = bundle?.core.relationships ?? EMPTY_RELATIONSHIPS;
+  const itemIdForRelationships = item?.id ?? "";
+  const itemsById = useMemo(
+    () => new Map(items.map((entry) => [entry.id, entry])),
+    [items]
+  );
+  const availableRelationshipTargets = useMemo(
+    () =>
+      items.filter(
+        (candidate) =>
+          candidate.id !== itemIdForRelationships &&
+          !candidate.archived &&
+          !candidate.trashedAt
+      ),
+    [items, itemIdForRelationships]
+  );
+  const activeRelationships = useMemo(
+    () => relationships.filter((relationship) => !relationship.archived),
+    [relationships]
+  );
+  const blocksRelationships = useMemo(
+    () =>
+      activeRelationships.filter(
+        (relationship) =>
+          relationship.type === "blocks" &&
+          relationship.sourceItemId === itemIdForRelationships
+      ),
+    [activeRelationships, itemIdForRelationships]
+  );
+  const blockedByRelationships = useMemo(
+    () =>
+      activeRelationships.filter(
+        (relationship) =>
+          relationship.type === "blocks" &&
+          relationship.targetItemId === itemIdForRelationships
+      ),
+    [activeRelationships, itemIdForRelationships]
+  );
+  const relatedRelationships = useMemo(
+    () =>
+      activeRelationships.filter(
+        (relationship) =>
+          relationship.type === "relatesTo" &&
+          (relationship.sourceItemId === itemIdForRelationships ||
+            relationship.targetItemId === itemIdForRelationships)
+      ),
+    [activeRelationships, itemIdForRelationships]
+  );
+
   const close = () => navigate(-1);
 
   if (!bundle || !itemId) return null;
@@ -68,22 +121,6 @@ export function WorkItemModal() {
   const members = bundle.core.members;
   const labels = bundle.core.labels;
   const milestones = bundle.core.milestones;
-  const itemsById = new Map(bundle.core.items.map((entry) => [entry.id, entry]));
-  const availableRelationshipTargets = bundle.core.items.filter(
-    (candidate) => candidate.id !== item.id && !candidate.archived && !candidate.trashedAt
-  );
-  const activeRelationships = bundle.core.relationships.filter((relationship) => !relationship.archived);
-  const blocksRelationships = activeRelationships.filter(
-    (relationship) => relationship.type === "blocks" && relationship.sourceItemId === item.id
-  );
-  const blockedByRelationships = activeRelationships.filter(
-    (relationship) => relationship.type === "blocks" && relationship.targetItemId === item.id
-  );
-  const relatedRelationships = activeRelationships.filter(
-    (relationship) =>
-      relationship.type === "relatesTo" &&
-      (relationship.sourceItemId === item.id || relationship.targetItemId === item.id)
-  );
 
   const bugModule = bundle.modules["builtin.bugs"];
   const applicableBugTypes: string[] = (bugModule?.config?.applicableTypeIds as string[]) ?? [];
@@ -122,15 +159,14 @@ export function WorkItemModal() {
     if (!editingCommentId || !editingCommentBody.trim()) return;
     const comment = item.comments.find((entry) => entry.id === editingCommentId);
     if (!comment) return;
-    if (editingCommentBody !== comment.body) {
-      applyCommand({
-        type: "comment.edit",
-        projectId: bundle.project.id,
-        itemId: item.id,
-        commentId: editingCommentId,
-        body: editingCommentBody
-      });
-    }
+    if (editingCommentBody === comment.body) return;
+    applyCommand({
+      type: "comment.edit",
+      projectId: bundle.project.id,
+      itemId: item.id,
+      commentId: editingCommentId,
+      body: editingCommentBody
+    });
     setEditingCommentId(null);
     setEditingCommentBody("");
   };
@@ -590,7 +626,7 @@ export function WorkItemModal() {
                         <div className="row" style={{ gap: 4 }}>
                           <button
                             className="btn btn-primary btn-sm"
-                            disabled={!editingCommentBody.trim()}
+                            disabled={!editingCommentBody.trim() || editingCommentBody === c.body}
                             onClick={saveCommentEdit}
                           >
                             Save comment
@@ -629,6 +665,7 @@ export function WorkItemModal() {
                 ))}
                 <div className="row" style={{ gap: 4 }}>
                   <textarea
+                    aria-label="New comment"
                     className="textarea"
                     value={commentText}
                     onChange={(e) => setCommentText(e.target.value)}

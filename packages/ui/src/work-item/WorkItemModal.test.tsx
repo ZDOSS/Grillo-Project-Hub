@@ -75,6 +75,7 @@ describe("WorkItemModal", () => {
     expect(dialog).toHaveClass("gph-modal", "gph-modal-work-item");
     expect(document.querySelector(".drawer")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Title")).toHaveValue("Seed item");
+    expect(screen.getByLabelText("New comment")).toBeInTheDocument();
   });
 
   it("keeps destructive and completion actions in the pinned modal footer", () => {
@@ -118,9 +119,11 @@ describe("WorkItemModal", () => {
     expect(promptSpy).not.toHaveBeenCalled();
     const editor = screen.getByLabelText("Edit comment");
     expect(editor).toHaveValue("Original comment");
+    expect(screen.getByRole("button", { name: "Save comment" })).toBeDisabled();
 
     await userEvent.clear(editor);
     await userEvent.type(editor, "Updated comment");
+    expect(screen.getByRole("button", { name: "Save comment" })).toBeEnabled();
     await userEvent.click(screen.getByRole("button", { name: "Save comment" }));
 
     await waitFor(() => {
