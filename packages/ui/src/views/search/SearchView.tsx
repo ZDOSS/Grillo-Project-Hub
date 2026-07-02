@@ -1,7 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { useProjectStore } from "../../store/project-store";
 import { searchProject, type SearchHit } from "@gph/core";
+import {
+  CheckboxField,
+  EmptyState,
+  MetadataBadge,
+  PageHeader,
+  TextField
+} from "../../components";
+import { useProjectStore } from "../../store/project-store";
+
+type Scope = "items" | "docs" | "comments" | "labels";
+
+const SCOPES: Scope[] = ["items", "docs", "comments", "labels"];
+
+const GROUPS: Array<{ label: string; match: SearchHit["type"] }> = [
+  { label: "Items", match: "item" },
+  { label: "Docs", match: "doc" },
+  { label: "Comments", match: "comment" },
+  { label: "Labels", match: "label" }
+];
 
 /**
  * Search view. Local full-text search across items, docs, comments, and labels with filters.
@@ -10,16 +28,16 @@ export function SearchView() {
   const bundle = useProjectStore((s) => s.bundle);
   const [params, setParams] = useSearchParams();
   const [q, setQ] = useState(params.get("q") ?? "");
-  const [scope, setScope] = useState<Array<"items" | "docs" | "comments" | "labels">>(() => {
+  const [scope, setScope] = useState<Scope[]>(() => {
     const s = params.get("scope");
-    if (s) return s.split(",") as Array<"items" | "docs" | "comments" | "labels">;
-    return ["items", "docs", "comments", "labels"];
+    if (s) return s.split(",") as Scope[];
+    return SCOPES;
   });
 
   useEffect(() => {
     const next = new URLSearchParams();
     if (q) next.set("q", q);
-    if (scope.length < 4) next.set("scope", scope.join(","));
+    if (scope.length < SCOPES.length) next.set("scope", scope.join(","));
     setParams(next, { replace: true });
   }, [q, scope, setParams]);
 
@@ -29,38 +47,86 @@ export function SearchView() {
   }, [bundle, q, scope]);
 
   if (!bundle) return null;
+
+  const toggleScope = (value: Scope) => {
+    setScope((current) =>
+      current.includes(value)
+        ? current.filter((entry) => entry !== value)
+        : [...current, value]
+    );
+  };
+
   return (
-    <div className="col" style={{ padding: 16, gap: 12, flex: 1 }}>
-      <h2>Search</h2>
-      <div className="row" style={{ gap: 8 }}>
-        <input className="input" placeholder="Search across items, docs, comments, labels…" value={q} onChange={(e) => setQ(e.target.value)} autoFocus style={{ flex: 1 }} />
-      </div>
-      <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-        {(["items", "docs", "comments", "labels"] as const).map((s) => (
-          <label key={s} className="row" style={{ gap: 4, textTransform: "capitalize" }}>
-            <input type="checkbox" checked={scope.includes(s)} onChange={() => {
-              setScope((cur) => cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]);
-            }} />
-            {s}
-          </label>
-        ))}
-      </div>
-      {hits.length === 0 && q && <div className="empty"><div className="empty-title">No results</div><div>Try a different query or scope.</div></div>}
-      <div className="col" style={{ gap: 6 }}>
-        {hits.map((h) => (
-          <Link key={`${h.type}-${h.id}`} to={
-            h.type === "item" ? `/item/${h.id}` :
-            h.type === "doc" ? `/doc/${h.id}` :
-            h.type === "comment" && "itemId" in h ? `/item/${h.itemId}` : "/search"
-          } className="board-card" style={{ textDecoration: "none", color: "inherit" }}>
-            <div className="row" style={{ gap: 6 }}>
-              <span className="tag tag-info">{h.type}</span>
-              <strong>{h.title}</strong>
-            </div>
-            {h.type !== "label" && h.snippet && <div className="text-xs text-muted">{h.snippet}</div>}
-          </Link>
-        ))}
+    <div className="search-view">
+      <PageHeader
+        title="Search"
+        description="Search items, docs, comments, and labels in the open project."
+      />
+      <div className="search-view-body">
+        <TextField
+          label="Search"
+          placeholder="Search across items, docs, comments, labels"
+          value={q}
+          onChange={(event) => setQ(event.target.value)}
+          autoFocus
+        />
+        <div className="search-scope-controls">
+          {SCOPES.map((value) => (
+            <CheckboxField
+              key={value}
+              label={value}
+              checked={scope.includes(value)}
+              onChange={() => toggleScope(value)}
+            />
+          ))}
+        </div>
+        {!q ? (
+          <EmptyState
+            title="Start with a query"
+            description="Results are grouped by project surface once you begin typing."
+          />
+        ) : null}
+        {q && hits.length === 0 ? (
+          <EmptyState
+            title="No results"
+            description="Try a different query or search scope."
+          />
+        ) : null}
+        {GROUPS.map((group) => {
+          const groupHits = hits.filter((hit) => hit.type === group.match);
+          if (groupHits.length === 0) return null;
+          return (
+            <section key={group.match} className="search-result-group">
+              <h2>{group.label}</h2>
+              <div className="col" style={{ gap: 6 }}>
+                {groupHits.map((hit) => (
+                  <Link
+                    key={`${hit.type}-${hit.id}`}
+                    to={routeForHit(hit)}
+                    className="board-card search-result-card"
+                    style={{ textDecoration: "none", color: "inherit" }}
+                  >
+                    <div className="row" style={{ gap: 6 }}>
+                      <MetadataBadge tone="info">{hit.type}</MetadataBadge>
+                      <strong>{hit.title}</strong>
+                    </div>
+                    {hit.type !== "label" && hit.snippet ? (
+                      <div className="text-xs text-muted">{hit.snippet}</div>
+                    ) : null}
+                  </Link>
+                ))}
+              </div>
+            </section>
+          );
+        })}
       </div>
     </div>
   );
+}
+
+function routeForHit(hit: SearchHit) {
+  if (hit.type === "item") return `/item/${hit.id}`;
+  if (hit.type === "doc") return `/doc/${hit.id}`;
+  if (hit.type === "comment" && "itemId" in hit) return `/item/${hit.itemId}`;
+  return "/search";
 }

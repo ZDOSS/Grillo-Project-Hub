@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
+import { Pencil } from "lucide-react";
 import { exportProjectCsv, exportProjectJson, exportProjectMarkdown, importProjectJson, validateProjectBundle, type Member, type PriorityDefinition, type StatusDefinition, type WorkItemTypeDefinition } from "@gph/core";
 import { useProjectStore } from "../../store/project-store";
 import { useTheme } from "../../theme/theme-provider";
 import { PROJECT_NAV_ITEMS } from "../../nav-config";
+import { InlineAlert } from "../../components";
 
 const SIDEBAR_OPTIONS = PROJECT_NAV_ITEMS.map(({ id, label }) => ({ id, label }));
 const COLOR_OPTIONS = [
@@ -30,11 +32,7 @@ type SettingsTab =
   | "bridge";
 
 function EditIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M11.5 2.5a1.414 1.414 0 0 1 2 2L6 12l-3 1 1-3 7.5-7.5z" />
-    </svg>
-  );
+  return <Pencil size={14} aria-hidden="true" />;
 }
 
 function colorOptionsForValue(value: string) {
@@ -86,7 +84,7 @@ export function SettingsView() {
   return (
     <div style={{ padding: 16, flex: 1, overflow: "auto" }}>
       <h2>Settings</h2>
-      <div className="row" style={{ flexWrap: "wrap", gap: 4, marginBottom: 16 }}>
+      <div className="row" role="tablist" aria-label="Settings sections" style={{ flexWrap: "wrap", gap: 4, marginBottom: 16 }}>
         {([
           ["general", "General"],
           ["sidebar", "Left panel"],
@@ -103,6 +101,8 @@ export function SettingsView() {
         ] as const).map(([k, label]) => (
           <button
             key={k}
+            role="tab"
+            aria-selected={tab === k}
             className={`btn btn-sm ${tab === k ? "btn-primary" : ""}`}
             onClick={() => setTab(k)}
           >
@@ -840,6 +840,7 @@ function CustomFieldsTab() {
 
 function ExportPanel() {
   const bundle = useProjectStore((s) => s.bundle);
+  const [importError, setImportError] = useState<string | null>(null);
   if (!bundle) return null;
   const download = (filename: string, content: string, mime: string) => {
     const blob = new Blob([content], { type: mime });
@@ -867,15 +868,17 @@ function ExportPanel() {
           const file = e.target.files?.[0];
           if (!file) return;
           const text = await file.text();
+          setImportError(null);
           try {
             const r = importProjectJson(text);
             validateProjectBundle(r.bundle);
             useProjectStore.getState().setBundle(r.bundle, { storageKey: null, storagePath: null, storageTrust: "browser" });
           } catch (err) {
-            alert(`Import failed: ${(err as Error).message}`);
+            setImportError(`Import failed: ${(err as Error).message}`);
           }
         }}
       />
+      {importError ? <InlineAlert tone="danger">{importError}</InlineAlert> : null}
     </div>
   );
 }

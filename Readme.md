@@ -7,20 +7,21 @@ A free, open source, hybrid day-one project management suite for practical softw
 The MVP implementation is in place. The current build supports:
 
 - **Workspace** with new/open/demo project flow, recent-project reopen, browser-vs-folder storage guidance, inline delete/remove confirmation, and automatic restore of the last active project after reload
-- **Board** with drag-and-drop, WIP limits (warn + hard modes), column-based status grouping, and whole-card link navigation that keeps visible card metadata available to assistive technology
-- **Backlog** with priority-sorted items
-- **Table** with sort, group, filter, and column visibility
-- **Docs** with Markdown editing, sanitized rendering, internal embeds, backlinks, router-safe in-app navigation for preview links, correct pane updates when switching documents, and draft-preserving editor resets
-- **Roadmap / timeline** with date drag/resize, milestone lanes, and dependency awareness
-- **Calendar** with month grid and date-based item visibility
-- **Bug triage** with severity, reproduction steps, expected/actual behavior, environment, affected version, and a visible new-bug entry point
-- **My work** filtered to the locally selected member
-- **Search** across items, docs, comments, and labels
-- **Settings** for theme, left-panel visibility, editable members, statuses, priorities, types, labels, milestones, custom fields, plugins, export, and AI bridge
+- **Shared UI foundation** with reusable buttons, icon buttons, fields, page headers, toolbars, empty states, inline alerts, modal/dialog primitives, data tables, and work-item metadata components
+- **Board** with drag-and-drop, WIP limits (warn + hard modes), explicit hard-limit feedback, column-based status grouping, and whole-card link navigation that keeps visible card metadata available to assistive technology
+- **Backlog** with priority-sorted items, a shared toolbar, and a visible new-item entry point
+- **Table** with accessible sortable header buttons, shared filter controls, type filtering, and shared metadata badges
+- **Docs** with Markdown editing, sanitized rendering, internal embeds, backlinks, router-safe in-app navigation for preview links, correct pane updates when switching documents, draft-preserving editor resets, and shared confirmation for document deletion
+- **Roadmap / timeline** with date drag/resize, milestone lanes, dependency awareness, and shared zoom/anchor controls
+- **Calendar** with accessible month navigation controls, month grid, and date-based item visibility
+- **Bug triage** with severity, reproduction steps, expected/actual behavior, environment, affected version, shared work-card metadata, and a visible new-bug entry point
+- **My work** filtered to the locally selected member with a real member select control and shared work rows
+- **Search** across items, docs, comments, and labels with shared search controls and grouped results
+- **Settings** for theme, left-panel visibility, editable members, statuses, priorities, types, labels, milestones, custom fields, plugins, export, AI bridge, semantic section tabs, and inline import errors
 - **Consistent settings editing** for members, statuses, priorities, types, and plugin trust with explicit edit or save/cancel flows instead of always-live row inputs
 - **Shared navigation config** so sidebar navigation and left-panel visibility toggles stay in sync
 - **Command palette** with `Ctrl/Cmd+K` and `C` to create items
-- **Work item drawer** with full edit, checklist (with convert-to-subtask), comments with threads and edit history, subtasks, relationships, archive/trash/restore
+- **Modal-style work item detail** with full edit, checklist (with convert-to-subtask), comments with threads and edit history, subtasks, relationships, archive/trash/restore
 - **Local full-text search** with structured filters
 - **JSON, Markdown, and CSV export/import**
 - **Light and dark themes** with system preference detection
@@ -85,14 +86,14 @@ tests/e2e        # Playwright parity tests
 
 `AI.md` is the living architecture ledger. `docs/FullSpec.md` is the current source of truth for product direction.
 
-The next UI/UX planning package is now documented in `docs/superpowers/specs/2026-07-02-ui-ux-overhaul-design.md` and `docs/superpowers/plans/2026-07-02-ui-ux-overhaul-implementation-plan.md`. It sequences a shared UI foundation, surface-by-surface migration, and final workflow/accessibility verification pass.
+The UI/UX overhaul planning package lives in `docs/superpowers/specs/2026-07-02-ui-ux-overhaul-design.md` and `docs/superpowers/plans/2026-07-02-ui-ux-overhaul-implementation-plan.md`. The implementation now starts that plan in code with a shared UI component layer, migrated work-management surfaces, route-level toolbar/empty-state patterns, accessible settings tabs, and a modal-style work-item detail surface.
 
 ## Tests
 
 | Suite | Count | Notes |
 | --- | --- | --- |
 | `packages/core` | 39 | Domain, storage, dispatcher, export, import |
-| `packages/ui` | 19 | AppShell, BoardView, BacklogView, CommandPalette, launcher, docs, settings |
+| `packages/ui` | 22 | AppShell, shared button primitive, BoardView, BacklogView, CommandPalette, launcher, docs, settings |
 | `apps/desktop` | 2 | Desktop storage adapter command wiring |
 | `tests/e2e` | 7 | Hybrid parity, project workflow, theme, palette, export, search |
 

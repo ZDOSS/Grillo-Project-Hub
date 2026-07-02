@@ -1,8 +1,10 @@
 import { type MouseEvent, useEffect, useMemo, useState } from "react";
+import { FileText, Plus } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import DOMPurify, { type Config as DOMPurifyConfig } from "dompurify";
 import { useProjectStore } from "../../store/project-store";
 import { deriveBacklinks, parseDocLinks, type Document } from "@gph/core";
+import { Button, ConfirmDialog, EmptyState, IconButton } from "../../components";
 
 /**
  * Docs view with simple side-by-side Markdown rendering.
@@ -34,11 +36,13 @@ export function DocsView() {
       <aside className="docs-sidebar">
         <div className="row-between" style={{ marginBottom: 8 }}>
           <strong>Docs</strong>
-          <button className="btn btn-sm btn-primary" onClick={() => {
+          <IconButton aria-label="New document" variant="primary" onClick={() => {
             const r = applyCommand({ type: "doc.create", projectId: bundle.project.id, title: "Untitled" });
             const newId = r.bundle.core.documents[r.bundle.core.documents.length - 1].id;
             navigate(`/doc/${newId}`);
-          }}>+</button>
+          }}>
+            <Plus aria-hidden="true" />
+          </IconButton>
         </div>
         <div className="col" style={{ gap: 2 }}>
           {docs.length === 0 && <div className="text-muted text-sm">No docs yet</div>}
@@ -49,7 +53,7 @@ export function DocsView() {
               className="doc-tree-node"
               aria-current={d.id === current?.id}
             >
-              <span>📄</span>
+              <FileText aria-hidden="true" size={14} />
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.title}</span>
             </Link>
           ))}
@@ -59,20 +63,22 @@ export function DocsView() {
         {current ? (
           <DocEditor doc={current} backlinks={backlinks} />
         ) : (
-          <div className="empty">
-            <div className="empty-title">No documents</div>
-            <div>Create your first doc to capture decisions, design notes, and onboarding.</div>
+          <EmptyState
+            title="No documents"
+            description="Create your first doc to capture decisions, design notes, and onboarding."
+            actions={
             <div className="row" style={{ marginTop: 8 }}>
               <input className="input" placeholder="Document title" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} />
-              <button className="btn btn-primary" onClick={() => {
+              <Button variant="primary" onClick={() => {
                 if (!newTitle.trim()) return;
                 const r = applyCommand({ type: "doc.create", projectId: bundle.project.id, title: newTitle.trim() });
                 const id = r.bundle.core.documents[r.bundle.core.documents.length - 1].id;
                 setNewTitle("");
                 navigate(`/doc/${id}`);
-              }}>Create</button>
+              }}>Create</Button>
             </div>
-          </div>
+            }
+          />
         )}
       </main>
     </div>
@@ -86,6 +92,7 @@ function DocEditor({ doc, backlinks }: { doc: Document; backlinks: Document[] })
   const [title, setTitle] = useState(doc.title);
   const [body, setBody] = useState(doc.body);
   const [tab, setTab] = useState<"edit" | "preview">("preview");
+  const [deletePending, setDeletePending] = useState(false);
 
   useEffect(() => {
     setTitle(doc.title);
@@ -109,6 +116,7 @@ function DocEditor({ doc, backlinks }: { doc: Document; backlinks: Document[] })
   };
 
   return (
+    <>
     <div className="col" style={{ gap: 12, height: "100%" }}>
       <input
         className="input"
@@ -122,11 +130,7 @@ function DocEditor({ doc, backlinks }: { doc: Document; backlinks: Document[] })
         <button className={`btn btn-sm ${tab === "preview" ? "btn-primary" : ""}`} onClick={() => { save(); setTab("preview"); }}>Preview</button>
         <span className="text-xs text-muted">Last updated {new Date(doc.updatedAt).toLocaleString()}</span>
         <span className="spacer" />
-        <button className="btn btn-sm btn-danger" onClick={() => {
-          if (confirm("Move this document to trash?")) {
-            applyCommand({ type: "doc.delete", projectId: bundle.project.id, docId: doc.id });
-          }
-        }}>Delete</button>
+        <Button size="sm" variant="danger" onClick={() => setDeletePending(true)}>Delete</Button>
       </div>
       {tab === "edit" ? (
         <textarea
@@ -150,6 +154,20 @@ function DocEditor({ doc, backlinks }: { doc: Document; backlinks: Document[] })
         </div>
       )}
     </div>
+    {deletePending ? (
+      <ConfirmDialog
+        title="Move document to trash"
+        message="This document will be moved out of the active docs list."
+        destructive
+        confirmLabel="Move to trash"
+        onCancel={() => setDeletePending(false)}
+        onConfirm={() => {
+          applyCommand({ type: "doc.delete", projectId: bundle.project.id, docId: doc.id });
+          setDeletePending(false);
+        }}
+      />
+    ) : null}
+    </>
   );
 }
 

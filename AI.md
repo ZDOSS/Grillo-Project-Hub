@@ -17,6 +17,7 @@ The product name is **Grillo Project Hub**, with **GPH** as the approved abbrevi
 - client state: Zustand
 - desktop packaging: Tauri 2
 - test runners: Vitest (unit + component), Playwright (e2e)
+- icons: `lucide-react` for shared product and control icons
 - validation: hand-rolled command dispatcher in `@gph/core` (no third-party schema dep yet)
 - drag-and-drop: native HTML5 drag-and-drop in MVP (dnd-kit deferred to a later polish pass)
 
@@ -39,6 +40,7 @@ docs/                        # current product/architecture plan
 - browser and desktop differences live behind storage/platform adapters
 - the Rust/Tauri boundary is narrow: `save_project`, `load_project`, `project_exists`, `delete_project`, `list_projects_in_folder`
 - UI, automation, import, and MCP/AI actions all route through the same validated command surface (`packages/core/src/commands/`)
+- shared UI composition now lives under `packages/ui/src/components/`; routes should prefer those primitives for buttons, fields, toolbars, page headers, feedback, dialogs, data tables, and work-item metadata before adding route-local control markup
 - the canonical project bundle lives in `project.pms.json`; module data and unknown module sections are preserved across save/load
 - the desktop folder-backed adapter and the browser `localStorage` adapter implement the same `ProjectStoreAdapter` interface and emit equivalent `WatchEvent` shapes for external-change detection
 
@@ -147,8 +149,9 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - PWA/browser folder picker for creating and reopening local-folder projects when File System Access is available
   - automatic last-project restore after reload via persisted active-session metadata
 - per-project view tabs across board, backlog, table, roadmap, calendar, docs, bug triage, my work, search
-- work item drawer at `/item/:id` with full edit, checklist conversion, comments, subtasks, activity
+- modal-style work item detail at `/item/:id` with full edit, checklist conversion, comments, subtasks, activity; `WorkItemModal` currently wraps the legacy detail implementation while the visual presentation has moved from right drawer to wide modal
 - settings view with theme, left-panel visibility, editable members, editable statuses, editable priorities, editable types, labels, milestones, custom fields, plugins, export/import, AI bridge
+- settings sections now expose tab semantics, the edit icon comes from `lucide-react`, and import failures render as inline alerts instead of browser-native `alert()`
 - settings registry tables now follow a consistent edit flow for members/statuses/priorities/types:
   - read-only rows by default
   - explicit edit affordance
@@ -174,11 +177,20 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - the bug-tracker template now seeds a bug-compatible default project/type/status configuration, while other starter templates apply different `hiddenViewIds` defaults so the left panel reflects the template's purpose out of the box
 - the simple-kanban starter doc now writes a real `[[item:<id>]]` reference for its seeded welcome task instead of rendering a broken literal `sample.id` token
 - board cards are now rendered as a single React Router link over the whole card, preserving native link semantics, letting assistive technology compute the link name from visible title/metadata text, and avoiding a title-only click target while still suppressing accidental post-drag navigation
+- the UI/UX overhaul implementation pass has started in code:
+  - `packages/ui/src/components/` now exports shared button/icon-button, field, page-header, toolbar, empty-state, inline-alert, modal/dialog, data-table, and work-item metadata primitives
+  - `AppShell` uses a named workspace navigation landmark, shared header buttons, and lucide icons for command/theme actions
+  - board, backlog, table, bug triage, my work, search, roadmap, calendar, docs, and settings now use shared primitives for major controls, feedback, metadata, or layout
+  - board hard-WIP rejection now surfaces visible status feedback instead of silently dropping the move
+  - search results are grouped by surface type while preserving URL query/scope state
+  - roadmap and calendar controls now sit in shared toolbars with accessible names
+  - docs use shared confirmation for document delete and lucide document icons instead of emoji UI markers
 
 ## Testing strategy
 
 - TDD for the shared core: domain rules, command handlers, storage contract, and export/import
 - Vitest component tests for `AppShell`, `BoardView`, `BacklogView`, `CommandPalette`, `ProjectsListView`, and `DocsView`
+- UI foundation coverage now includes `components/button/Button.test.tsx`, and AppShell tests assert banner, workspace navigation, and command-search affordances
 - review-follow-up regressions now have dedicated tests for:
   - unknown-member updates in the dispatcher
   - legacy `hiddenViewIds` fallback behavior
@@ -271,13 +283,20 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - applied the project-settings Greptile follow-up by:
   - adding the missing `assertProjectId` guard to `project.updateSettings`
   - exporting `@gph/ui/theme/global.css` through the UI package boundary used by both app entrypoints
+- started the approved UI/UX overhaul implementation by:
+  - installing `lucide-react`
+  - adding the shared `packages/ui/src/components/` primitive layer and exporting it through `@gph/ui`
+  - migrating shell, board, backlog, table, bug triage, my work, search, roadmap, calendar, docs, and settings controls onto the shared primitives where practical
+  - presenting `/item/:id` through `WorkItemModal` with modal-style overlay geometry
+  - replacing docs delete confirmation and settings import failure `alert()` with shared in-app feedback
+  - updating route and e2e tests for the new navigation/search/settings semantics and adding button primitive coverage
 
 ## Open follow-on planning
 
-- UI/UX overhaul planning now lives in `docs/superpowers/specs/2026-07-02-ui-ux-overhaul-design.md` and `docs/superpowers/plans/2026-07-02-ui-ux-overhaul-implementation-plan.md`; it sequences foundation-first UI primitives, surface-by-surface migration, and workflow/accessibility completion
+- UI/UX overhaul planning lives in `docs/superpowers/specs/2026-07-02-ui-ux-overhaul-design.md` and `docs/superpowers/plans/2026-07-02-ui-ux-overhaul-implementation-plan.md`; the first implementation pass is now in code, but deeper follow-on work remains for a fully componentized item detail modal, mobile navigation sheet, richer settings information architecture, and final accessibility QA
 - a deeper roadmap interaction plan (multi-day bars, dependencies, swimlanes)
 - a security-first plugin runtime plan before any third-party plugin execution
 - a public-internet hosting plan (currently out of MVP scope; only trusted internal hosting is supported)
 - a sync-backend plan if richer collaboration is pursued
 
-The current `docs/FullSpec.md`, `docs/plans/2026-06-10-hybrid-day-one-implementation-plan.md`, and UI/UX overhaul planning package remain the product source of truth. The implementation in this repository implements the MVP slice of the original plan; the UI/UX overhaul is planned but not implemented yet.
+The current `docs/FullSpec.md`, `docs/plans/2026-06-10-hybrid-day-one-implementation-plan.md`, and UI/UX overhaul planning package remain the product source of truth. The implementation in this repository implements the MVP slice of the original plan and now includes the first working UI/UX overhaul slice with shared primitives and migrated route surfaces.

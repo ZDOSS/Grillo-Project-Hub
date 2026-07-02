@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { useProjectStore } from "../../store/project-store";
 import { getBugData, type WorkItem } from "@gph/core";
 import { openCreateItem } from "../../commands/palette-bus";
+import { Button, EmptyState, MetadataBadge, WorkItemCard } from "../../components";
 
 /**
  * Bug triage view. Three columns: Intake, Ready, In Progress.
@@ -14,6 +15,8 @@ export function BugTriageView() {
   const applicableTypeIds: string[] = (bugModule?.config?.applicableTypeIds as string[]) ?? [];
   const severities = (bugModule?.config?.severities as Array<{ id: string; name: string; rank: number; color?: string | null }>) ?? [];
   const statuses = bundle.core.statuses;
+  const priorities = bundle.core.priorities;
+  const labels = bundle.core.labels;
 
   const isBug = (i: WorkItem) => applicableTypeIds.includes(i.typeId) && !i.trashedAt && !i.archived;
 
@@ -33,23 +36,37 @@ export function BugTriageView() {
               <strong>{col.title}</strong>
               <div className="row">
                 {col.id === "intake" ? (
-                  <button className="btn btn-sm btn-primary" onClick={() => openCreateItem({ typeId: "bug" })}>
+                  <Button variant="primary" size="sm" onClick={() => openCreateItem({ typeId: "bug" })}>
                     New bug
-                  </button>
+                  </Button>
                 ) : null}
                 <span className="text-xs text-muted">{items.length}</span>
               </div>
             </div>
-            {items.length === 0 && <div className="text-muted text-xs">No bugs</div>}
+            {items.length === 0 ? (
+              <EmptyState title="No bugs" description="Nothing in this triage lane." />
+            ) : null}
             {items.map((item) => {
               const data = getBugData(item);
               const sev = severities.find((s) => s.id === data?.severityId);
+              const priority = priorities.find((p) => p.id === item.priorityId);
+              const status = statuses.find((s) => s.id === item.statusId);
+              const itemLabels = item.labelIds
+                .map((id) => labels.find((label) => label.id === id))
+                .filter((label): label is (typeof labels)[number] => Boolean(label));
               return (
                 <Link key={item.id} to={`/item/${item.id}`} className="bugs-card" style={{ color: "inherit", textDecoration: "none" }}>
-                  <div className="row" style={{ justifyContent: "space-between" }}>
-                    <strong>{item.title}</strong>
-                    {sev && <span className="bugs-severity" style={{ background: sevColor(sev.color) }}>{sev.name}</span>}
-                  </div>
+                  <WorkItemCard
+                    item={item}
+                    status={status}
+                    priority={priority}
+                    labels={itemLabels}
+                  />
+                  {sev ? (
+                    <MetadataBadge tone={sev.rank >= 3 ? "danger" : "warning"}>
+                      {sev.name}
+                    </MetadataBadge>
+                  ) : null}
                   <div className="text-xs text-muted">{data?.reproductionSteps?.length ?? 0} reproduction steps</div>
                 </Link>
               );
@@ -59,14 +76,4 @@ export function BugTriageView() {
       })}
     </div>
   );
-}
-
-function sevColor(c?: string | null): string {
-  const palette: Record<string, string> = {
-    blue: "rgba(91, 144, 191, 0.2)",
-    orange: "rgba(210, 138, 58, 0.25)",
-    red: "rgba(177, 58, 58, 0.25)",
-    "dark-red": "rgba(120, 30, 30, 0.3)"
-  };
-  return palette[c ?? ""] ?? "var(--color-bg-muted)";
 }

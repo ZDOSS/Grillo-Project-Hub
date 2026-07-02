@@ -16,6 +16,7 @@ describe("AppShell", () => {
       </ThemeProvider>
     );
     expect(screen.getByRole("banner", { name: /Grillo Project Hub/i })).toBeInTheDocument();
-    expect(screen.getByRole("complementary", { name: /primary navigation/i })).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: /workspace/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /search commands/i })).toBeInTheDocument();
   });
 });

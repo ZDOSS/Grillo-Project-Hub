@@ -1,16 +1,32 @@
-import { Link } from "react-router-dom";
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import {
+  comparePriority,
+  type Label,
+  type PriorityDefinition,
+  type StatusDefinition,
+  type WorkItem,
+  type WorkItemTypeDefinition
+} from "@gph/core";
+import {
+  DataTable,
+  EmptyState,
+  MetadataBadge,
+  SelectField,
+  TextField,
+  ViewToolbar,
+  type DataTableColumn
+} from "../../components";
 import { useProjectStore } from "../../store/project-store";
-import { comparePriority, type WorkItem, type StatusDefinition, type PriorityDefinition, type WorkItemTypeDefinition, type Label } from "@gph/core";
 
 type SortKey = "title" | "status" | "priority" | "type" | "due" | "updated";
 
 type Row = {
   item: WorkItem;
-  status?: StatusDefinition;
-  priority?: PriorityDefinition;
-  type?: WorkItemTypeDefinition;
   labels: Label[];
+  priority?: PriorityDefinition;
+  status?: StatusDefinition;
+  type?: WorkItemTypeDefinition;
 };
 
 export function TableView() {
@@ -27,102 +43,185 @@ export function TableView() {
     for (const item of bundle.core.items) {
       if (item.trashedAt || item.archived) continue;
       if (typeFilter && item.typeId !== typeFilter) continue;
-      if (q && !item.title.toLowerCase().includes(q) && !item.description.toLowerCase().includes(q)) continue;
+      if (
+        q &&
+        !item.title.toLowerCase().includes(q) &&
+        !item.description.toLowerCase().includes(q)
+      ) {
+        continue;
+      }
       out.push({
         item,
         status: bundle.core.statuses.find((s) => s.id === item.statusId),
         priority: bundle.core.priorities.find((p) => p.id === item.priorityId),
         type: bundle.core.itemTypes.find((t) => t.id === item.typeId),
-        labels: item.labelIds.map((id) => bundle.core.labels.find((l) => l.id === id)).filter(Boolean) as Label[]
+        labels: item.labelIds
+          .map((id) => bundle.core.labels.find((l) => l.id === id))
+          .filter(Boolean) as Label[]
       });
     }
     out.sort((a, b) => {
-      let v = 0;
+      let value = 0;
       switch (sortKey) {
         case "title":
-          v = a.item.title.localeCompare(b.item.title);
+          value = a.item.title.localeCompare(b.item.title);
           break;
         case "status":
-          v = (a.status?.order ?? 0) - (b.status?.order ?? 0);
+          value = (a.status?.order ?? 0) - (b.status?.order ?? 0);
           break;
         case "priority":
-          v = comparePriority(a.item.priorityId, b.item.priorityId, bundle.core.priorities);
+          value = comparePriority(
+            a.item.priorityId,
+            b.item.priorityId,
+            bundle.core.priorities
+          );
           break;
         case "type":
-          v = (a.type?.order ?? 0) - (b.type?.order ?? 0);
+          value = (a.type?.order ?? 0) - (b.type?.order ?? 0);
           break;
         case "due":
-          v = (a.item.dueDate ?? "9999").localeCompare(b.item.dueDate ?? "9999");
+          value = (a.item.dueDate ?? "9999").localeCompare(
+            b.item.dueDate ?? "9999"
+          );
           break;
         case "updated":
-          v = b.item.updatedAt.localeCompare(a.item.updatedAt);
+          value = b.item.updatedAt.localeCompare(a.item.updatedAt);
           break;
       }
-      return sortDir === "asc" ? v : -v;
+      return sortDir === "asc" ? value : -value;
     });
     return out;
-  }, [bundle, sortKey, sortDir, filterText, typeFilter]);
+  }, [bundle, filterText, sortDir, sortKey, typeFilter]);
 
   if (!bundle) return null;
 
-  const headerClick = (k: SortKey) => {
-    if (sortKey === k) setSortDir(sortDir === "asc" ? "desc" : "asc");
-    else { setSortKey(k); setSortDir("asc"); }
+  const setSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((current) => (current === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
   };
 
-  const indicator = (k: SortKey) => sortKey === k ? (sortDir === "asc" ? " ↑" : " ↓") : "";
+  const header = (key: SortKey, label: string) =>
+    sortKey === key ? `${label} (${sortDir})` : label;
+
+  const columns: Array<DataTableColumn<Row>> = [
+    {
+      id: "title",
+      header: header("title", "Title"),
+      onSort: () => setSort("title"),
+      sortButtonLabel: "Sort by title",
+      render: ({ item }) => (
+        <Link
+          to={`/item/${item.id}`}
+          style={{ color: "inherit", fontWeight: 600, textDecoration: "none" }}
+        >
+          {item.title}
+        </Link>
+      )
+    },
+    {
+      id: "type",
+      header: header("type", "Type"),
+      onSort: () => setSort("type"),
+      sortButtonLabel: "Sort by type",
+      render: ({ type }) => <MetadataBadge>{type?.name ?? "None"}</MetadataBadge>
+    },
+    {
+      id: "status",
+      header: header("status", "Status"),
+      onSort: () => setSort("status"),
+      sortButtonLabel: "Sort by status",
+      render: ({ status }) => status?.name ?? "None"
+    },
+    {
+      id: "priority",
+      header: header("priority", "Priority"),
+      onSort: () => setSort("priority"),
+      sortButtonLabel: "Sort by priority",
+      render: ({ priority }) => (
+        <MetadataBadge tone={priority ? "info" : "neutral"}>
+          {priority?.name ?? "None"}
+        </MetadataBadge>
+      )
+    },
+    {
+      id: "assignee",
+      header: "Assignee",
+      render: ({ item }) =>
+        bundle.core.members.find((member) => member.id === item.assigneeId)
+          ?.displayName ?? "None"
+    },
+    {
+      id: "labels",
+      header: "Labels",
+      render: ({ labels }) => (
+        <div className="board-card-labels">
+          {labels.map((label) => (
+            <span key={label.id} className="board-card-label">
+              {label.name}
+            </span>
+          ))}
+        </div>
+      )
+    },
+    {
+      id: "due",
+      header: header("due", "Due"),
+      onSort: () => setSort("due"),
+      sortButtonLabel: "Sort by due date",
+      render: ({ item }) => item.dueDate ?? "None"
+    },
+    {
+      id: "updated",
+      header: header("updated", "Updated"),
+      onSort: () => setSort("updated"),
+      sortButtonLabel: "Sort by updated date",
+      render: ({ item }) => (
+        <span className="text-xs text-muted">
+          {new Date(item.updatedAt).toLocaleDateString()}
+        </span>
+      )
+    }
+  ];
 
   return (
-    <div className="table-wrap">
-      <div className="row" style={{ marginBottom: 8 }}>
-        <input className="input" placeholder="Filter…" value={filterText} onChange={(e) => setFilterText(e.target.value)} style={{ maxWidth: 240 }} />
-        <select className="select" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} style={{ maxWidth: 200 }}>
+    <div className="table-view">
+      <ViewToolbar>
+        <TextField
+          label="Filter"
+          placeholder="Filter items"
+          value={filterText}
+          onChange={(event) => setFilterText(event.target.value)}
+        />
+        <SelectField
+          label="Type"
+          value={typeFilter}
+          onChange={(event) => setTypeFilter(event.target.value)}
+        >
           <option value="">All types</option>
-          {bundle.core.itemTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-        </select>
+          {bundle.core.itemTypes.map((type) => (
+            <option key={type.id} value={type.id}>
+              {type.name}
+            </option>
+          ))}
+        </SelectField>
+      </ViewToolbar>
+      <div className="table-wrap">
+        <DataTable
+          label="Work items table"
+          rows={rows}
+          columns={columns}
+          empty={
+            <EmptyState
+              title="No items match"
+              description="Adjust the filter or type selection to show more work."
+            />
+          }
+        />
       </div>
-      <table className="table" role="grid" aria-label="Work items table">
-        <thead>
-          <tr>
-            <th onClick={() => headerClick("title")} style={{ cursor: "pointer" }}>Title{indicator("title")}</th>
-            <th onClick={() => headerClick("type")} style={{ cursor: "pointer" }}>Type{indicator("type")}</th>
-            <th onClick={() => headerClick("status")} style={{ cursor: "pointer" }}>Status{indicator("status")}</th>
-            <th onClick={() => headerClick("priority")} style={{ cursor: "pointer" }}>Priority{indicator("priority")}</th>
-            <th>Assignee</th>
-            <th>Labels</th>
-            <th onClick={() => headerClick("due")} style={{ cursor: "pointer" }}>Due{indicator("due")}</th>
-            <th onClick={() => headerClick("updated")} style={{ cursor: "pointer" }}>Updated{indicator("updated")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.length === 0 && (
-            <tr><td colSpan={8} className="empty">No items match</td></tr>
-          )}
-          {rows.map(({ item, status, priority, type, labels }) => {
-            const member = bundle.core.members.find((m) => m.id === item.assigneeId);
-            return (
-              <tr key={item.id}>
-                <td>
-                  <Link to={`/item/${item.id}`} style={{ color: "inherit", textDecoration: "none", fontWeight: 500 }}>
-                    {item.title}
-                  </Link>
-                </td>
-                <td><span className="tag">{type?.name}</span></td>
-                <td>{status?.name}</td>
-                <td>{priority?.name ?? "—"}</td>
-                <td>{member?.displayName ?? "—"}</td>
-                <td>
-                  <div className="board-card-labels">
-                    {labels.map((l) => <span key={l.id} className="board-card-label">{l.name}</span>)}
-                  </div>
-                </td>
-                <td>{item.dueDate ?? "—"}</td>
-                <td className="text-xs text-muted">{new Date(item.updatedAt).toLocaleDateString()}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
     </div>
   );
 }

@@ -11,6 +11,7 @@ export * from "./store/project-store";
 export * from "./store/project-session";
 export * from "./store/workspace-store";
 export * from "./commands";
+export * from "./components";
 export * from "./AppShell";
 export * from "./ProjectRouter";
 export * from "./views/board";

@@ -10,10 +10,9 @@ import { BugTriageView } from "./views/bugs/BugTriageView";
 import { MyWorkView } from "./views/mywork/MyWorkView";
 import { SearchView } from "./views/search/SearchView";
 import { SettingsView } from "./views/settings/SettingsView";
-import { WorkItemDrawer, CreateItemDialog } from "./work-item";
+import { WorkItemModal, CreateItemDialog } from "./work-item";
 import { Link, Navigate, Route, Routes } from "react-router-dom";
-import { openCreateItem, subscribeCreateItem } from "./commands/palette-bus";
-import { useState } from "react";
+import { openCreateItem } from "./commands/palette-bus";
 
 /**
  * Routes that need a project. They guard against an empty bundle and prompt the user
@@ -59,7 +58,7 @@ function ProjectRoutes() {
         <Route path="/settings" element={<SettingsView />} />
       </Routes>
       <Routes>
-        <Route path="/item/:itemId" element={<WorkItemDrawer />} />
+        <Route path="/item/:itemId" element={<WorkItemModal />} />
       </Routes>
       <CreateItemDialogWithShortcut />
     </>
@@ -67,8 +66,6 @@ function ProjectRoutes() {
 }
 
 function CreateItemDialogWithShortcut() {
-  const [open, setOpen] = useState(false);
-  useEffect(() => subscribeCreateItem(setOpen), []);
   useEffect(() => {
     const onShortcut = () => openCreateItem();
     window.addEventListener("gph:open-create-item-shortcut", onShortcut);
