@@ -1,7 +1,7 @@
 import type { ProjectId, StatusId, TypeId } from "./ids";
 import { generateId } from "./ids";
 import { type Timestamp, nowTimestamp } from "./dates";
-import type { WorkItem } from "./work-item";
+import { validateWorkItem, type WorkItem } from "./work-item";
 import type { Member } from "./member";
 import type { Label } from "./label";
 import type { Milestone } from "./milestone";
@@ -250,4 +250,119 @@ export function validateProjectBundle(bundle: unknown): asserts bundle is Projec
   if (!b.core || typeof b.core !== "object") throw new Error("Missing core");
   if (!b.modules || typeof b.modules !== "object") throw new Error("Missing modules");
   if (!b.projectSettings || typeof b.projectSettings !== "object") throw new Error("Missing projectSettings");
+  validateProjectCoreShape(b.core);
+  validateProjectReferences(b as ProjectBundle);
+}
+
+const CORE_ARRAY_KEYS = [
+  "itemTypes",
+  "statuses",
+  "priorities",
+  "members",
+  "labels",
+  "milestones",
+  "folders",
+  "documents",
+  "customFields",
+  "items",
+  "relationships",
+  "events",
+  "reminders",
+  "attachments",
+  "trash"
+] as const;
+
+function validateProjectCoreShape(core: unknown): asserts core is ProjectCore {
+  const c = core as Partial<ProjectCore>;
+  for (const key of CORE_ARRAY_KEYS) {
+    if (!Array.isArray(c[key])) {
+      throw new Error(`Missing core.${key}`);
+    }
+  }
+}
+
+function idsFor(records: Array<{ id: string }>): Set<string> {
+  return new Set(records.map((record) => record.id));
+}
+
+function requireKnown(ids: Set<string>, id: string | null | undefined, label: string): void {
+  if (id == null) return;
+  if (!ids.has(id)) throw new Error(`${label} not found: ${id}`);
+}
+
+function validateProjectReferences(bundle: ProjectBundle): void {
+  const typeIds = idsFor(bundle.core.itemTypes);
+  const statusIds = idsFor(bundle.core.statuses);
+  const priorityIds = idsFor(bundle.core.priorities);
+  const memberIds = idsFor(bundle.core.members);
+  const labelIds = idsFor(bundle.core.labels);
+  const milestoneIds = idsFor(bundle.core.milestones);
+  const folderIds = idsFor(bundle.core.folders);
+  const documentIds = idsFor(bundle.core.documents);
+  const itemIds = idsFor(bundle.core.items);
+
+  requireKnown(typeIds, bundle.project.defaultTypeId, "Default type");
+  requireKnown(statusIds, bundle.project.defaultInitialStatusId, "Default initial status");
+  requireKnown(statusIds, bundle.project.defaultCompletedStatusId, "Default completed status");
+
+  for (const type of bundle.core.itemTypes) {
+    requireKnown(statusIds, type.defaultStatusId ?? null, "Default status");
+    requireKnown(priorityIds, type.defaultPriorityId ?? null, "Default priority");
+  }
+
+  for (const folder of bundle.core.folders) {
+    requireKnown(folderIds, folder.parentFolderId, "Parent folder");
+  }
+
+  for (const doc of bundle.core.documents) {
+    requireKnown(folderIds, doc.folderId, "Folder");
+  }
+
+  for (const item of bundle.core.items) {
+    validateWorkItem(item);
+    requireKnown(typeIds, item.typeId, "Type");
+    requireKnown(statusIds, item.statusId, "Status");
+    requireKnown(priorityIds, item.priorityId, "Priority");
+    requireKnown(memberIds, item.assigneeId, "Member");
+    requireKnown(memberIds, item.reporterId, "Member");
+    requireKnown(milestoneIds, item.milestoneId, "Milestone");
+    requireKnown(itemIds, item.parentId, "Parent item");
+    for (const labelId of item.labelIds) {
+      requireKnown(labelIds, labelId, "Label");
+    }
+  }
+
+  for (const relationship of bundle.core.relationships) {
+    requireKnown(itemIds, relationship.sourceItemId, "Relationship source item");
+    requireKnown(itemIds, relationship.targetItemId, "Relationship target item");
+  }
+
+  for (const reminder of bundle.core.reminders) {
+    if (reminder.targetType === "workItem") requireKnown(itemIds, reminder.targetId, "Reminder item");
+    if (reminder.targetType === "milestone") requireKnown(milestoneIds, reminder.targetId, "Reminder milestone");
+    if (reminder.targetType === "document") requireKnown(documentIds, reminder.targetId, "Reminder document");
+  }
+
+  for (const attachment of bundle.core.attachments) {
+    requireKnown(itemIds, attachment.itemId, "Attachment item");
+    requireKnown(documentIds, attachment.docId, "Attachment document");
+  }
+
+  const kanban = bundle.modules["builtin.kanban"];
+  const views = ((kanban?.data as { views?: Record<string, View> } | undefined)?.views) ?? {};
+  for (const view of Object.values(views)) {
+    if (view.type === "board") {
+      for (const column of view.columns) {
+        requireKnown(statusIds, column.defaultDropStatusId, "Board default drop status");
+        for (const statusId of column.statusIds) {
+          requireKnown(statusIds, statusId, "Board column status");
+        }
+      }
+    }
+    if (view.type === "myWork") {
+      if (view.filterMemberId) {
+        requireKnown(memberIds, view.filterMemberId, "My Work member");
+      }
+    }
+  }
 }

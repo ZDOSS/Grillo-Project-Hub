@@ -17,6 +17,64 @@ describe("command dispatcher", () => {
     expect(r.bundle.project.revision).toBe(1);
   });
 
+  it("rejects item commands that would create dangling references", () => {
+    const bundle = createProjectBundle({ name: "P" });
+    const withItem = dispatchCommand(
+      bundle,
+      envelopeFor({ type: "item.create", projectId: bundle.project.id, typeId: "task", title: "Tracked" }, "ui", null)
+    ).bundle;
+    const itemId = withItem.core.items[0].id;
+
+    expect(() =>
+      dispatchCommand(
+        bundle,
+        envelopeFor(
+          {
+            type: "item.create",
+            projectId: bundle.project.id,
+            typeId: "task",
+            title: "Bad priority",
+            priorityId: "priority_missing"
+          },
+          "ui",
+          null
+        )
+      )
+    ).toThrow(/Priority not found/);
+
+    expect(() =>
+      dispatchCommand(
+        withItem,
+        envelopeFor(
+          {
+            type: "item.update",
+            projectId: withItem.project.id,
+            itemId,
+            patch: { statusId: "status_missing" }
+          },
+          "ui",
+          null
+        )
+      )
+    ).toThrow(/Status not found/);
+
+    expect(() =>
+      dispatchCommand(
+        withItem,
+        envelopeFor(
+          {
+            type: "item.update",
+            projectId: withItem.project.id,
+            itemId,
+            patch: { labelIds: ["label_missing"] }
+          },
+          "ui",
+          null
+        )
+      )
+    ).toThrow(/Label not found/);
+  });
+
   it("rejects unknown command types", () => {
     const bundle = createProjectBundle({ name: "P" });
     expect(() => dispatchCommand(bundle, { type: "nope", payload: { type: "nope" } as never, source: "ui", actorId: null, idempotencyKey: "x", issuedAt: "now" })).toThrow();
@@ -43,6 +101,22 @@ describe("command dispatcher", () => {
     expect(b.core.items.length).toBe(2);
     expect(b.core.items[0].checklist.length).toBe(0);
     expect(b.core.items[1].parentId).toBe(itemId);
+  });
+
+  it("rejects partial checklist reorders instead of dropping entries", () => {
+    let bundle = createProjectBundle({ name: "P" });
+    bundle = dispatchCommand(bundle, envelopeFor({ type: "item.create", projectId: bundle.project.id, typeId: "task", title: "Parent" }, "ui", null)).bundle;
+    const itemId = bundle.core.items[0].id;
+    bundle = dispatchCommand(bundle, envelopeFor({ type: "item.addChecklistEntry", projectId: bundle.project.id, itemId, text: "One" }, "ui", null)).bundle;
+    bundle = dispatchCommand(bundle, envelopeFor({ type: "item.addChecklistEntry", projectId: bundle.project.id, itemId, text: "Two" }, "ui", null)).bundle;
+    const [firstEntry] = bundle.core.items[0].checklist;
+
+    expect(() =>
+      dispatchCommand(
+        bundle,
+        envelopeFor({ type: "item.reorderChecklist", projectId: bundle.project.id, itemId, orderedIds: [firstEntry.id] }, "ui", null)
+      )
+    ).toThrow(/include every checklist entry/);
   });
 
   it("rejects a blocks relationship that would create a cycle", () => {
@@ -185,6 +259,79 @@ describe("command dispatcher", () => {
         )
       )
     ).toThrow(/Member not found/);
+  });
+
+  it("rejects unknown targets for registry and document mutations", () => {
+    const bundle = createProjectBundle({ name: "P" });
+
+    expect(() =>
+      dispatchCommand(
+        bundle,
+        envelopeFor({ type: "status.update", projectId: bundle.project.id, statusId: "status_missing", patch: { name: "Missing" } }, "ui", null)
+      )
+    ).toThrow(/Status not found/);
+
+    expect(() =>
+      dispatchCommand(
+        bundle,
+        envelopeFor({ type: "label.update", projectId: bundle.project.id, labelId: "label_missing", patch: { name: "Missing" } }, "ui", null)
+      )
+    ).toThrow(/Label not found/);
+
+    expect(() =>
+      dispatchCommand(
+        bundle,
+        envelopeFor({ type: "doc.update", projectId: bundle.project.id, docId: "doc_missing", patch: { title: "Missing" } }, "ui", null)
+      )
+    ).toThrow(/Document not found/);
+
+    expect(() =>
+      dispatchCommand(
+        bundle,
+        envelopeFor({ type: "relationship.delete", projectId: bundle.project.id, relationshipId: "rel_missing" }, "ui", null)
+      )
+    ).toThrow(/Relationship not found/);
+  });
+
+  it("rejects reminder updates that would leave dangling targets", () => {
+    let bundle = createProjectBundle({ name: "P" });
+    bundle = dispatchCommand(
+      bundle,
+      envelopeFor({ type: "item.create", projectId: bundle.project.id, typeId: "task", title: "Reminder target" }, "ui", null)
+    ).bundle;
+    const itemId = bundle.core.items[0].id;
+    bundle = dispatchCommand(
+      bundle,
+      envelopeFor(
+        {
+          type: "reminder.create",
+          projectId: bundle.project.id,
+          targetType: "workItem",
+          targetId: itemId,
+          remindAt: "2024-01-01T00:00:00.000Z",
+          timeZone: "UTC"
+        },
+        "ui",
+        null
+      )
+    ).bundle;
+    const reminderId = bundle.core.reminders[0].id;
+
+    expect(() =>
+      dispatchCommand(
+        bundle,
+        envelopeFor(
+          {
+            type: "reminder.update",
+            projectId: bundle.project.id,
+            reminderId,
+            patch: { targetId: "item_missing" }
+          },
+          "ui",
+          null
+        )
+      )
+    ).toThrow(/Reminder item not found/);
   });
 
   it("preserves an empty hiddenViewIds array for legacy bundles", () => {

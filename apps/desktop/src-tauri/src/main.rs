@@ -24,6 +24,15 @@ fn load_project(path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
+fn delete_project(path: String) -> Result<(), String> {
+    match fs::remove_file(&path) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+#[tauri::command]
 fn project_exists(path: String) -> bool {
     PathBuf::from(&path).exists()
 }
@@ -55,6 +64,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             save_project,
             load_project,
+            delete_project,
             project_exists,
             list_projects_in_folder
         ])

@@ -8,7 +8,6 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./components": "./src/components/index.ts",
     "./views/board": "./src/views/board/index.ts",
     "./views/backlog": "./src/views/backlog/index.ts",
     "./views/table": "./src/views/table/index.ts",
@@ -17,10 +16,10 @@
     "./views/calendar": "./src/views/calendar/index.ts",
     "./views/bugs": "./src/views/bugs/index.ts",
     "./work-item": "./src/work-item/index.ts",
-    "./projects": "./src/projects/index.ts",
+    "./projects": "./src/views/projects/index.ts",
     "./theme": "./src/theme/index.ts",
     "./commands": "./src/commands/index.ts",
-    "./search": "./src/search/index.ts"
+    "./search": "./src/views/search/index.ts"
   },
   "scripts": {
     "test": "vitest run",
