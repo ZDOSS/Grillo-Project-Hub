@@ -29,12 +29,22 @@ export function subscribePalette(l: Listener): () => void {
 }
 
 /* Create item dialog */
+export type CreateItemPrefill = {
+  typeId?: string;
+  statusId?: string;
+  priorityId?: string | null;
+  assigneeId?: string | null;
+  milestoneId?: string | null;
+  startDate?: string | null;
+  dueDate?: string | null;
+};
+
 let createItemOpen = false;
 let createItemListeners = new Set<(open: boolean) => void>();
-let createItemPrefill: { typeId?: string } | null = null;
-let createItemPrefillListeners = new Set<(p: { typeId?: string } | null) => void>();
+let createItemPrefill: CreateItemPrefill | null = null;
+let createItemPrefillListeners = new Set<(p: CreateItemPrefill | null) => void>();
 
-export function openCreateItem(prefill?: { typeId?: string }): void {
+export function openCreateItem(prefill?: CreateItemPrefill): void {
   createItemPrefill = prefill ?? null;
   createItemPrefillListeners.forEach((l) => l(createItemPrefill));
   if (createItemOpen) return;
@@ -52,7 +62,7 @@ export function isCreateItemOpen(): boolean {
   return createItemOpen;
 }
 
-export function getCreateItemPrefill(): { typeId?: string } | null {
+export function getCreateItemPrefill(): CreateItemPrefill | null {
   return createItemPrefill;
 }
 
@@ -61,7 +71,7 @@ export function subscribeCreateItem(l: (open: boolean) => void): () => void {
   return () => createItemListeners.delete(l);
 }
 
-export function subscribeCreateItemPrefill(l: (p: { typeId?: string } | null) => void): () => void {
+export function subscribeCreateItemPrefill(l: (p: CreateItemPrefill | null) => void): () => void {
   createItemPrefillListeners.add(l);
   return () => createItemPrefillListeners.delete(l);
 }

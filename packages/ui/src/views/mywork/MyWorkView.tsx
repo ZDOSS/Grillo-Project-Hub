@@ -1,4 +1,5 @@
-import { EmptyState, SelectField, ViewToolbar, WorkItemRow } from "../../components";
+import { Button, EmptyState, SelectField, ViewToolbar, WorkItemRow } from "../../components";
+import { openCreateItem } from "../../commands/palette-bus";
 import { useProjectStore } from "../../store/project-store";
 import { useWorkspaceStore } from "../../store/workspace-store";
 
@@ -34,6 +35,15 @@ export function MyWorkView() {
             </option>
           ))}
         </SelectField>
+        {me ? (
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => openCreateItem({ assigneeId: me.id })}
+          >
+            New assigned item
+          </Button>
+        ) : null}
       </ViewToolbar>
       {!me ? (
         <EmptyState

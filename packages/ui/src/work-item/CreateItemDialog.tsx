@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useProjectStore } from "../store/project-store";
 import { closeCreateItem, getCreateItemPrefill, subscribeCreateItem, subscribeCreateItemPrefill, isCreateItemOpen } from "../commands/palette-bus";
@@ -13,26 +13,70 @@ export function CreateItemDialog() {
   const [prefill, setPrefill] = useState(getCreateItemPrefill());
   const [title, setTitle] = useState("");
   const [typeId, setTypeId] = useState(bundle?.project.defaultTypeId ?? "task");
+  const [statusId, setStatusId] = useState("");
   const [description, setDescription] = useState("");
   const [priorityId, setPriorityId] = useState<string>("");
+  const [assigneeId, setAssigneeId] = useState<string>("");
   const navigate = useNavigate();
+  const itemTypes = bundle?.core.itemTypes;
+  const projectDefaultInitialStatusId = bundle?.project.defaultInitialStatusId ?? "";
+  const projectDefaultTypeId = bundle?.project.defaultTypeId ?? "task";
+  const projectId = bundle?.project.id;
 
   useEffect(() => subscribeCreateItem(setOpen), []);
   useEffect(() => subscribeCreateItemPrefill(setPrefill), []);
 
+  const defaultStatusIdForType = useCallback((nextTypeId: string) => {
+    const typeDef = itemTypes?.find((type) => type.id === nextTypeId);
+    return typeDef?.defaultStatusId ?? projectDefaultInitialStatusId;
+  }, [itemTypes, projectDefaultInitialStatusId]);
+
+  const defaultPriorityIdForType = useCallback((nextTypeId: string) => {
+    const typeDef = itemTypes?.find((type) => type.id === nextTypeId);
+    return typeDef?.defaultPriorityId ?? "";
+  }, [itemTypes]);
+
   useEffect(() => {
-    if (open) {
-      setTitle("");
-      setDescription("");
-      setPriorityId("");
-      setTypeId(prefill?.typeId ?? bundle?.project.defaultTypeId ?? "task");
-    }
-  }, [open, prefill?.typeId]);
+    if (!open || !projectId) return;
+    setTitle("");
+    setDescription("");
+  }, [open, projectId]);
+
+  useEffect(() => {
+    if (!open || !projectId) return;
+    const nextTypeId = prefill?.typeId ?? projectDefaultTypeId;
+    setTypeId(nextTypeId);
+    setStatusId(prefill?.statusId ?? defaultStatusIdForType(nextTypeId));
+    setPriorityId(
+      prefill && Object.prototype.hasOwnProperty.call(prefill, "priorityId")
+        ? prefill.priorityId ?? ""
+        : defaultPriorityIdForType(nextTypeId)
+    );
+    setAssigneeId(prefill?.assigneeId ?? "");
+  }, [
+    open,
+    prefill?.assigneeId,
+    prefill?.priorityId,
+    prefill?.statusId,
+    prefill?.typeId,
+    projectDefaultTypeId,
+    projectId,
+    defaultPriorityIdForType,
+    defaultStatusIdForType
+  ]);
 
   if (!open || !bundle) return null;
 
   const types = bundle.core.itemTypes;
+  const statuses = bundle.core.statuses;
   const priorities = bundle.core.priorities;
+  const members = bundle.core.members.filter((member) => !member.archived);
+
+  const changeType = (nextTypeId: string) => {
+    setTypeId(nextTypeId);
+    setStatusId(defaultStatusIdForType(nextTypeId));
+    setPriorityId(defaultPriorityIdForType(nextTypeId));
+  };
 
   const submit = () => {
     if (!title.trim()) return;
@@ -42,7 +86,9 @@ export function CreateItemDialog() {
       typeId,
       title: title.trim(),
       description: description.trim(),
-      priorityId: priorityId || null
+      statusId: statusId || undefined,
+      priorityId: priorityId || null,
+      assigneeId: assigneeId || null
     });
     closeCreateItem();
     const newId = r.bundle.core.items[r.bundle.core.items.length - 1].id;
@@ -60,9 +106,17 @@ export function CreateItemDialog() {
           <div className="col">
             <label className="label label-row">
               Type
-              <select className="select" value={typeId} onChange={(e) => setTypeId(e.target.value)}>
+              <select className="select" value={typeId} onChange={(e) => changeType(e.target.value)}>
                 {types.map((t) => (
                   <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="label label-row">
+              Status
+              <select className="select" value={statusId} onChange={(e) => setStatusId(e.target.value)}>
+                {statuses.map((status) => (
+                  <option key={status.id} value={status.id}>{status.name}</option>
                 ))}
               </select>
             </label>
@@ -88,6 +142,15 @@ export function CreateItemDialog() {
                 <option value="">No priority</option>
                 {priorities.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="label label-row">
+              Assignee
+              <select className="select" value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)}>
+                <option value="">Unassigned</option>
+                {members.map((member) => (
+                  <option key={member.id} value={member.id}>{member.displayName}</option>
                 ))}
               </select>
             </label>

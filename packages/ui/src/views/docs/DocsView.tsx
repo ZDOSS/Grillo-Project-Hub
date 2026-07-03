@@ -162,8 +162,12 @@ function DocEditor({ doc, backlinks }: { doc: Document; backlinks: Document[] })
         confirmLabel="Move to trash"
         onCancel={() => setDeletePending(false)}
         onConfirm={() => {
+          const activeDocs = bundle.core.documents.filter((entry) => !entry.archived);
+          const currentIndex = activeDocs.findIndex((entry) => entry.id === doc.id);
+          const nextDoc = activeDocs[currentIndex + 1] ?? activeDocs[currentIndex - 1] ?? null;
           applyCommand({ type: "doc.delete", projectId: bundle.project.id, docId: doc.id });
           setDeletePending(false);
+          navigate(nextDoc ? `/doc/${nextDoc.id}` : "/docs");
         }}
       />
     ) : null}

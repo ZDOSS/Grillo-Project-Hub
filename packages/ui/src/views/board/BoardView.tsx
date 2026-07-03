@@ -85,10 +85,16 @@ export function BoardView({ view }: BoardViewProps) {
     applyCommand({ type: "item.moveStatus", projectId: bundle.project.id, itemId, toStatusId: targetStatus });
   };
 
+  const firstColumnCreateStatusId = view.columns[0]?.defaultDropStatusId;
+
   return (
     <div className="board-view">
       <ViewToolbar>
-        <Button variant="primary" size="sm" onClick={() => openCreateItem()}>
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={() => openCreateItem(firstColumnCreateStatusId ? { statusId: firstColumnCreateStatusId } : undefined)}
+        >
           New item
         </Button>
         {dropFeedback ? <InlineAlert tone="warning">{dropFeedback}</InlineAlert> : null}

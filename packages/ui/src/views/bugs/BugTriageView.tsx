@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { useProjectStore } from "../../store/project-store";
-import { getBugData, type WorkItem } from "@gph/core";
+import { getBugData, type StatusDefinition, type WorkItem } from "@gph/core";
 import { openCreateItem } from "../../commands/palette-bus";
 import { Button, EmptyState, MetadataBadge, WorkItemCard } from "../../components";
 
@@ -20,11 +20,7 @@ export function BugTriageView() {
 
   const isBug = (i: WorkItem) => applicableTypeIds.includes(i.typeId) && !i.trashedAt && !i.archived;
 
-  const columns: Array<{ id: string; title: string; statusIds: string[] }> = [
-    { id: "intake", title: "Intake", statusIds: ["new", "confirmed"] },
-    { id: "ready", title: "Ready", statusIds: ["ready"] },
-    { id: "in-progress", title: "In Progress", statusIds: ["in-progress"] }
-  ];
+  const columns = buildBugTriageColumns(statuses, bundle.project.defaultInitialStatusId);
 
   return (
     <div className="bugs">
@@ -36,7 +32,11 @@ export function BugTriageView() {
               <strong>{col.title}</strong>
               <div className="row">
                 {col.id === "intake" ? (
-                  <Button variant="primary" size="sm" onClick={() => openCreateItem({ typeId: "bug" })}>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => openCreateItem({ typeId: "bug", statusId: col.defaultCreateStatusId })}
+                  >
                     New bug
                   </Button>
                 ) : null}
@@ -76,4 +76,52 @@ export function BugTriageView() {
       })}
     </div>
   );
+}
+
+function buildBugTriageColumns(statuses: StatusDefinition[], projectDefaultStatusId: string) {
+  const statusById = new Map(statuses.map((status) => [status.id, status]));
+  const used = new Set<string>();
+
+  const take = (
+    preferredIds: string[],
+    fallbackCategory?: StatusDefinition["category"],
+    fallbackLimit = Number.POSITIVE_INFINITY
+  ) => {
+    const ids = preferredIds.filter((id) => statusById.has(id) && !used.has(id));
+    if (ids.length === 0 && fallbackCategory) {
+      ids.push(
+        ...statuses
+          .filter((status) => status.category === fallbackCategory && !used.has(status.id))
+          .slice(0, fallbackLimit)
+          .map((status) => status.id)
+      );
+    }
+    ids.forEach((id) => used.add(id));
+    return ids;
+  };
+
+  const intakeStatusIds = take(["new", "confirmed", "inbox"], "planned", 1);
+  const readyStatusIds = take(["ready"], "planned");
+  const activeStatusIds = take(["in-progress", "blocked", "review", "fixed"], "active");
+
+  return [
+    {
+      id: "intake",
+      title: "Intake",
+      statusIds: intakeStatusIds,
+      defaultCreateStatusId: intakeStatusIds[0] ?? projectDefaultStatusId
+    },
+    {
+      id: "ready",
+      title: "Ready",
+      statusIds: readyStatusIds,
+      defaultCreateStatusId: readyStatusIds[0] ?? projectDefaultStatusId
+    },
+    {
+      id: "in-progress",
+      title: "In Progress",
+      statusIds: activeStatusIds,
+      defaultCreateStatusId: activeStatusIds[0] ?? projectDefaultStatusId
+    }
+  ];
 }

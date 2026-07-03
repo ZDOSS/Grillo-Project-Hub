@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  comparePriority,
   type Label,
   type PriorityDefinition,
   type StatusDefinition,
@@ -20,6 +19,15 @@ import {
 import { useProjectStore } from "../../store/project-store";
 
 type SortKey = "title" | "status" | "priority" | "type" | "due" | "updated";
+
+const DEFAULT_SORT_DIR: Record<SortKey, "asc" | "desc"> = {
+  title: "asc",
+  status: "asc",
+  priority: "desc",
+  type: "asc",
+  due: "asc",
+  updated: "desc"
+};
 
 type Row = {
   item: WorkItem;
@@ -70,11 +78,9 @@ export function TableView() {
           value = (a.status?.order ?? 0) - (b.status?.order ?? 0);
           break;
         case "priority":
-          value = comparePriority(
-            a.item.priorityId,
-            b.item.priorityId,
-            bundle.core.priorities
-          );
+          value =
+            priorityRank(a.item.priorityId, bundle.core.priorities) -
+            priorityRank(b.item.priorityId, bundle.core.priorities);
           break;
         case "type":
           value = (a.type?.order ?? 0) - (b.type?.order ?? 0);
@@ -85,7 +91,7 @@ export function TableView() {
           );
           break;
         case "updated":
-          value = b.item.updatedAt.localeCompare(a.item.updatedAt);
+          value = a.item.updatedAt.localeCompare(b.item.updatedAt);
           break;
       }
       return sortDir === "asc" ? value : -value;
@@ -100,7 +106,7 @@ export function TableView() {
       setSortDir((current) => (current === "asc" ? "desc" : "asc"));
     } else {
       setSortKey(key);
-      setSortDir("asc");
+      setSortDir(DEFAULT_SORT_DIR[key]);
     }
   };
 
@@ -224,4 +230,9 @@ export function TableView() {
       </div>
     </div>
   );
+}
+
+function priorityRank(priorityId: string | null, priorities: PriorityDefinition[]) {
+  if (priorityId === null) return Number.NEGATIVE_INFINITY;
+  return priorities.find((priority) => priority.id === priorityId)?.rank ?? Number.NEGATIVE_INFINITY;
 }

@@ -1,3 +1,5 @@
+import type { CreateItemPrefill } from "./palette-bus";
+
 /**
  * Command registry: extensible list of named commands that the palette and shortcuts dispatch.
  * Modules register commands through this registry; commands ultimately resolve to
@@ -8,7 +10,7 @@ export type CommandContext = {
   navigate: (path: string) => void;
   openPalette: boolean;
   closePalette: () => void;
-  openCreateItem: (prefill?: { typeId?: string }) => void;
+  openCreateItem: (prefill?: CreateItemPrefill) => void;
   openSearch?: () => void;
 };
 

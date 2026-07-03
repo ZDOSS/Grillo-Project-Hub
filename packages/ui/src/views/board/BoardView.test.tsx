@@ -5,6 +5,8 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { BoardView } from "./BoardView";
 import { useProjectStore } from "../../store/project-store";
 import { buildProjectFromTemplate } from "@gph/core";
+import { closeCreateItem } from "../../commands/palette-bus";
+import { CreateItemDialog } from "../../work-item";
 
 function LocationProbe() {
   const location = useLocation();
@@ -33,6 +35,7 @@ function renderBoard(view: Parameters<typeof BoardView>[0]["view"]) {
 describe("BoardView", () => {
   beforeEach(() => {
     cleanup();
+    closeCreateItem();
     useProjectStore.setState({ bundle: null });
   });
 
@@ -165,5 +168,40 @@ describe("BoardView", () => {
     await userEvent.keyboard("{Enter}");
 
     expect(screen.getAllByTestId("location").at(-1)).toHaveTextContent(`/item/${item.id}`);
+  });
+
+  it("creates new board items in the first board column by default", async () => {
+    const bundle = buildProjectFromTemplate("simple-kanban", "Test");
+    useProjectStore.setState({ bundle });
+    const kanbanModule = bundle.modules["builtin.kanban"];
+    const views = (kanbanModule.data as { views?: Record<string, { id: string; type: string; name: string; columns: Array<{ id: string; name: string; statusIds: string[]; defaultDropStatusId: string; wipLimit?: number | null; wipMode?: "warn" | "hard"; order: number }> }> }).views ?? {};
+    const view = Object.values(views).find((entry) => entry.type === "board")!;
+
+    render(
+      <MemoryRouter initialEntries={["/board"]}>
+        <Routes>
+          <Route
+            path="/board"
+            element={
+              <>
+                <BoardView view={view} />
+                <CreateItemDialog />
+              </>
+            }
+          />
+          <Route path="/item/:id" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "New item" }));
+
+    expect(screen.getByLabelText("Status")).toHaveValue("ready");
+
+    await userEvent.type(screen.getByLabelText("Title"), "Board-created task");
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    const created = useProjectStore.getState().bundle?.core.items.find((entry) => entry.title === "Board-created task");
+    expect(created?.statusId).toBe("ready");
   });
 });
