@@ -38,9 +38,13 @@ export function CreateItemDialog() {
 
   useEffect(() => {
     if (!open || !projectId) return;
-    const nextTypeId = prefill?.typeId ?? projectDefaultTypeId;
     setTitle("");
     setDescription("");
+  }, [open, projectId]);
+
+  useEffect(() => {
+    if (!open || !projectId) return;
+    const nextTypeId = prefill?.typeId ?? projectDefaultTypeId;
     setTypeId(nextTypeId);
     setStatusId(prefill?.statusId ?? defaultStatusIdForType(nextTypeId));
     setPriorityId(

@@ -20,7 +20,7 @@ The MVP implementation is in place. The current build supports:
 - **Settings** for theme, left-panel visibility, editable members, statuses, priorities, types, labels, milestones, custom fields, plugins, export, AI bridge, semantic section tabs, and inline import errors
 - **Consistent settings editing** for members, statuses, priorities, types, and plugin trust with explicit edit or save/cancel flows instead of always-live row inputs
 - **Shared navigation config** so sidebar navigation and left-panel visibility toggles stay in sync
-- **Command palette** with `Ctrl/Cmd+K` and `C` to create items
+- **Command palette** with `Ctrl/Cmd+K` and `C` to create items through a draft-preserving dialog with view-aware defaults
 - **Modal-style work item detail** backed by the shared modal primitive, with full edit, checklist (with convert-to-subtask), inline comment editing, an accessible comment composer, subtasks, relationship add/remove controls, attachment upload/preview/delete, reminder create/update/delete, app-owned permanent-delete confirmation, archive/trash/restore, and a pinned action footer
 - **Local full-text search** with structured filters
 - **JSON, Markdown, and CSV export/import**

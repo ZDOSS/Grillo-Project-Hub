@@ -1,4 +1,5 @@
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { buildProjectFromTemplate } from "@gph/core";
@@ -25,6 +26,9 @@ describe("CreateItemDialog", () => {
 
     expect(screen.getByLabelText("Status")).toHaveValue("inbox");
 
+    await userEvent.type(screen.getByLabelText("Title"), "Keep my draft");
+    await userEvent.type(screen.getByLabelText("Description"), "Do not clear this");
+
     const current = useProjectStore.getState().bundle!;
     useProjectStore.setState({
       ...useProjectStore.getState(),
@@ -42,5 +46,7 @@ describe("CreateItemDialog", () => {
     await waitFor(() => {
       expect(screen.getByLabelText("Status")).toHaveValue("ready");
     });
+    expect(screen.getByLabelText("Title")).toHaveValue("Keep my draft");
+    expect(screen.getByLabelText("Description")).toHaveValue("Do not clear this");
   });
 });

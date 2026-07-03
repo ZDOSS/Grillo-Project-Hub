@@ -156,7 +156,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - automatic last-project restore after reload via persisted active-session metadata
 - per-project view tabs across board, backlog, table, roadmap, calendar, docs, bug triage, my work, search
 - create-item entry points now carry view context through `CreateItemPrefill` in `palette-bus.ts`; the shared dialog can receive and expose `typeId`, `statusId`, `priorityId`, and `assigneeId`, so board, bug triage, and my-work creates no longer drop the context that made the user click that surface's action in the first place
-- the create-item dialog derives type defaults from dependency-tracked type-registry inputs while open, so a settings-level type default change can refresh the current form without tying the reset effect to unrelated bundle mutations
+- the create-item dialog derives type defaults from dependency-tracked type-registry inputs while open, and its form-opening reset is split from derived default refreshes so a settings-level type default change can update selects without clearing a user's typed title or description
 - modal-style work item detail at `/item/:id` with full edit, checklist conversion, inline comment editing, subtasks, relationships, attachments, reminders, activity, and pinned action footer; `WorkItemModal.tsx` is now the owning implementation and routes through the shared `Modal` primitive with `size="work-item"`, while `WorkItemDrawer.tsx` is only a compatibility wrapper that renders `WorkItemModal`
 - work item detail interactions avoid browser-native modal APIs for persisted edits/destructive work: comment edits use inline local state and `comment.edit`, permanent deletion uses shared `ConfirmDialog`, and relationship add/remove controls route through `relationship.create` / `relationship.delete` so duplicate/cycle validation remains in `@gph/core`
 - item-detail attachments live in `AttachmentPanel.tsx`, are filtered by `itemId`, and route through `attachment.add` / `attachment.delete`; browser-local uploads store a data URI fallback with `storagePath: null`, while preview rendering is intentionally constrained to image thumbnails, decoded text snippets, PDF metadata, or no inline preview for unsupported/binary media
@@ -240,7 +240,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - my-work item creation that preselects the active local member as assignee
   - table priority and updated-date sort direction behavior
   - docs delete navigation to the nearest active remaining document, skipping archived docs
-  - create-dialog default refresh when the type registry changes while the dialog is open
+  - create-dialog default refresh when the type registry changes while the dialog is open, including preservation of typed title and description drafts
   - work-item unchanged-comment save disabling and the new-comment textarea accessible label
   - stacked delete-confirmation Escape handling that preserves the underlying item-detail route and unsaved comment draft
   - item-reference validation and unknown-target rejection in dispatcher commands
@@ -378,6 +378,9 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - making create-dialog type-default helpers dependency-safe for open-dialog registry changes
   - limiting bug triage's Intake planned-status fallback to one status so Ready can claim the next planned lane in custom workflows
   - adding regression coverage for all three review findings
+- applied the second PR #13 Greptile follow-up by:
+  - splitting create-dialog opening resets from derived default refreshes so registry updates no longer clear in-progress title or description drafts
+  - extending CreateItemDialog regression coverage to prove status defaults refresh while draft text is preserved
 
 ## Open follow-on planning
 
