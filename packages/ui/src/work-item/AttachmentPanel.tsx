@@ -3,6 +3,8 @@ import { FilePlus, Trash2 } from "lucide-react";
 import { attachmentKindFor, type Attachment } from "@gph/core";
 import { InlineAlert } from "../components";
 
+const MAX_BROWSER_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+
 type AttachmentPanelProps = {
   attachments: Attachment[];
   onAddAttachment: (input: {
@@ -25,10 +27,17 @@ export function AttachmentPanel({
 
   const uploadFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
+    const selectedFiles = Array.from(files);
+    const oversized = selectedFiles.find((file) => file.size > MAX_BROWSER_ATTACHMENT_BYTES);
+    if (oversized) {
+      setError("Attachments must be 5 MB or smaller.");
+      if (inputRef.current) inputRef.current.value = "";
+      return;
+    }
     setUploading(true);
     setError(null);
     try {
-      for (const file of Array.from(files)) {
+      for (const file of selectedFiles) {
         const dataUri = await readFileAsDataUri(file);
         onAddAttachment({
           dataUri,
@@ -62,7 +71,7 @@ export function AttachmentPanel({
           />
         </label>
         <span className="text-xs text-muted">
-          Browser projects store a data URI fallback; folder-backed storage can move the payload later.
+          Browser projects store a data URI fallback. Keep each file at 5 MB or less.
         </span>
       </div>
       {error && <InlineAlert tone="danger">{error}</InlineAlert>}

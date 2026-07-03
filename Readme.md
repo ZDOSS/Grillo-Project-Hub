@@ -94,7 +94,7 @@ The UI/UX overhaul planning package lives in `docs/superpowers/specs/2026-07-02-
 | Suite | Count | Notes |
 | --- | --- | --- |
 | `packages/core` | 39 | Domain, storage, dispatcher, export, import |
-| `packages/ui` | 35 | AppShell, shared button and surface primitives, WorkItemModal attachment/reminder coverage, BoardView, BacklogView, CommandPalette, launcher, docs, settings |
+| `packages/ui` | 36 | AppShell, shared button and surface primitives, WorkItemModal attachment/reminder coverage, BoardView, BacklogView, CommandPalette, launcher, docs, settings |
 | `apps/desktop` | 2 | Desktop storage adapter command wiring |
 | `tests/e2e` | 7 | Hybrid parity, project workflow, theme, palette, export, search |
 

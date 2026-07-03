@@ -158,6 +158,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - modal-style work item detail at `/item/:id` with full edit, checklist conversion, inline comment editing, subtasks, relationships, attachments, reminders, activity, and pinned action footer; `WorkItemModal.tsx` is now the owning implementation and routes through the shared `Modal` primitive with `size="work-item"`, while `WorkItemDrawer.tsx` is only a compatibility wrapper that renders `WorkItemModal`
 - work item detail interactions avoid browser-native modal APIs for persisted edits/destructive work: comment edits use inline local state and `comment.edit`, permanent deletion uses shared `ConfirmDialog`, and relationship add/remove controls route through `relationship.create` / `relationship.delete` so duplicate/cycle validation remains in `@gph/core`
 - item-detail attachments live in `AttachmentPanel.tsx`, are filtered by `itemId`, and route through `attachment.add` / `attachment.delete`; browser-local uploads store a data URI fallback with `storagePath: null`, while preview rendering is intentionally constrained to image thumbnails, decoded text snippets, PDF metadata, or no inline preview for unsupported/binary media
+- `AttachmentPanel` rejects files larger than 5 MB before calling `FileReader.readAsDataURL()`, because this UI path currently stores browser-local attachment payloads as base64 data URIs in the bundle
 - item-detail reminders live in `ReminderPanel.tsx`, are filtered by `targetType: "workItem"` and `targetId`, and route through `reminder.create` / `reminder.update` / `reminder.delete`; reminder editing preserves the domain invariant that the stored value is a UTC `remindAt` instant plus the user's current IANA `timeZone`
 - work-item metadata now surfaces the next scheduled reminder above the detail sections so upcoming item-level follow-up is visible without opening the reminder editor section
 - work-item modal relationship selectors now memoize item and relationship derivations, so transient local-state changes such as typing in comments do not rebuild every relationship group on large projects
@@ -223,6 +224,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - work-item permanent delete confirmation without `window.confirm`
   - work-item relationship add/remove behavior through the command dispatcher
   - work-item attachment upload/delete behavior through `attachment.add` / `attachment.delete`, including browser-local data URI fallback
+  - work-item oversized attachment rejection before reading the selected file into memory
   - work-item attachment preview safety for image, UTF-8 text, PDF metadata, and unsupported binary media
   - work-item reminder create/update/delete behavior through `reminder.*` commands plus next-reminder metadata summary rendering
   - work-item next-reminder summary behavior that ignores past reminders instead of promoting stale reminders as upcoming follow-up
@@ -349,6 +351,9 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - applied the second PR #12 Greptile follow-up by:
   - decoding base64 text attachment previews through `TextDecoder` so UTF-8 data URI payloads render correctly
   - adding regression coverage for non-ASCII text attachment previews
+- applied the third PR #12 Greptile follow-up by:
+  - adding a 5 MB per-file guard before attachment uploads are read into data URIs
+  - adding regression coverage that oversized attachment uploads show inline feedback and do not mutate project attachments
 
 ## Open follow-on planning
 

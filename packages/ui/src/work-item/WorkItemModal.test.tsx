@@ -254,6 +254,21 @@ describe("WorkItemModal", () => {
     expect(useProjectStore.getState().bundle?.core.trash.some((entry) => entry.recordType === "attachment")).toBe(true);
   });
 
+  it("rejects oversized attachment uploads before reading them into memory", async () => {
+    const item = seedItem();
+    const oversized = new File(["small fixture"], "oversized.bin", {
+      type: "application/octet-stream"
+    });
+    Object.defineProperty(oversized, "size", { value: 5 * 1024 * 1024 + 1 });
+
+    renderModal(item.id);
+
+    await userEvent.upload(screen.getByLabelText("Upload attachment"), oversized);
+
+    expect(screen.getByText("Attachments must be 5 MB or smaller.")).toBeInTheDocument();
+    expect(useProjectStore.getState().bundle?.core.attachments).toHaveLength(0);
+  });
+
   it("applies safe attachment preview rules by media type", () => {
     const item = seedItem();
     addAttachment(item.id, {
