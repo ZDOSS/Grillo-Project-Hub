@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
@@ -13,6 +13,7 @@ function LocationProbe() {
 
 describe("DocsView", () => {
   beforeEach(() => {
+    cleanup();
     const bundle = buildProjectFromTemplate("software-project", "Docs");
     useProjectStore.setState({
       bundle,
@@ -130,5 +131,45 @@ describe("DocsView", () => {
     });
 
     expect(document.querySelector("textarea.textarea")).toHaveValue("Unsaved draft text");
+  });
+
+  it("navigates to another document after deleting the current document", async () => {
+    const bundle = useProjectStore.getState().bundle!;
+    const deleteMe = useProjectStore.getState().applyCommand({
+      type: "doc.create",
+      projectId: bundle.project.id,
+      title: "Delete Me"
+    }).bundle.core.documents.at(-1)!;
+    const keepMe = useProjectStore.getState().applyCommand({
+      type: "doc.create",
+      projectId: bundle.project.id,
+      title: "Keep Me"
+    }).bundle.core.documents.at(-1)!;
+
+    render(
+      <MemoryRouter initialEntries={[`/doc/${deleteMe.id}`]}>
+        <Routes>
+          <Route
+            path="*"
+            element={
+              <>
+                <LocationProbe />
+                <Routes>
+                  <Route path="/docs" element={<DocsView />} />
+                  <Route path="/doc/:docId" element={<DocsView />} />
+                </Routes>
+              </>
+            }
+          />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await userEvent.click(screen.getByRole("button", { name: "Move to trash" }));
+
+    expect(screen.getAllByTestId("location").at(-1)).toHaveTextContent(`/doc/${keepMe.id}`);
+    expect(screen.getByDisplayValue("Keep Me")).toBeInTheDocument();
+    expect(screen.queryByText("No documents")).not.toBeInTheDocument();
   });
 });

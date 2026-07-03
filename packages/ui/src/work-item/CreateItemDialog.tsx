@@ -13,26 +13,59 @@ export function CreateItemDialog() {
   const [prefill, setPrefill] = useState(getCreateItemPrefill());
   const [title, setTitle] = useState("");
   const [typeId, setTypeId] = useState(bundle?.project.defaultTypeId ?? "task");
+  const [statusId, setStatusId] = useState("");
   const [description, setDescription] = useState("");
   const [priorityId, setPriorityId] = useState<string>("");
+  const [assigneeId, setAssigneeId] = useState<string>("");
   const navigate = useNavigate();
 
   useEffect(() => subscribeCreateItem(setOpen), []);
   useEffect(() => subscribeCreateItemPrefill(setPrefill), []);
 
+  const defaultStatusIdForType = (nextTypeId: string) => {
+    const typeDef = bundle?.core.itemTypes.find((type) => type.id === nextTypeId);
+    return typeDef?.defaultStatusId ?? bundle?.project.defaultInitialStatusId ?? "";
+  };
+
+  const defaultPriorityIdForType = (nextTypeId: string) => {
+    const typeDef = bundle?.core.itemTypes.find((type) => type.id === nextTypeId);
+    return typeDef?.defaultPriorityId ?? "";
+  };
+
   useEffect(() => {
-    if (open) {
-      setTitle("");
-      setDescription("");
-      setPriorityId("");
-      setTypeId(prefill?.typeId ?? bundle?.project.defaultTypeId ?? "task");
-    }
-  }, [open, prefill?.typeId]);
+    if (!open || !bundle) return;
+    const nextTypeId = prefill?.typeId ?? bundle.project.defaultTypeId ?? "task";
+    setTitle("");
+    setDescription("");
+    setTypeId(nextTypeId);
+    setStatusId(prefill?.statusId ?? defaultStatusIdForType(nextTypeId));
+    setPriorityId(
+      prefill && Object.prototype.hasOwnProperty.call(prefill, "priorityId")
+        ? prefill.priorityId ?? ""
+        : defaultPriorityIdForType(nextTypeId)
+    );
+    setAssigneeId(prefill?.assigneeId ?? "");
+  }, [
+    open,
+    prefill?.assigneeId,
+    prefill?.priorityId,
+    prefill?.statusId,
+    prefill?.typeId,
+    bundle?.project.id
+  ]);
 
   if (!open || !bundle) return null;
 
   const types = bundle.core.itemTypes;
+  const statuses = bundle.core.statuses;
   const priorities = bundle.core.priorities;
+  const members = bundle.core.members.filter((member) => !member.archived);
+
+  const changeType = (nextTypeId: string) => {
+    setTypeId(nextTypeId);
+    setStatusId(defaultStatusIdForType(nextTypeId));
+    setPriorityId(defaultPriorityIdForType(nextTypeId));
+  };
 
   const submit = () => {
     if (!title.trim()) return;
@@ -42,7 +75,9 @@ export function CreateItemDialog() {
       typeId,
       title: title.trim(),
       description: description.trim(),
-      priorityId: priorityId || null
+      statusId: statusId || undefined,
+      priorityId: priorityId || null,
+      assigneeId: assigneeId || null
     });
     closeCreateItem();
     const newId = r.bundle.core.items[r.bundle.core.items.length - 1].id;
@@ -60,9 +95,17 @@ export function CreateItemDialog() {
           <div className="col">
             <label className="label label-row">
               Type
-              <select className="select" value={typeId} onChange={(e) => setTypeId(e.target.value)}>
+              <select className="select" value={typeId} onChange={(e) => changeType(e.target.value)}>
                 {types.map((t) => (
                   <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="label label-row">
+              Status
+              <select className="select" value={statusId} onChange={(e) => setStatusId(e.target.value)}>
+                {statuses.map((status) => (
+                  <option key={status.id} value={status.id}>{status.name}</option>
                 ))}
               </select>
             </label>
@@ -88,6 +131,15 @@ export function CreateItemDialog() {
                 <option value="">No priority</option>
                 {priorities.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="label label-row">
+              Assignee
+              <select className="select" value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)}>
+                <option value="">Unassigned</option>
+                {members.map((member) => (
+                  <option key={member.id} value={member.id}>{member.displayName}</option>
                 ))}
               </select>
             </label>
