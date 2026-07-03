@@ -172,4 +172,54 @@ describe("DocsView", () => {
     expect(screen.getByDisplayValue("Keep Me")).toBeInTheDocument();
     expect(screen.queryByText("No documents")).not.toBeInTheDocument();
   });
+
+  it("skips archived documents when picking the post-delete navigation target", async () => {
+    const bundle = useProjectStore.getState().bundle!;
+    const deleteMe = useProjectStore.getState().applyCommand({
+      type: "doc.create",
+      projectId: bundle.project.id,
+      title: "Delete Before Hidden"
+    }).bundle.core.documents.at(-1)!;
+    const hiddenDoc = useProjectStore.getState().applyCommand({
+      type: "doc.create",
+      projectId: bundle.project.id,
+      title: "Hidden Doc"
+    }).bundle.core.documents.at(-1)!;
+    useProjectStore.getState().applyCommand({
+      type: "doc.update",
+      projectId: bundle.project.id,
+      docId: hiddenDoc.id,
+      patch: { archived: true }
+    });
+    const keepMe = useProjectStore.getState().applyCommand({
+      type: "doc.create",
+      projectId: bundle.project.id,
+      title: "Visible After Hidden"
+    }).bundle.core.documents.at(-1)!;
+
+    render(
+      <MemoryRouter initialEntries={[`/doc/${deleteMe.id}`]}>
+        <Routes>
+          <Route
+            path="*"
+            element={
+              <>
+                <LocationProbe />
+                <Routes>
+                  <Route path="/docs" element={<DocsView />} />
+                  <Route path="/doc/:docId" element={<DocsView />} />
+                </Routes>
+              </>
+            }
+          />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await userEvent.click(screen.getByRole("button", { name: "Move to trash" }));
+
+    expect(screen.getAllByTestId("location").at(-1)).toHaveTextContent(`/doc/${keepMe.id}`);
+    expect(screen.getByDisplayValue("Visible After Hidden")).toBeInTheDocument();
+  });
 });

@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -69,5 +69,39 @@ describe("BugTriageView", () => {
       const created = useProjectStore.getState().bundle?.core.items.find((item) => item.title === "Created from intake");
       expect(created).toMatchObject({ typeId: "bug", statusId: "inbox" });
     });
+  });
+
+  it("does not let intake fallback consume every planned status", () => {
+    const bundle = buildProjectFromTemplate("software-project", "Software");
+    useProjectStore.setState({
+      bundle: {
+        ...bundle,
+        core: {
+          ...bundle.core,
+          statuses: [
+            { id: "triage", name: "Triage", category: "planned", order: 1024, archived: false },
+            { id: "next-up", name: "Next Up", category: "planned", order: 2048, archived: false },
+            { id: "building", name: "Building", category: "active", order: 3072, archived: false }
+          ]
+        },
+        project: {
+          ...bundle.project,
+          defaultInitialStatusId: "triage"
+        }
+      }
+    });
+    useProjectStore.getState().applyCommand({
+      type: "item.create",
+      projectId: bundle.project.id,
+      typeId: "bug",
+      title: "Ready lane bug",
+      statusId: "next-up"
+    });
+
+    renderBugTriage();
+
+    const readyColumn = screen.getByText("Ready").closest(".bugs-column");
+    expect(readyColumn).toBeTruthy();
+    expect(within(readyColumn as HTMLElement).getByText("Ready lane bug")).toBeInTheDocument();
   });
 });

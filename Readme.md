@@ -11,10 +11,10 @@ The MVP implementation is in place. The current build supports:
 - **Board** with drag-and-drop, WIP limits (warn + hard modes), explicit hard-limit feedback, column-based status grouping, context-aware item creation that starts in the first board lane, and whole-card link navigation that keeps visible card metadata available to assistive technology
 - **Backlog** with priority-sorted items, a shared toolbar, and a visible new-item entry point
 - **Table** with accessible sortable header buttons, corrected priority/updated sorting, shared filter controls, type filtering, and shared metadata badges
-- **Docs** with Markdown editing, sanitized rendering, internal embeds, backlinks, router-safe in-app navigation for preview links, correct pane updates when switching documents, draft-preserving editor resets, shared confirmation for document deletion, and safe navigation to the next document after deleting the open one
+- **Docs** with Markdown editing, sanitized rendering, internal embeds, backlinks, router-safe in-app navigation for preview links, correct pane updates when switching documents, draft-preserving editor resets, shared confirmation for document deletion, and safe navigation to the next active document after deleting the open one
 - **Roadmap / timeline** with date drag/resize, milestone lanes, dependency awareness, and shared zoom/anchor controls
 - **Calendar** with accessible month navigation controls, month grid, and date-based item visibility
-- **Bug triage** with severity, reproduction steps, expected/actual behavior, environment, affected version, shared work-card metadata, and a visible new-bug entry point that defaults to the Intake lane
+- **Bug triage** with severity, reproduction steps, expected/actual behavior, environment, affected version, shared work-card metadata, and a visible new-bug entry point that defaults to the Intake lane without starving Ready in custom planned workflows
 - **My work** filtered to the locally selected member with a real member select control, shared work rows, and assigned-to-me creation
 - **Search** across items, docs, comments, and labels with shared search controls and grouped results
 - **Settings** for theme, left-panel visibility, editable members, statuses, priorities, types, labels, milestones, custom fields, plugins, export, AI bridge, semantic section tabs, and inline import errors
@@ -94,7 +94,7 @@ The UI/UX overhaul planning package lives in `docs/superpowers/specs/2026-07-02-
 | Suite | Count | Notes |
 | --- | --- | --- |
 | `packages/core` | 39 | Domain, storage, dispatcher, export, import |
-| `packages/ui` | 43 | AppShell, shared button and surface primitives, WorkItemModal attachment/reminder coverage, BoardView, BacklogView, BugTriageView, MyWorkView, TableView, CommandPalette, launcher, docs, settings |
+| `packages/ui` | 46 | AppShell, shared button and surface primitives, WorkItemModal attachment/reminder coverage, BoardView, BacklogView, BugTriageView, MyWorkView, TableView, CommandPalette, CreateItemDialog, launcher, docs, settings |
 | `apps/desktop` | 2 | Desktop storage adapter command wiring |
 | `tests/e2e` | 7 | Hybrid parity, project workflow, theme, palette, export, search |
 

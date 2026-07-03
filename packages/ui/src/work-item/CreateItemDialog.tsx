@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useProjectStore } from "../store/project-store";
 import { closeCreateItem, getCreateItemPrefill, subscribeCreateItem, subscribeCreateItemPrefill, isCreateItemOpen } from "../commands/palette-bus";
@@ -18,23 +18,27 @@ export function CreateItemDialog() {
   const [priorityId, setPriorityId] = useState<string>("");
   const [assigneeId, setAssigneeId] = useState<string>("");
   const navigate = useNavigate();
+  const itemTypes = bundle?.core.itemTypes;
+  const projectDefaultInitialStatusId = bundle?.project.defaultInitialStatusId ?? "";
+  const projectDefaultTypeId = bundle?.project.defaultTypeId ?? "task";
+  const projectId = bundle?.project.id;
 
   useEffect(() => subscribeCreateItem(setOpen), []);
   useEffect(() => subscribeCreateItemPrefill(setPrefill), []);
 
-  const defaultStatusIdForType = (nextTypeId: string) => {
-    const typeDef = bundle?.core.itemTypes.find((type) => type.id === nextTypeId);
-    return typeDef?.defaultStatusId ?? bundle?.project.defaultInitialStatusId ?? "";
-  };
+  const defaultStatusIdForType = useCallback((nextTypeId: string) => {
+    const typeDef = itemTypes?.find((type) => type.id === nextTypeId);
+    return typeDef?.defaultStatusId ?? projectDefaultInitialStatusId;
+  }, [itemTypes, projectDefaultInitialStatusId]);
 
-  const defaultPriorityIdForType = (nextTypeId: string) => {
-    const typeDef = bundle?.core.itemTypes.find((type) => type.id === nextTypeId);
+  const defaultPriorityIdForType = useCallback((nextTypeId: string) => {
+    const typeDef = itemTypes?.find((type) => type.id === nextTypeId);
     return typeDef?.defaultPriorityId ?? "";
-  };
+  }, [itemTypes]);
 
   useEffect(() => {
-    if (!open || !bundle) return;
-    const nextTypeId = prefill?.typeId ?? bundle.project.defaultTypeId ?? "task";
+    if (!open || !projectId) return;
+    const nextTypeId = prefill?.typeId ?? projectDefaultTypeId;
     setTitle("");
     setDescription("");
     setTypeId(nextTypeId);
@@ -51,7 +55,10 @@ export function CreateItemDialog() {
     prefill?.priorityId,
     prefill?.statusId,
     prefill?.typeId,
-    bundle?.project.id
+    projectDefaultTypeId,
+    projectId,
+    defaultPriorityIdForType,
+    defaultStatusIdForType
   ]);
 
   if (!open || !bundle) return null;

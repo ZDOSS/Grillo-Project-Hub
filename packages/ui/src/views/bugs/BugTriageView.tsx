@@ -84,13 +84,15 @@ function buildBugTriageColumns(statuses: StatusDefinition[], projectDefaultStatu
 
   const take = (
     preferredIds: string[],
-    fallbackCategory?: StatusDefinition["category"]
+    fallbackCategory?: StatusDefinition["category"],
+    fallbackLimit = Number.POSITIVE_INFINITY
   ) => {
     const ids = preferredIds.filter((id) => statusById.has(id) && !used.has(id));
     if (ids.length === 0 && fallbackCategory) {
       ids.push(
         ...statuses
           .filter((status) => status.category === fallbackCategory && !used.has(status.id))
+          .slice(0, fallbackLimit)
           .map((status) => status.id)
       );
     }
@@ -98,7 +100,7 @@ function buildBugTriageColumns(statuses: StatusDefinition[], projectDefaultStatu
     return ids;
   };
 
-  const intakeStatusIds = take(["new", "confirmed", "inbox"], "planned");
+  const intakeStatusIds = take(["new", "confirmed", "inbox"], "planned", 1);
   const readyStatusIds = take(["ready"], "planned");
   const activeStatusIds = take(["in-progress", "blocked", "review", "fixed"], "active");
 

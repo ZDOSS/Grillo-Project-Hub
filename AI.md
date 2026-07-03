@@ -156,6 +156,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - automatic last-project restore after reload via persisted active-session metadata
 - per-project view tabs across board, backlog, table, roadmap, calendar, docs, bug triage, my work, search
 - create-item entry points now carry view context through `CreateItemPrefill` in `palette-bus.ts`; the shared dialog can receive and expose `typeId`, `statusId`, `priorityId`, and `assigneeId`, so board, bug triage, and my-work creates no longer drop the context that made the user click that surface's action in the first place
+- the create-item dialog derives type defaults from dependency-tracked type-registry inputs while open, so a settings-level type default change can refresh the current form without tying the reset effect to unrelated bundle mutations
 - modal-style work item detail at `/item/:id` with full edit, checklist conversion, inline comment editing, subtasks, relationships, attachments, reminders, activity, and pinned action footer; `WorkItemModal.tsx` is now the owning implementation and routes through the shared `Modal` primitive with `size="work-item"`, while `WorkItemDrawer.tsx` is only a compatibility wrapper that renders `WorkItemModal`
 - work item detail interactions avoid browser-native modal APIs for persisted edits/destructive work: comment edits use inline local state and `comment.edit`, permanent deletion uses shared `ConfirmDialog`, and relationship add/remove controls route through `relationship.create` / `relationship.delete` so duplicate/cycle validation remains in `@gph/core`
 - item-detail attachments live in `AttachmentPanel.tsx`, are filtered by `itemId`, and route through `attachment.add` / `attachment.delete`; browser-local uploads store a data URI fallback with `storagePath: null`, while preview rendering is intentionally constrained to image thumbnails, decoded text snippets, PDF metadata, or no inline preview for unsupported/binary media
@@ -187,9 +188,9 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - preview interception now keys off a stable `data-route` attribute rather than the styling-only `docs-link` class, so class-name or sanitizer changes do not silently break routing
 - docs view local editor state now resyncs when the selected document changes, which fixes the "stuck on getting started" behavior where clicking another doc changed selection without updating the editor/preview pane
 - that editor reset now keys only on `doc.id`, so switching documents still refreshes the draft while external bundle updates to the same document do not silently clobber unsaved local typing
-- deleting the currently open doc now routes to the nearest remaining document, or `/docs` when none remain, so the route does not stay pinned to a deleted document ID while other docs still exist
+- deleting the currently open doc now routes to the nearest active remaining document, or `/docs` when none remain, so the route does not stay pinned to a deleted or archived document ID while other docs still exist
 - `DocEditor` now keeps that selection-sync effect above its null guard so hook ordering stays valid even if future refactors ever allow the component to see a transient `bundle === null`
-- bug triage now exposes a visible `New bug` action in the intake column, maps software-project `inbox` bugs into Intake, and opens the shared create dialog with the correct intake status preselected instead of creating hidden bugs outside the triage lanes
+- bug triage now exposes a visible `New bug` action in the intake column, maps software-project `inbox` bugs into Intake, opens the shared create dialog with the correct intake status preselected, and limits Intake's planned-status fallback so custom workflows can still populate Ready
 - My Work now has a `New assigned item` action that preselects the current local member as assignee, so work created from that filtered view remains visible in the same workflow after creation
 - board-level `New item` now preselects the first board column's default drop status, which keeps newly created cards visible on boards whose first lane does not use the project/type default status
 - table sorting now uses neutral ascending comparators plus explicit default directions, so `Priority (desc)` puts urgent work first and selecting `Updated` defaults to newest-first order
@@ -234,10 +235,12 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - work-item reminder create/update/delete behavior through `reminder.*` commands plus next-reminder metadata summary rendering
   - work-item next-reminder summary behavior that ignores past reminders instead of promoting stale reminders as upcoming follow-up
   - bug triage intake visibility for software-workflow `inbox` bugs and intake-status prefill for `New bug`
+  - bug triage fallback mapping that keeps a non-standard planned Ready status visible
   - board-context item creation that uses the first board column default status
   - my-work item creation that preselects the active local member as assignee
   - table priority and updated-date sort direction behavior
-  - docs delete navigation to the nearest remaining document
+  - docs delete navigation to the nearest active remaining document, skipping archived docs
+  - create-dialog default refresh when the type registry changes while the dialog is open
   - work-item unchanged-comment save disabling and the new-comment textarea accessible label
   - stacked delete-confirmation Escape handling that preserves the underlying item-detail route and unsaved comment draft
   - item-reference validation and unknown-target rejection in dispatcher commands
@@ -370,6 +373,11 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - fixing board and My Work create flows so newly created work remains visible in the surface that launched creation
   - fixing table priority/updated sorting and docs delete navigation
   - adding focused regression coverage for each of those flow defects
+- applied the PR #13 Greptile follow-up by:
+  - filtering docs delete navigation through the active document list before selecting the next route
+  - making create-dialog type-default helpers dependency-safe for open-dialog registry changes
+  - limiting bug triage's Intake planned-status fallback to one status so Ready can claim the next planned lane in custom workflows
+  - adding regression coverage for all three review findings
 
 ## Open follow-on planning
 
