@@ -226,8 +226,9 @@ export function WorkItemModal() {
   return (
     <>
       <Modal
-      label={`Work item: ${item.title}`}
-      onClose={close}
+        closeOnEscape={!confirmDeleteOpen}
+        label={`Work item: ${item.title}`}
+        onClose={close}
       size="work-item"
       title="Work item"
       footer={modalFooter}

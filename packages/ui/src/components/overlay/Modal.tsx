@@ -4,6 +4,7 @@ import { IconButton } from "../button";
 
 export function Modal({
   children,
+  closeOnEscape = true,
   footer,
   label,
   onClose,
@@ -11,6 +12,7 @@ export function Modal({
   title
 }: {
   children: ReactNode;
+  closeOnEscape?: boolean;
   footer?: ReactNode;
   label?: string;
   onClose: () => void;
@@ -18,12 +20,13 @@ export function Modal({
   title: ReactNode;
 }) {
   useEffect(() => {
+    if (!closeOnEscape) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [closeOnEscape, onClose]);
 
   return (
     <div className="modal-backdrop gph-modal-backdrop" onMouseDown={onClose}>

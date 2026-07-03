@@ -159,6 +159,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - work item detail interactions avoid browser-native modal APIs for persisted edits/destructive work: comment edits use inline local state and `comment.edit`, permanent deletion uses shared `ConfirmDialog`, and relationship add/remove controls route through `relationship.create` / `relationship.delete` so duplicate/cycle validation remains in `@gph/core`
 - work-item modal relationship selectors now memoize item and relationship derivations, so transient local-state changes such as typing in comments do not rebuild every relationship group on large projects
 - comment editing disables `Save comment` until the body is non-empty and actually changed; the new-comment composer has a stable `aria-label="New comment"` instead of depending on placeholder text for its accessible name
+- shared `Modal` supports `closeOnEscape={false}` for stacked modal cases; `WorkItemModal` disables its Escape handler while the permanent-delete `ConfirmDialog` is open so Escape only cancels the top confirmation and preserves item-detail drafts
 - settings view with theme, left-panel visibility, editable members, editable statuses, editable priorities, editable types, labels, milestones, custom fields, plugins, export/import, AI bridge
 - settings sections now expose tab semantics, the edit icon comes from `lucide-react`, and import failures render as inline alerts instead of browser-native `alert()`
 - settings registry tables now follow a consistent edit flow for members/statuses/priorities/types:
@@ -219,6 +220,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - work-item permanent delete confirmation without `window.confirm`
   - work-item relationship add/remove behavior through the command dispatcher
   - work-item unchanged-comment save disabling and the new-comment textarea accessible label
+  - stacked delete-confirmation Escape handling that preserves the underlying item-detail route and unsaved comment draft
   - item-reference validation and unknown-target rejection in dispatcher commands
   - reminder target validation on create and update commands
   - saved-view reference validation for `view.create` and `view.update`
@@ -325,6 +327,10 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - memoizing work-item relationship derivations in `WorkItemModal.tsx`
   - disabling `Save comment` when the inline edit body is unchanged
   - adding a stable accessible label to the new-comment textarea with regression coverage
+- applied the stacked-modal Greptile PR #11 follow-up by:
+  - adding a `closeOnEscape` escape-hatch to the shared `Modal` primitive
+  - disabling the underlying work-item modal Escape handler while the permanent-delete confirmation is stacked above it
+  - adding regression coverage that Escape cancels only the confirmation and preserves the unsaved comment draft
 
 ## Open follow-on planning
 

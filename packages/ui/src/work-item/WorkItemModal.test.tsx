@@ -49,10 +49,11 @@ function seedRelatedItems() {
   };
 }
 
-function renderModal(itemId: string) {
+function renderModal(itemId: string, initialEntries = [`/item/${itemId}`]) {
   render(
-    <MemoryRouter initialEntries={[`/item/${itemId}`]}>
+    <MemoryRouter initialEntries={initialEntries} initialIndex={initialEntries.length - 1}>
       <Routes>
+        <Route path="/" element={<div>Project home</div>} />
         <Route path="/item/:itemId" element={<WorkItemModal />} />
       </Routes>
     </MemoryRouter>
@@ -148,6 +149,27 @@ describe("WorkItemModal", () => {
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
     expect(useProjectStore.getState().bundle?.core.items.some((entry) => entry.id === item.id)).toBe(true);
+  });
+
+  it("keeps the item detail open when Escape cancels permanent delete confirmation", async () => {
+    const item = seedItem();
+
+    renderModal(item.id, ["/", `/item/${item.id}`]);
+
+    const newComment = screen.getByLabelText("New comment");
+    await userEvent.type(newComment, "Unsaved comment draft");
+    await userEvent.click(screen.getByRole("button", { name: "Delete..." }));
+
+    expect(screen.getByRole("dialog", { name: "Permanently delete work item" })).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Permanently delete work item" })).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole("dialog", { name: /work item: seed item/i })).toBeInTheDocument();
+    expect(screen.getByLabelText("New comment")).toHaveValue("Unsaved comment draft");
+    expect(screen.queryByText("Project home")).not.toBeInTheDocument();
   });
 
   it("adds and removes relationships from the work item detail", async () => {
