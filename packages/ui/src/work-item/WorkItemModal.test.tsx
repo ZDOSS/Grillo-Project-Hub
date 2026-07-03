@@ -269,6 +269,12 @@ describe("WorkItemModal", () => {
       dataUri: "data:application/pdf;base64,JVBERi0xLjQ="
     });
     addAttachment(item.id, {
+      filename: "resume.txt",
+      mediaType: "text/plain",
+      size: 13,
+      dataUri: "data:text/plain;base64,UsOpc3Vtw6kg4pyF"
+    });
+    addAttachment(item.id, {
       filename: "package.bin",
       mediaType: "application/octet-stream",
       size: 4096,
@@ -278,6 +284,7 @@ describe("WorkItemModal", () => {
     renderModal(item.id);
 
     expect(screen.getByAltText("Preview of screen.png")).toHaveAttribute("src", "data:image/png;base64,iVBORw0KGgo=");
+    expect(screen.getByText("Résumé ✅")).toBeInTheDocument();
     expect(screen.getByText("PDF metadata only")).toBeInTheDocument();
     expect(screen.getByText("application/pdf")).toBeInTheDocument();
     expect(screen.getByText("No inline preview for this file type.")).toBeInTheDocument();

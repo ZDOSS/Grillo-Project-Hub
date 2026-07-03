@@ -166,12 +166,19 @@ function decodeTextDataUri(dataUri: string): string {
   const payload = dataUri.slice(commaIndex + 1);
   try {
     const decoded = metadata.includes(";base64")
-      ? globalThis.atob(payload)
+      ? decodeBase64Utf8(payload)
       : decodeURIComponent(payload);
     return decoded.length > 1200 ? `${decoded.slice(0, 1200)}...` : decoded;
   } catch {
     return "Text preview unavailable";
   }
+}
+
+function decodeBase64Utf8(payload: string): string {
+  const bytes = Uint8Array.from(globalThis.atob(payload), (character) =>
+    character.charCodeAt(0)
+  );
+  return new TextDecoder().decode(bytes);
 }
 
 function formatBytes(size: number): string {

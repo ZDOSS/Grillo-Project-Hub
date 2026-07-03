@@ -223,7 +223,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - work-item permanent delete confirmation without `window.confirm`
   - work-item relationship add/remove behavior through the command dispatcher
   - work-item attachment upload/delete behavior through `attachment.add` / `attachment.delete`, including browser-local data URI fallback
-  - work-item attachment preview safety for image, text, PDF metadata, and unsupported binary media
+  - work-item attachment preview safety for image, UTF-8 text, PDF metadata, and unsupported binary media
   - work-item reminder create/update/delete behavior through `reminder.*` commands plus next-reminder metadata summary rendering
   - work-item next-reminder summary behavior that ignores past reminders instead of promoting stale reminders as upcoming follow-up
   - work-item unchanged-comment save disabling and the new-comment textarea accessible label
@@ -346,6 +346,9 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - applied the PR #12 Greptile follow-up by:
   - changing the work-item next-reminder summary to select only future reminders and show `No reminder scheduled` when an item only has stale past reminders
   - adding regression coverage that past reminders remain visible in the reminder panel without being promoted as `Next reminder:`
+- applied the second PR #12 Greptile follow-up by:
+  - decoding base64 text attachment previews through `TextDecoder` so UTF-8 data URI payloads render correctly
+  - adding regression coverage for non-ASCII text attachment previews
 
 ## Open follow-on planning
 
