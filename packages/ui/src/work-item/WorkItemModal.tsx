@@ -1,13 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useProjectStore } from "../store/project-store";
-import { getBugData, setBugData, type WorkItem, type BugItemData, type Relationship } from "@gph/core";
+import { getBugData, setBugData, type WorkItem, type BugItemData, type Relationship, type Attachment, type Reminder } from "@gph/core";
 import { ConfirmDialog, InlineAlert, Modal } from "../components";
+import { AttachmentPanel } from "./AttachmentPanel";
+import { formatReminderDateTime, ReminderPanel } from "./ReminderPanel";
 
 type RelationshipDraftType = "blocks" | "blockedBy" | "relatesTo";
 
 const EMPTY_ITEMS: WorkItem[] = [];
 const EMPTY_RELATIONSHIPS: Relationship[] = [];
+const EMPTY_ATTACHMENTS: Attachment[] = [];
+const EMPTY_REMINDERS: Reminder[] = [];
 
 /**
  * Work-item detail route implementation.
@@ -71,6 +75,31 @@ export function WorkItemModal() {
     () => relationships.filter((relationship) => !relationship.archived),
     [relationships]
   );
+  const itemAttachments = useMemo(
+    () =>
+      (bundle?.core.attachments ?? EMPTY_ATTACHMENTS).filter(
+        (attachment) =>
+          !attachment.archived &&
+          attachment.itemId === itemIdForRelationships
+      ),
+    [bundle?.core.attachments, itemIdForRelationships]
+  );
+  const itemReminders = useMemo(
+    () =>
+      (bundle?.core.reminders ?? EMPTY_REMINDERS)
+        .filter(
+          (reminder) =>
+            !reminder.archived &&
+            reminder.targetType === "workItem" &&
+            reminder.targetId === itemIdForRelationships
+        )
+        .sort((a, b) => Date.parse(a.remindAt) - Date.parse(b.remindAt)),
+    [bundle?.core.reminders, itemIdForRelationships]
+  );
+  const nextReminder = useMemo(() => {
+    const now = Date.now();
+    return itemReminders.find((reminder) => Date.parse(reminder.remindAt) >= now) ?? itemReminders[0] ?? null;
+  }, [itemReminders]);
   const blocksRelationships = useMemo(
     () =>
       activeRelationships.filter(
@@ -197,6 +226,56 @@ export function WorkItemModal() {
     } catch (error) {
       setRelationshipError(error instanceof Error ? error.message : "Could not remove relationship");
     }
+  };
+
+  const addAttachment = (input: {
+    dataUri: string | null;
+    filename: string;
+    mediaType: string;
+    size: number;
+  }) => {
+    applyCommand({
+      type: "attachment.add",
+      projectId: bundle.project.id,
+      itemId: item.id,
+      filename: input.filename,
+      mediaType: input.mediaType,
+      size: input.size,
+      dataUri: input.dataUri,
+      storagePath: null
+    });
+  };
+
+  const deleteAttachment = (attachmentId: string) => {
+    applyCommand({ type: "attachment.delete", projectId: bundle.project.id, attachmentId });
+  };
+
+  const createReminder = (input: { message: string | null; remindAt: string; timeZone: string }) => {
+    applyCommand({
+      type: "reminder.create",
+      projectId: bundle.project.id,
+      targetType: "workItem",
+      targetId: item.id,
+      remindAt: input.remindAt,
+      timeZone: input.timeZone,
+      message: input.message
+    });
+  };
+
+  const updateReminder = (
+    reminderId: string,
+    patch: { message: string | null; remindAt: string; timeZone: string }
+  ) => {
+    applyCommand({
+      type: "reminder.update",
+      projectId: bundle.project.id,
+      reminderId,
+      patch
+    });
+  };
+
+  const deleteReminder = (reminderId: string) => {
+    applyCommand({ type: "reminder.delete", projectId: bundle.project.id, reminderId });
   };
 
   const modalFooter = (
@@ -328,6 +407,16 @@ export function WorkItemModal() {
                     ))}
                   </select>
                 </label>
+              </div>
+              <div className="item-detail-reminder-summary">
+                {nextReminder ? (
+                  <>
+                    <span className="tag tag-info">Next reminder: {formatReminderDateTime(nextReminder.remindAt)}</span>
+                    {nextReminder.message && <span className="text-sm">{nextReminder.message}</span>}
+                  </>
+                ) : (
+                  <span className="tag">No reminder scheduled</span>
+                )}
               </div>
             </div>
 
@@ -602,6 +691,25 @@ export function WorkItemModal() {
                 </div>
                 {relationshipError && <InlineAlert tone="danger">{relationshipError}</InlineAlert>}
               </div>
+            </div>
+
+            <div className="item-detail-section">
+              <h3>Attachments</h3>
+              <AttachmentPanel
+                attachments={itemAttachments}
+                onAddAttachment={addAttachment}
+                onDeleteAttachment={deleteAttachment}
+              />
+            </div>
+
+            <div className="item-detail-section">
+              <h3>Reminders</h3>
+              <ReminderPanel
+                onCreateReminder={createReminder}
+                onDeleteReminder={deleteReminder}
+                onUpdateReminder={updateReminder}
+                reminders={itemReminders}
+              />
             </div>
 
             <div className="item-detail-section">
