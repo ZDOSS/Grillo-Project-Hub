@@ -44,6 +44,12 @@ docs/                        # current product/architecture plan
 - the canonical project bundle lives in `project.pms.json`; module data and unknown module sections are preserved across save/load
 - the desktop folder-backed adapter and the browser `localStorage` adapter implement the same `ProjectStoreAdapter` interface and emit equivalent `WatchEvent` shapes for external-change detection
 
+## Agent operating rules
+
+- after pushing PR updates, do not immediately poll Greptile or summarize Greptile check state; Greptile review is asynchronous and usually remains pending for a while, so an immediate `gh pr checks` read only burns context without producing useful signal
+- only inspect Greptile after the user explicitly asks, after a reasonable review delay, or when there is a concrete Greptile comment/body update to act on
+- normal GitHub Actions or deploy checks may still be inspected when debugging CI/deploy failures, but keep that separate from Greptile's long-running review check
+
 ## Domain model summary
 
 The core domain in `packages/core/src/domain/` covers the entities the plan calls out:
@@ -149,7 +155,11 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - PWA/browser folder picker for creating and reopening local-folder projects when File System Access is available
   - automatic last-project restore after reload via persisted active-session metadata
 - per-project view tabs across board, backlog, table, roadmap, calendar, docs, bug triage, my work, search
-- modal-style work item detail at `/item/:id` with full edit, checklist conversion, comments, subtasks, activity, and pinned action footer; `WorkItemModal` now routes through the shared `Modal` primitive with `size="work-item"` while preserving the existing detail editing controls and command-dispatch behavior
+- modal-style work item detail at `/item/:id` with full edit, checklist conversion, inline comment editing, subtasks, relationships, activity, and pinned action footer; `WorkItemModal.tsx` is now the owning implementation and routes through the shared `Modal` primitive with `size="work-item"`, while `WorkItemDrawer.tsx` is only a compatibility wrapper that renders `WorkItemModal`
+- work item detail interactions avoid browser-native modal APIs for persisted edits/destructive work: comment edits use inline local state and `comment.edit`, permanent deletion uses shared `ConfirmDialog`, and relationship add/remove controls route through `relationship.create` / `relationship.delete` so duplicate/cycle validation remains in `@gph/core`
+- work-item modal relationship selectors now memoize item and relationship derivations, so transient local-state changes such as typing in comments do not rebuild every relationship group on large projects
+- comment editing disables `Save comment` until the body is non-empty and actually changed; the new-comment composer has a stable `aria-label="New comment"` instead of depending on placeholder text for its accessible name
+- shared `Modal` supports `closeOnEscape={false}` for stacked modal cases; `WorkItemModal` disables its Escape handler while the permanent-delete `ConfirmDialog` is open so Escape only cancels the top confirmation and preserves item-detail drafts
 - settings view with theme, left-panel visibility, editable members, editable statuses, editable priorities, editable types, labels, milestones, custom fields, plugins, export/import, AI bridge
 - settings sections now expose tab semantics, the edit icon comes from `lucide-react`, and import failures render as inline alerts instead of browser-native `alert()`
 - settings registry tables now follow a consistent edit flow for members/statuses/priorities/types:
@@ -206,6 +216,11 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - board-card keyboard activation with link semantics
   - silent handling of cancelled browser folder picks
   - settings-row draft reset when upstream bundle data changes
+  - work-item comment editing without `window.prompt`
+  - work-item permanent delete confirmation without `window.confirm`
+  - work-item relationship add/remove behavior through the command dispatcher
+  - work-item unchanged-comment save disabling and the new-comment textarea accessible label
+  - stacked delete-confirmation Escape handling that preserves the underlying item-detail route and unsaved comment draft
   - item-reference validation and unknown-target rejection in dispatcher commands
   - reminder target validation on create and update commands
   - saved-view reference validation for `view.create` and `view.update`
@@ -301,10 +316,25 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - moving Archive, Trash, Delete, Duplicate, and Done actions from the scrollable modal body into `Modal`'s `footer` prop
   - tightening `.item-detail-footer` styling so the shared modal footer owns the border, padding, and pinned placement
   - adding WorkItemModal coverage that asserts footer actions live in `.gph-modal-footer` instead of `.gph-modal-body`
+- started the July 2026 product-depth implementation slice by:
+  - adding `docs/plans/July 2026 plan.md` and linking it from `docs/INDEX.md` as the prioritized implementation backlog
+  - moving the work-item detail implementation into `WorkItemModal.tsx` and leaving `WorkItemDrawer.tsx` as a thin compatibility wrapper
+  - replacing native comment edit prompts with an inline textarea editor backed by `comment.edit`
+  - replacing native permanent-delete confirmation with the shared `ConfirmDialog`
+  - adding relationship management in item detail for `Blocks`, `Blocked by`, and `Related` groups, with add/remove actions dispatched through `relationship.*` commands
+  - adding regression coverage for the no-native-dialog item-detail behavior and relationship add/remove flow
+- applied the Greptile PR #11 follow-up by:
+  - memoizing work-item relationship derivations in `WorkItemModal.tsx`
+  - disabling `Save comment` when the inline edit body is unchanged
+  - adding a stable accessible label to the new-comment textarea with regression coverage
+- applied the stacked-modal Greptile PR #11 follow-up by:
+  - adding a `closeOnEscape` escape-hatch to the shared `Modal` primitive
+  - disabling the underlying work-item modal Escape handler while the permanent-delete confirmation is stacked above it
+  - adding regression coverage that Escape cancels only the confirmation and preserves the unsaved comment draft
 
 ## Open follow-on planning
 
-- UI/UX overhaul planning lives in `docs/superpowers/specs/2026-07-02-ui-ux-overhaul-design.md` and `docs/superpowers/plans/2026-07-02-ui-ux-overhaul-implementation-plan.md`; the first implementation pass is now in code, but deeper follow-on work remains for extracting item-detail internals into smaller components, mobile navigation sheet, richer settings information architecture, and final accessibility QA
+- UI/UX overhaul planning lives in `docs/superpowers/specs/2026-07-02-ui-ux-overhaul-design.md`, `docs/superpowers/plans/2026-07-02-ui-ux-overhaul-implementation-plan.md`, and the new `docs/plans/July 2026 plan.md`; the first implementation pass is now in code, and the July plan is the active priority order for deeper product-depth, workflow, and surface-by-surface improvements
 - a deeper roadmap interaction plan (multi-day bars, dependencies, swimlanes)
 - a security-first plugin runtime plan before any third-party plugin execution
 - a public-internet hosting plan (currently out of MVP scope; only trusted internal hosting is supported)

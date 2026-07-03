@@ -21,7 +21,7 @@ The MVP implementation is in place. The current build supports:
 - **Consistent settings editing** for members, statuses, priorities, types, and plugin trust with explicit edit or save/cancel flows instead of always-live row inputs
 - **Shared navigation config** so sidebar navigation and left-panel visibility toggles stay in sync
 - **Command palette** with `Ctrl/Cmd+K` and `C` to create items
-- **Modal-style work item detail** backed by the shared modal primitive, with full edit, checklist (with convert-to-subtask), comments with threads and edit history, subtasks, relationships, archive/trash/restore, and a pinned action footer
+- **Modal-style work item detail** backed by the shared modal primitive, with full edit, checklist (with convert-to-subtask), inline comment editing, an accessible comment composer, subtasks, relationship add/remove controls, app-owned permanent-delete confirmation, archive/trash/restore, and a pinned action footer
 - **Local full-text search** with structured filters
 - **JSON, Markdown, and CSV export/import**
 - **Light and dark themes** with system preference detection
@@ -94,7 +94,7 @@ The UI/UX overhaul planning package lives in `docs/superpowers/specs/2026-07-02-
 | Suite | Count | Notes |
 | --- | --- | --- |
 | `packages/core` | 39 | Domain, storage, dispatcher, export, import |
-| `packages/ui` | 27 | AppShell, shared button and surface primitives, WorkItemModal, BoardView, BacklogView, CommandPalette, launcher, docs, settings |
+| `packages/ui` | 31 | AppShell, shared button and surface primitives, WorkItemModal, BoardView, BacklogView, CommandPalette, launcher, docs, settings |
 | `apps/desktop` | 2 | Desktop storage adapter command wiring |
 | `tests/e2e` | 7 | Hybrid parity, project workflow, theme, palette, export, search |
 

@@ -22,6 +22,7 @@ Files:
 - [specs/04-app-shell-and-core-screen-spec.md](./specs/04-app-shell-and-core-screen-spec.md)
 - [specs/05-project-bundle-and-schema-spec.md](./specs/05-project-bundle-and-schema-spec.md)
 - [specs/06-command-surface-spec.md](./specs/06-command-surface-spec.md)
+- [plans/July 2026 plan.md](./plans/July%202026%20plan.md)
 - [superpowers/specs/2026-07-02-ui-ux-overhaul-design.md](./superpowers/specs/2026-07-02-ui-ux-overhaul-design.md)
 - [plans/2026-06-10-hybrid-day-one-implementation-plan.md](./plans/2026-06-10-hybrid-day-one-implementation-plan.md)
 - [superpowers/plans/2026-07-02-ui-ux-overhaul-implementation-plan.md](./superpowers/plans/2026-07-02-ui-ux-overhaul-implementation-plan.md)
@@ -38,7 +39,8 @@ Suggested reading order:
 8. App shell and core screen spec
 9. Project bundle and schema spec
 10. Shared command surface spec
-11. Phased implementation plan
-12. UI/UX overhaul design and implementation plan
+11. July 2026 plan
+12. Phased implementation plan
+13. UI/UX overhaul design and implementation plan
 
 The remaining planning work now includes executing the full working UI/UX overhaul plan: a shared UI foundation, surface-by-surface migration, and workflow completion pass on top of the schema, command, screen, and interaction specs.
