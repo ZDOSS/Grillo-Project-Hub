@@ -98,7 +98,7 @@ export function WorkItemModal() {
   );
   const nextReminder = useMemo(() => {
     const now = Date.now();
-    return itemReminders.find((reminder) => Date.parse(reminder.remindAt) >= now) ?? itemReminders[0] ?? null;
+    return itemReminders.find((reminder) => Date.parse(reminder.remindAt) >= now) ?? null;
   }, [itemReminders]);
   const blocksRelationships = useMemo(
     () =>

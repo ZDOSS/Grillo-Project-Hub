@@ -333,4 +333,24 @@ describe("WorkItemModal", () => {
     });
     expect(screen.getByText("No reminders")).toBeInTheDocument();
   });
+
+  it("does not promote past reminders as the next scheduled reminder", () => {
+    const item = seedItem();
+    const projectId = useProjectStore.getState().bundle!.project.id;
+    useProjectStore.getState().applyCommand({
+      type: "reminder.create",
+      projectId,
+      targetType: "workItem",
+      targetId: item.id,
+      remindAt: "2000-01-01T09:30:00.000Z",
+      timeZone: "UTC",
+      message: "Past follow-up"
+    });
+
+    renderModal(item.id);
+
+    expect(screen.getByText("No reminder scheduled")).toBeInTheDocument();
+    expect(screen.queryByText(/Next reminder:/)).not.toBeInTheDocument();
+    expect(screen.getByText("Past follow-up")).toBeInTheDocument();
+  });
 });

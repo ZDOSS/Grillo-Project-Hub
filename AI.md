@@ -225,6 +225,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - work-item attachment upload/delete behavior through `attachment.add` / `attachment.delete`, including browser-local data URI fallback
   - work-item attachment preview safety for image, text, PDF metadata, and unsupported binary media
   - work-item reminder create/update/delete behavior through `reminder.*` commands plus next-reminder metadata summary rendering
+  - work-item next-reminder summary behavior that ignores past reminders instead of promoting stale reminders as upcoming follow-up
   - work-item unchanged-comment save disabling and the new-comment textarea accessible label
   - stacked delete-confirmation Escape handling that preserves the underlying item-detail route and unsaved comment draft
   - item-reference validation and unknown-target rejection in dispatcher commands
@@ -342,6 +343,9 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - wiring item attachments into the work-item modal with browser-local data URI upload fallback, safe preview rules, and delete-to-trash command flow
   - wiring item reminders into the work-item modal with create/update/delete controls and a next-reminder metadata summary
   - extending WorkItemModal tests for attachment upload/delete, safe preview constraints, and reminder CRUD
+- applied the PR #12 Greptile follow-up by:
+  - changing the work-item next-reminder summary to select only future reminders and show `No reminder scheduled` when an item only has stale past reminders
+  - adding regression coverage that past reminders remain visible in the reminder panel without being promoted as `Next reminder:`
 
 ## Open follow-on planning
 
