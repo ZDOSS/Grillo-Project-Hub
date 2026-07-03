@@ -49,6 +49,24 @@ function seedRelatedItems() {
   };
 }
 
+function addAttachment(itemId: string, input: {
+  dataUri?: string | null;
+  filename: string;
+  mediaType: string;
+  size: number;
+}) {
+  const projectId = useProjectStore.getState().bundle!.project.id;
+  useProjectStore.getState().applyCommand({
+    type: "attachment.add",
+    projectId,
+    itemId,
+    filename: input.filename,
+    mediaType: input.mediaType,
+    size: input.size,
+    dataUri: input.dataUri ?? null
+  });
+}
+
 function renderModal(itemId: string, initialEntries = [`/item/${itemId}`]) {
   render(
     <MemoryRouter initialEntries={initialEntries} initialIndex={initialEntries.length - 1}>
@@ -201,5 +219,160 @@ describe("WorkItemModal", () => {
     await waitFor(() => {
       expect(useProjectStore.getState().bundle?.core.relationships).toHaveLength(0);
     });
+  });
+
+  it("adds and deletes item attachments with browser data URI fallback", async () => {
+    const item = seedItem();
+
+    renderModal(item.id);
+
+    await userEvent.upload(
+      screen.getByLabelText("Upload attachment"),
+      new File(["Release notes"], "release-notes.txt", { type: "text/plain" })
+    );
+
+    await waitFor(() => {
+      const attachment = useProjectStore.getState().bundle?.core.attachments[0];
+      expect(attachment).toMatchObject({
+        filename: "release-notes.txt",
+        mediaType: "text/plain",
+        itemId: item.id,
+        storagePath: null
+      });
+      expect(attachment?.dataUri).toMatch(/^data:text\/plain;base64,/);
+    });
+
+    expect(screen.getByText("release-notes.txt")).toBeInTheDocument();
+    expect(screen.getByText("Text preview")).toBeInTheDocument();
+    expect(screen.getByText("Release notes")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Delete attachment release-notes.txt" }));
+
+    await waitFor(() => {
+      expect(useProjectStore.getState().bundle?.core.attachments).toHaveLength(0);
+    });
+    expect(useProjectStore.getState().bundle?.core.trash.some((entry) => entry.recordType === "attachment")).toBe(true);
+  });
+
+  it("rejects oversized attachment uploads before reading them into memory", async () => {
+    const item = seedItem();
+    const oversized = new File(["small fixture"], "oversized.bin", {
+      type: "application/octet-stream"
+    });
+    Object.defineProperty(oversized, "size", { value: 5 * 1024 * 1024 + 1 });
+
+    renderModal(item.id);
+
+    await userEvent.upload(screen.getByLabelText("Upload attachment"), oversized);
+
+    expect(screen.getByText("Attachments must be 5 MB or smaller.")).toBeInTheDocument();
+    expect(useProjectStore.getState().bundle?.core.attachments).toHaveLength(0);
+  });
+
+  it("applies safe attachment preview rules by media type", () => {
+    const item = seedItem();
+    addAttachment(item.id, {
+      filename: "screen.png",
+      mediaType: "image/png",
+      size: 68,
+      dataUri: "data:image/png;base64,iVBORw0KGgo="
+    });
+    addAttachment(item.id, {
+      filename: "brief.pdf",
+      mediaType: "application/pdf",
+      size: 2048,
+      dataUri: "data:application/pdf;base64,JVBERi0xLjQ="
+    });
+    addAttachment(item.id, {
+      filename: "resume.txt",
+      mediaType: "text/plain",
+      size: 13,
+      dataUri: "data:text/plain;base64,UsOpc3Vtw6kg4pyF"
+    });
+    addAttachment(item.id, {
+      filename: "package.bin",
+      mediaType: "application/octet-stream",
+      size: 4096,
+      dataUri: "data:application/octet-stream;base64,AAAA"
+    });
+
+    renderModal(item.id);
+
+    expect(screen.getByAltText("Preview of screen.png")).toHaveAttribute("src", "data:image/png;base64,iVBORw0KGgo=");
+    expect(screen.getByText("Résumé ✅")).toBeInTheDocument();
+    expect(screen.getByText("PDF metadata only")).toBeInTheDocument();
+    expect(screen.getByText("application/pdf")).toBeInTheDocument();
+    expect(screen.getByText("No inline preview for this file type.")).toBeInTheDocument();
+    expect(document.querySelector("iframe")).not.toBeInTheDocument();
+    expect(document.querySelector("object")).not.toBeInTheDocument();
+    expect(document.querySelector("embed")).not.toBeInTheDocument();
+  });
+
+  it("creates, updates, deletes, and summarizes item reminders", async () => {
+    const item = seedItem();
+
+    renderModal(item.id);
+
+    expect(screen.getByText("No reminders")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Reminder time"), {
+      target: { value: "2030-01-02T09:30" }
+    });
+    await userEvent.type(screen.getByLabelText("Reminder message"), "Prep release notes");
+    await userEvent.click(screen.getByRole("button", { name: "Add reminder" }));
+
+    await waitFor(() => {
+      const reminder = useProjectStore.getState().bundle?.core.reminders[0];
+      expect(reminder).toMatchObject({
+        targetType: "workItem",
+        targetId: item.id,
+        message: "Prep release notes"
+      });
+      expect(Date.parse(reminder?.remindAt ?? "")).not.toBeNaN();
+    });
+
+    expect(screen.getByText(/Next reminder:/)).toBeInTheDocument();
+    expect(screen.getAllByText("Prep release notes").length).toBeGreaterThan(0);
+
+    fireEvent.change(screen.getByLabelText("Reminder message for Prep release notes"), {
+      target: { value: "Updated reminder" }
+    });
+    fireEvent.change(screen.getByLabelText("Reminder time for Prep release notes"), {
+      target: { value: "2030-01-03T11:15" }
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Save reminder Prep release notes" }));
+
+    await waitFor(() => {
+      const reminder = useProjectStore.getState().bundle?.core.reminders[0];
+      expect(reminder?.message).toBe("Updated reminder");
+      expect(new Date(reminder?.remindAt ?? "").toISOString()).toBe(new Date("2030-01-03T11:15").toISOString());
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "Delete reminder Updated reminder" }));
+
+    await waitFor(() => {
+      expect(useProjectStore.getState().bundle?.core.reminders).toHaveLength(0);
+    });
+    expect(screen.getByText("No reminders")).toBeInTheDocument();
+  });
+
+  it("does not promote past reminders as the next scheduled reminder", () => {
+    const item = seedItem();
+    const projectId = useProjectStore.getState().bundle!.project.id;
+    useProjectStore.getState().applyCommand({
+      type: "reminder.create",
+      projectId,
+      targetType: "workItem",
+      targetId: item.id,
+      remindAt: "2000-01-01T09:30:00.000Z",
+      timeZone: "UTC",
+      message: "Past follow-up"
+    });
+
+    renderModal(item.id);
+
+    expect(screen.getByText("No reminder scheduled")).toBeInTheDocument();
+    expect(screen.queryByText(/Next reminder:/)).not.toBeInTheDocument();
+    expect(screen.getByText("Past follow-up")).toBeInTheDocument();
   });
 });

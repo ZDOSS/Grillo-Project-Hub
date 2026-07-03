@@ -1186,6 +1186,13 @@
   grid-template-columns: 1fr 1fr;
   gap: var(--space-3);
 }
+.item-detail-reminder-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-top: var(--space-3);
+}
 .relationship-layout {
   display: flex;
   flex-direction: column;
@@ -1226,6 +1233,100 @@
 .relationship-form {
   display: grid;
   grid-template-columns: minmax(140px, 180px) minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--space-2);
+}
+.attachment-panel,
+.reminder-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.attachment-upload-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) minmax(180px, 1fr);
+  gap: var(--space-3);
+  align-items: end;
+}
+.attachment-upload-label {
+  text-transform: none;
+  letter-spacing: 0;
+}
+.attachment-list,
+.reminder-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.attachment-card,
+.reminder-card {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-surface);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.attachment-card-header,
+.reminder-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.attachment-title {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.attachment-preview {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-muted);
+  padding: var(--space-2);
+}
+.attachment-preview-image {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+}
+.attachment-preview-image img {
+  max-width: 100%;
+  max-height: 220px;
+  border-radius: var(--radius-xs);
+  object-fit: contain;
+}
+.attachment-preview-label {
+  margin-bottom: var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-2xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.attachment-preview pre {
+  margin: 0;
+  max-height: 180px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  line-height: 1.45;
+}
+.attachment-preview-metadata {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.reminder-create,
+.reminder-edit-grid {
+  display: grid;
+  grid-template-columns: minmax(180px, 220px) minmax(220px, 1fr) auto;
   align-items: end;
   gap: var(--space-2);
 }
@@ -1549,7 +1650,10 @@
     align-items: stretch;
   }
   .relationship-groups,
-  .relationship-form {
+  .relationship-form,
+  .attachment-upload-row,
+  .reminder-create,
+  .reminder-edit-grid {
     grid-template-columns: 1fr;
   }
   .drawer {

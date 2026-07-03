@@ -155,8 +155,12 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - PWA/browser folder picker for creating and reopening local-folder projects when File System Access is available
   - automatic last-project restore after reload via persisted active-session metadata
 - per-project view tabs across board, backlog, table, roadmap, calendar, docs, bug triage, my work, search
-- modal-style work item detail at `/item/:id` with full edit, checklist conversion, inline comment editing, subtasks, relationships, activity, and pinned action footer; `WorkItemModal.tsx` is now the owning implementation and routes through the shared `Modal` primitive with `size="work-item"`, while `WorkItemDrawer.tsx` is only a compatibility wrapper that renders `WorkItemModal`
+- modal-style work item detail at `/item/:id` with full edit, checklist conversion, inline comment editing, subtasks, relationships, attachments, reminders, activity, and pinned action footer; `WorkItemModal.tsx` is now the owning implementation and routes through the shared `Modal` primitive with `size="work-item"`, while `WorkItemDrawer.tsx` is only a compatibility wrapper that renders `WorkItemModal`
 - work item detail interactions avoid browser-native modal APIs for persisted edits/destructive work: comment edits use inline local state and `comment.edit`, permanent deletion uses shared `ConfirmDialog`, and relationship add/remove controls route through `relationship.create` / `relationship.delete` so duplicate/cycle validation remains in `@gph/core`
+- item-detail attachments live in `AttachmentPanel.tsx`, are filtered by `itemId`, and route through `attachment.add` / `attachment.delete`; browser-local uploads store a data URI fallback with `storagePath: null`, while preview rendering is intentionally constrained to image thumbnails, decoded text snippets, PDF metadata, or no inline preview for unsupported/binary media
+- `AttachmentPanel` rejects files larger than 5 MB before calling `FileReader.readAsDataURL()`, because this UI path currently stores browser-local attachment payloads as base64 data URIs in the bundle
+- item-detail reminders live in `ReminderPanel.tsx`, are filtered by `targetType: "workItem"` and `targetId`, and route through `reminder.create` / `reminder.update` / `reminder.delete`; reminder editing preserves the domain invariant that the stored value is a UTC `remindAt` instant plus the user's current IANA `timeZone`
+- work-item metadata now surfaces the next scheduled reminder above the detail sections so upcoming item-level follow-up is visible without opening the reminder editor section
 - work-item modal relationship selectors now memoize item and relationship derivations, so transient local-state changes such as typing in comments do not rebuild every relationship group on large projects
 - comment editing disables `Save comment` until the body is non-empty and actually changed; the new-comment composer has a stable `aria-label="New comment"` instead of depending on placeholder text for its accessible name
 - shared `Modal` supports `closeOnEscape={false}` for stacked modal cases; `WorkItemModal` disables its Escape handler while the permanent-delete `ConfirmDialog` is open so Escape only cancels the top confirmation and preserves item-detail drafts
@@ -219,6 +223,11 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - work-item comment editing without `window.prompt`
   - work-item permanent delete confirmation without `window.confirm`
   - work-item relationship add/remove behavior through the command dispatcher
+  - work-item attachment upload/delete behavior through `attachment.add` / `attachment.delete`, including browser-local data URI fallback
+  - work-item oversized attachment rejection before reading the selected file into memory
+  - work-item attachment preview safety for image, UTF-8 text, PDF metadata, and unsupported binary media
+  - work-item reminder create/update/delete behavior through `reminder.*` commands plus next-reminder metadata summary rendering
+  - work-item next-reminder summary behavior that ignores past reminders instead of promoting stale reminders as upcoming follow-up
   - work-item unchanged-comment save disabling and the new-comment textarea accessible label
   - stacked delete-confirmation Escape handling that preserves the underlying item-detail route and unsaved comment draft
   - item-reference validation and unknown-target rejection in dispatcher commands
@@ -331,6 +340,20 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - adding a `closeOnEscape` escape-hatch to the shared `Modal` primitive
   - disabling the underlying work-item modal Escape handler while the permanent-delete confirmation is stacked above it
   - adding regression coverage that Escape cancels only the confirmation and preserves the unsaved comment draft
+- continued the July 2026 product-depth pass with item attachments and reminders by:
+  - adding focused `AttachmentPanel` and `ReminderPanel` components under `packages/ui/src/work-item/`
+  - wiring item attachments into the work-item modal with browser-local data URI upload fallback, safe preview rules, and delete-to-trash command flow
+  - wiring item reminders into the work-item modal with create/update/delete controls and a next-reminder metadata summary
+  - extending WorkItemModal tests for attachment upload/delete, safe preview constraints, and reminder CRUD
+- applied the PR #12 Greptile follow-up by:
+  - changing the work-item next-reminder summary to select only future reminders and show `No reminder scheduled` when an item only has stale past reminders
+  - adding regression coverage that past reminders remain visible in the reminder panel without being promoted as `Next reminder:`
+- applied the second PR #12 Greptile follow-up by:
+  - decoding base64 text attachment previews through `TextDecoder` so UTF-8 data URI payloads render correctly
+  - adding regression coverage for non-ASCII text attachment previews
+- applied the third PR #12 Greptile follow-up by:
+  - adding a 5 MB per-file guard before attachment uploads are read into data URIs
+  - adding regression coverage that oversized attachment uploads show inline feedback and do not mutate project attachments
 
 ## Open follow-on planning
 
