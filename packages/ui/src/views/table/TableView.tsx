@@ -1,16 +1,22 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   isFieldApplicableToType,
   type Label,
   type PriorityDefinition,
   type StatusDefinition,
+  type TableView as TableViewDef,
+  type ViewSort,
   type WorkItem,
+  type WorkItemFilter,
   type WorkItemTypeDefinition
 } from "@gph/core";
 import {
+  Button,
+  CheckboxField,
   DataTable,
   EmptyState,
+  InlineAlert,
   MetadataBadge,
   SelectField,
   TextField,
@@ -22,16 +28,39 @@ import {
   activeCustomFields,
   formatCustomFieldValue
 } from "../../work-item/custom-fields";
+import {
+  BASE_TABLE_COLUMNS,
+  cleanWorkItemFilter,
+  compareItemsBySort,
+  itemMatchesFilter,
+  nextViewOrder,
+  type BaseTableColumnId
+} from "../planning/view-helpers";
 
-type SortKey = "title" | "status" | "priority" | "type" | "due" | "updated";
+type SortKey = ViewSort["field"];
 
 const DEFAULT_SORT_DIR: Record<SortKey, "asc" | "desc"> = {
-  title: "asc",
-  status: "asc",
+  createdAt: "desc",
+  dueDate: "asc",
   priority: "desc",
+  status: "asc",
+  title: "asc",
   type: "asc",
-  due: "asc",
-  updated: "desc"
+  updatedAt: "desc"
+};
+
+const DEFAULT_TABLE_SORT: ViewSort = { field: "priority", direction: "desc" };
+
+const COLUMN_LABELS: Record<BaseTableColumnId, string> = {
+  assignee: "Assignee",
+  dueDate: "Due",
+  labels: "Labels",
+  milestone: "Milestone",
+  priority: "Priority",
+  status: "Status",
+  title: "Title",
+  type: "Type",
+  updatedAt: "Updated"
 };
 
 type Row = {
@@ -42,27 +71,56 @@ type Row = {
   type?: WorkItemTypeDefinition;
 };
 
-export function TableView() {
+export function TableView({ view }: { view?: TableViewDef }) {
   const bundle = useProjectStore((s) => s.bundle);
-  const [sortKey, setSortKey] = useState<SortKey>("priority");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-  const [filterText, setFilterText] = useState("");
-  const [typeFilter, setTypeFilter] = useState<string>("");
+  const applyCommand = useProjectStore((s) => s.applyCommand);
+  const initialSort = view?.sort ?? DEFAULT_TABLE_SORT;
+  const [sortKey, setSortKey] = useState<SortKey>(initialSort.field);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">(initialSort.direction);
+  const [filterText, setFilterText] = useState(view?.filter?.query ?? "");
+  const [typeFilter, setTypeFilter] = useState(view?.filter?.typeIds?.[0] ?? "");
+  const [statusFilter, setStatusFilter] = useState(view?.filter?.statusIds?.[0] ?? "");
+  const [priorityFilter, setPriorityFilter] = useState(view?.filter?.priorityIds?.[0] ?? "");
+  const [assigneeFilter, setAssigneeFilter] = useState(view?.filter?.assigneeIds?.[0] ?? "");
+  const [milestoneFilter, setMilestoneFilter] = useState(view?.filter?.milestoneIds?.[0] ?? "");
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(
+    view?.visibleColumns?.length ? view.visibleColumns : [...BASE_TABLE_COLUMNS]
+  );
+  const [viewName, setViewName] = useState(view?.name ?? "");
+  const [viewMessage, setViewMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const nextSort = view?.sort ?? DEFAULT_TABLE_SORT;
+    setSortKey(nextSort.field);
+    setSortDir(nextSort.direction);
+    setFilterText(view?.filter?.query ?? "");
+    setTypeFilter(view?.filter?.typeIds?.[0] ?? "");
+    setStatusFilter(view?.filter?.statusIds?.[0] ?? "");
+    setPriorityFilter(view?.filter?.priorityIds?.[0] ?? "");
+    setAssigneeFilter(view?.filter?.assigneeIds?.[0] ?? "");
+    setMilestoneFilter(view?.filter?.milestoneIds?.[0] ?? "");
+    setVisibleColumns(view?.visibleColumns?.length ? view.visibleColumns : [...BASE_TABLE_COLUMNS]);
+    setViewName(view?.name ?? "");
+    setViewMessage(null);
+  }, [view?.id]);
+
+  const activeFilter = useMemo<WorkItemFilter>(() => ({
+    query: filterText,
+    typeIds: typeFilter ? [typeFilter] : undefined,
+    statusIds: statusFilter ? [statusFilter] : undefined,
+    priorityIds: priorityFilter ? [priorityFilter] : undefined,
+    assigneeIds: assigneeFilter ? [assigneeFilter] : undefined,
+    milestoneIds: milestoneFilter ? [milestoneFilter] : undefined
+  }), [assigneeFilter, filterText, milestoneFilter, priorityFilter, statusFilter, typeFilter]);
+  const activeSort = useMemo<ViewSort>(() => ({ field: sortKey, direction: sortDir }), [sortDir, sortKey]);
 
   const rows: Row[] = useMemo(() => {
     if (!bundle) return [];
+    const cleanFilter = cleanWorkItemFilter(activeFilter);
     const out: Row[] = [];
-    const q = filterText.toLowerCase();
     for (const item of bundle.core.items) {
       if (item.trashedAt || item.archived) continue;
-      if (typeFilter && item.typeId !== typeFilter) continue;
-      if (
-        q &&
-        !item.title.toLowerCase().includes(q) &&
-        !item.description.toLowerCase().includes(q)
-      ) {
-        continue;
-      }
+      if (!itemMatchesFilter(item, cleanFilter)) continue;
       out.push({
         item,
         status: bundle.core.statuses.find((s) => s.id === item.statusId),
@@ -73,42 +131,17 @@ export function TableView() {
           .filter(Boolean) as Label[]
       });
     }
-    out.sort((a, b) => {
-      let value = 0;
-      switch (sortKey) {
-        case "title":
-          value = a.item.title.localeCompare(b.item.title);
-          break;
-        case "status":
-          value = (a.status?.order ?? 0) - (b.status?.order ?? 0);
-          break;
-        case "priority":
-          value =
-            priorityRank(a.item.priorityId, bundle.core.priorities) -
-            priorityRank(b.item.priorityId, bundle.core.priorities);
-          break;
-        case "type":
-          value = (a.type?.order ?? 0) - (b.type?.order ?? 0);
-          break;
-        case "due":
-          value = (a.item.dueDate ?? "9999").localeCompare(
-            b.item.dueDate ?? "9999"
-          );
-          break;
-        case "updated":
-          value = a.item.updatedAt.localeCompare(b.item.updatedAt);
-          break;
-      }
-      return sortDir === "asc" ? value : -value;
-    });
+    out.sort((a, b) => compareItemsBySort(a.item, b.item, bundle, activeSort) || a.item.title.localeCompare(b.item.title));
     return out;
-  }, [bundle, filterText, sortDir, sortKey, typeFilter]);
+  }, [activeFilter, activeSort, bundle]);
   const customFields = useMemo(
     () => (bundle ? activeCustomFields(bundle.core.customFields) : []),
     [bundle]
   );
 
   if (!bundle) return null;
+
+  const cleanFilter = cleanWorkItemFilter(activeFilter);
 
   const setSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -122,7 +155,16 @@ export function TableView() {
   const header = (key: SortKey, label: string) =>
     sortKey === key ? `${label} (${sortDir})` : label;
 
-  const columns: Array<DataTableColumn<Row>> = [
+  const updateItem = (item: WorkItem, patch: Record<string, unknown>) => {
+    applyCommand({
+      type: "item.update",
+      projectId: bundle.project.id,
+      itemId: item.id,
+      patch
+    });
+  };
+
+  const baseColumns: Array<DataTableColumn<Row>> = [
     {
       id: "title",
       header: header("title", "Title"),
@@ -149,25 +191,71 @@ export function TableView() {
       header: header("status", "Status"),
       onSort: () => setSort("status"),
       sortButtonLabel: "Sort by status",
-      render: ({ status }) => status?.name ?? "None"
+      render: ({ item }) => (
+        <select
+          aria-label={`Status for ${item.title}`}
+          className="select table-inline-control"
+          value={item.statusId}
+          onChange={(event) => updateItem(item, { statusId: event.target.value })}
+        >
+          {bundle.core.statuses.map((status) => (
+            <option key={status.id} value={status.id}>{status.name}</option>
+          ))}
+        </select>
+      )
     },
     {
       id: "priority",
       header: header("priority", "Priority"),
       onSort: () => setSort("priority"),
       sortButtonLabel: "Sort by priority",
-      render: ({ priority }) => (
-        <MetadataBadge tone={priority ? "info" : "neutral"}>
-          {priority?.name ?? "None"}
-        </MetadataBadge>
+      render: ({ item }) => (
+        <select
+          aria-label={`Priority for ${item.title}`}
+          className="select table-inline-control"
+          value={item.priorityId ?? ""}
+          onChange={(event) => updateItem(item, { priorityId: event.target.value || null })}
+        >
+          <option value="">None</option>
+          {bundle.core.priorities.map((priority) => (
+            <option key={priority.id} value={priority.id}>{priority.name}</option>
+          ))}
+        </select>
       )
     },
     {
       id: "assignee",
       header: "Assignee",
-      render: ({ item }) =>
-        bundle.core.members.find((member) => member.id === item.assigneeId)
-          ?.displayName ?? "None"
+      render: ({ item }) => (
+        <select
+          aria-label={`Assignee for ${item.title}`}
+          className="select table-inline-control"
+          value={item.assigneeId ?? ""}
+          onChange={(event) => updateItem(item, { assigneeId: event.target.value || null })}
+        >
+          <option value="">None</option>
+          {bundle.core.members.filter((member) => !member.archived).map((member) => (
+            <option key={member.id} value={member.id}>{member.displayName}</option>
+          ))}
+        </select>
+      )
+    },
+    {
+      id: "milestone",
+      header: "Milestone",
+      render: ({ item }) => (
+        <select
+          aria-label={`Milestone for ${item.title}`}
+          className="select table-inline-control"
+          value={item.milestoneId ?? ""}
+          onChange={(event) => updateItem(item, { milestoneId: event.target.value || null })}
+        >
+          <option value="">None</option>
+          {bundle.core.milestones.map((milestone) => (
+            <option key={milestone.id} value={milestone.id}>{milestone.name}</option>
+          ))}
+        </select>
+      )
     },
     {
       id: "labels",
@@ -182,27 +270,25 @@ export function TableView() {
         </div>
       )
     },
-    ...customFields.map((field): DataTableColumn<Row> => ({
-      id: `custom-${field.id}`,
-      header: field.name,
-      render: ({ item }) => {
-        if (!isFieldApplicableToType(field, item.typeId)) {
-          return <span className="text-xs text-muted">Not applicable</span>;
-        }
-        return formatCustomFieldValue(field, item.customFields?.[field.id]);
-      }
-    })),
     {
-      id: "due",
-      header: header("due", "Due"),
-      onSort: () => setSort("due"),
+      id: "dueDate",
+      header: header("dueDate", "Due"),
+      onSort: () => setSort("dueDate"),
       sortButtonLabel: "Sort by due date",
-      render: ({ item }) => item.dueDate ?? "None"
+      render: ({ item }) => (
+        <input
+          aria-label={`Due date for ${item.title}`}
+          className="input table-inline-control"
+          type="date"
+          value={item.dueDate ?? ""}
+          onChange={(event) => updateItem(item, { dueDate: event.target.value || null })}
+        />
+      )
     },
     {
-      id: "updated",
-      header: header("updated", "Updated"),
-      onSort: () => setSort("updated"),
+      id: "updatedAt",
+      header: header("updatedAt", "Updated"),
+      onSort: () => setSort("updatedAt"),
       sortButtonLabel: "Sort by updated date",
       render: ({ item }) => (
         <span className="text-xs text-muted">
@@ -211,6 +297,88 @@ export function TableView() {
       )
     }
   ];
+
+  const customFieldColumns = customFields.map((field): DataTableColumn<Row> => ({
+    id: `custom-${field.id}`,
+    header: field.name,
+    render: ({ item }) => {
+      if (!isFieldApplicableToType(field, item.typeId)) {
+        return <span className="text-xs text-muted">Not applicable</span>;
+      }
+      return formatCustomFieldValue(field, item.customFields?.[field.id]);
+    }
+  }));
+
+  const columns = [...baseColumns, ...customFieldColumns].filter((column) => visibleColumns.includes(column.id) || column.id.startsWith("custom-"));
+
+  const toggleColumn = (columnId: string) => {
+    setVisibleColumns((current) =>
+      current.includes(columnId)
+        ? current.filter((entry) => entry !== columnId)
+        : [...current, columnId]
+    );
+  };
+
+  const saveView = () => {
+    const name = viewName.trim();
+    if (!name) {
+      setViewMessage("Name the view before saving it.");
+      return;
+    }
+    applyCommand({
+      type: "view.create",
+      projectId: bundle.project.id,
+      viewType: "table",
+      name,
+      config: {
+        columnOrder: visibleColumns,
+        filter: cleanFilter,
+        order: nextViewOrder(bundle),
+        sort: activeSort,
+        visibleColumns
+      }
+    });
+    setViewMessage(`${name} saved.`);
+  };
+
+  const updateView = () => {
+    if (!view) return;
+    const name = viewName.trim();
+    if (!name) {
+      setViewMessage("Name the view before updating it.");
+      return;
+    }
+    applyCommand({
+      type: "view.update",
+      projectId: bundle.project.id,
+      viewId: view.id,
+      patch: {
+        columnOrder: visibleColumns,
+        filter: cleanFilter,
+        name,
+        sort: activeSort,
+        visibleColumns
+      }
+    });
+    setViewMessage(`${name} updated.`);
+  };
+
+  const deleteView = () => {
+    if (!view) return;
+    applyCommand({ type: "view.delete", projectId: bundle.project.id, viewId: view.id });
+    setViewMessage(`${view.name} deleted.`);
+  };
+
+  const moveView = (direction: -1 | 1) => {
+    if (!view) return;
+    const currentOrder = view.order ?? nextViewOrder(bundle);
+    applyCommand({
+      type: "view.update",
+      projectId: bundle.project.id,
+      viewId: view.id,
+      patch: { order: currentOrder + direction * 1536 }
+    });
+  };
 
   return (
     <div className="table-view">
@@ -233,7 +401,49 @@ export function TableView() {
             </option>
           ))}
         </SelectField>
+        <SelectField label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+          <option value="">All statuses</option>
+          {bundle.core.statuses.map((status) => <option key={status.id} value={status.id}>{status.name}</option>)}
+        </SelectField>
+        <SelectField label="Priority" value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)}>
+          <option value="">All priorities</option>
+          {bundle.core.priorities.map((priority) => <option key={priority.id} value={priority.id}>{priority.name}</option>)}
+        </SelectField>
+        <SelectField label="Assignee" value={assigneeFilter} onChange={(event) => setAssigneeFilter(event.target.value)}>
+          <option value="">All assignees</option>
+          {bundle.core.members.filter((member) => !member.archived).map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}
+        </SelectField>
+        <SelectField label="Milestone" value={milestoneFilter} onChange={(event) => setMilestoneFilter(event.target.value)}>
+          <option value="">All milestones</option>
+          {bundle.core.milestones.map((milestone) => <option key={milestone.id} value={milestone.id}>{milestone.name}</option>)}
+        </SelectField>
+        <TextField
+          label="View name"
+          placeholder="Save as..."
+          value={viewName}
+          onChange={(event) => setViewName(event.target.value)}
+        />
+        <Button size="sm" onClick={saveView}>Save view</Button>
+        {view ? (
+          <>
+            <Button size="sm" onClick={updateView}>Update view</Button>
+            <Button size="sm" variant="ghost" onClick={() => moveView(-1)}>Move view left</Button>
+            <Button size="sm" variant="ghost" onClick={() => moveView(1)}>Move view right</Button>
+            <Button size="sm" variant="danger" onClick={deleteView}>Delete view</Button>
+          </>
+        ) : null}
+        {viewMessage ? <InlineAlert tone="info">{viewMessage}</InlineAlert> : null}
       </ViewToolbar>
+      <div className="table-column-picker" aria-label="Column visibility">
+        {BASE_TABLE_COLUMNS.map((columnId) => (
+          <CheckboxField
+            key={columnId}
+            label={`${COLUMN_LABELS[columnId]} column`}
+            checked={visibleColumns.includes(columnId)}
+            onChange={() => toggleColumn(columnId)}
+          />
+        ))}
+      </div>
       <div className="table-wrap">
         <DataTable
           label="Work items table"
@@ -242,16 +452,11 @@ export function TableView() {
           empty={
             <EmptyState
               title="No items match"
-              description="Adjust the filter or type selection to show more work."
+              description="Adjust the filter, type, status, or saved-view settings to show more work."
             />
           }
         />
       </div>
     </div>
   );
-}
-
-function priorityRank(priorityId: string | null, priorities: PriorityDefinition[]) {
-  if (priorityId === null) return Number.NEGATIVE_INFINITY;
-  return priorities.find((priority) => priority.id === priorityId)?.rank ?? Number.NEGATIVE_INFINITY;
 }

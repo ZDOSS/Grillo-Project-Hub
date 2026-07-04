@@ -351,6 +351,7 @@ function validateProjectReferences(bundle: ProjectBundle): void {
   const kanban = bundle.modules["builtin.kanban"];
   const views = ((kanban?.data as { views?: Record<string, View> } | undefined)?.views) ?? {};
   for (const view of Object.values(views)) {
+    validateViewFilterReferences(view, { typeIds, statusIds, priorityIds, memberIds, labelIds, milestoneIds });
     if (view.type === "board") {
       for (const column of view.columns) {
         requireKnown(statusIds, column.defaultDropStatusId, "Board default drop status");
@@ -364,5 +365,38 @@ function validateProjectReferences(bundle: ProjectBundle): void {
         requireKnown(memberIds, view.filterMemberId, "My Work member");
       }
     }
+  }
+}
+
+function validateViewFilterReferences(
+  view: View,
+  known: {
+    typeIds: Set<string>;
+    statusIds: Set<string>;
+    priorityIds: Set<string>;
+    memberIds: Set<string>;
+    labelIds: Set<string>;
+    milestoneIds: Set<string>;
+  }
+): void {
+  const filter = view.filter;
+  if (!filter) return;
+  if (filter.typeIds) {
+    for (const id of filter.typeIds) requireKnown(known.typeIds, id, "View filter type");
+  }
+  if (filter.statusIds) {
+    for (const id of filter.statusIds) requireKnown(known.statusIds, id, "View filter status");
+  }
+  if (filter.priorityIds) {
+    for (const id of filter.priorityIds) requireKnown(known.priorityIds, id, "View filter priority");
+  }
+  if (filter.assigneeIds) {
+    for (const id of filter.assigneeIds) requireKnown(known.memberIds, id, "View filter assignee");
+  }
+  if (filter.labelIds) {
+    for (const id of filter.labelIds) requireKnown(known.labelIds, id, "View filter label");
+  }
+  if (filter.milestoneIds) {
+    for (const id of filter.milestoneIds) requireKnown(known.milestoneIds, id, "View filter milestone");
   }
 }

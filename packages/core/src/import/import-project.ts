@@ -216,11 +216,16 @@ function remapModules(
 }
 
 function remapView(view: View, prefix: string, remap: (id: string | null | undefined) => string | null): View {
+  const common = {
+    id: `${prefix}${view.id}` as View["id"],
+    filter: remapViewFilter(view.filter, remap)
+  };
   switch (view.type) {
     case "board": {
       const board: BoardView = {
         ...view,
-        id: `${prefix}${view.id}` as BoardView["id"],
+        ...common,
+        id: common.id as BoardView["id"],
         columns: view.columns.map((c) => ({
           ...c,
           statusIds: c.statusIds.map(remap) as BoardView["columns"][number]["statusIds"],
@@ -232,14 +237,29 @@ function remapView(view: View, prefix: string, remap: (id: string | null | undef
     case "myWork": {
       const mw: MyWorkView = {
         ...view,
-        id: `${prefix}${view.id}` as MyWorkView["id"],
+        ...common,
+        id: common.id as MyWorkView["id"],
         filterMemberId: (remap(view.filterMemberId) ?? view.filterMemberId) as MyWorkView["filterMemberId"]
       };
       return mw;
     }
     default:
-      return { ...view, id: `${prefix}${view.id}` as View["id"] };
+      return { ...view, ...common };
   }
+}
+
+function remapViewFilter(filter: View["filter"], remap: (id: string | null | undefined) => string | null): View["filter"] {
+  if (!filter) return undefined;
+  const remapIds = (ids: string[] | undefined) => ids?.map((id) => remap(id) ?? id);
+  return {
+    ...filter,
+    typeIds: remapIds(filter.typeIds),
+    statusIds: remapIds(filter.statusIds),
+    priorityIds: remapIds(filter.priorityIds),
+    assigneeIds: remapIds(filter.assigneeIds),
+    labelIds: remapIds(filter.labelIds),
+    milestoneIds: remapIds(filter.milestoneIds)
+  };
 }
 
 function validateRemappedBundle(bundle: ProjectBundle, warnings: string[]): void {
@@ -278,6 +298,14 @@ function validateRemappedBundle(bundle: ProjectBundle, warnings: string[]): void
     if (!known.has(r.targetItemId)) dangling.push(`relationship.${r.id}.targetItemId -> ${r.targetItemId}`);
   }
   for (const w of Object.values(views)) {
+    if (w.filter) {
+      for (const typeId of w.filter.typeIds ?? []) if (!known.has(typeId)) dangling.push(`view.${w.id}.filter.typeIds -> ${typeId}`);
+      for (const statusId of w.filter.statusIds ?? []) if (!known.has(statusId)) dangling.push(`view.${w.id}.filter.statusIds -> ${statusId}`);
+      for (const priorityId of w.filter.priorityIds ?? []) if (!known.has(priorityId)) dangling.push(`view.${w.id}.filter.priorityIds -> ${priorityId}`);
+      for (const assigneeId of w.filter.assigneeIds ?? []) if (!known.has(assigneeId)) dangling.push(`view.${w.id}.filter.assigneeIds -> ${assigneeId}`);
+      for (const labelId of w.filter.labelIds ?? []) if (!known.has(labelId)) dangling.push(`view.${w.id}.filter.labelIds -> ${labelId}`);
+      for (const milestoneId of w.filter.milestoneIds ?? []) if (!known.has(milestoneId)) dangling.push(`view.${w.id}.filter.milestoneIds -> ${milestoneId}`);
+    }
     if (w.type === "board") {
       for (const col of w.columns) {
         for (const s of col.statusIds) if (!known.has(s)) dangling.push(`view.${w.id}.column.${col.id}.statusIds -> ${s}`);

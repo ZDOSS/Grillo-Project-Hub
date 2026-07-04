@@ -9,8 +9,8 @@ The MVP implementation is in place. The current build supports:
 - **Workspace** with new/open/demo project flow, recent-project reopen, browser-vs-folder storage guidance, inline delete/remove confirmation, and automatic restore of the last active project after reload
 - **Shared UI foundation** with reusable buttons, icon buttons, fields, page headers, surfaces, toolbars, empty states, inline alerts, modal/dialog primitives, data tables, and work-item metadata components
 - **Board** with drag-and-drop, WIP limits (warn + hard modes), explicit hard-limit feedback, column-based status grouping, context-aware item creation that starts in the first board lane, and whole-card link navigation that keeps visible card metadata available to assistive technology
-- **Backlog** with priority-sorted items, custom-field metadata tags, a shared toolbar, and a visible new-item entry point
-- **Table** with accessible sortable header buttons, corrected priority/updated sorting, shared filter controls, type filtering, custom-field columns, and shared metadata badges
+- **Backlog** with priority-sorted items, saved working views, shared text/type/status/priority/assignee/milestone filters, custom-field metadata tags, a shared toolbar, and a visible new-item entry point
+- **Table** with accessible sortable header buttons, corrected priority/updated sorting, saved working views, shared filters, column visibility controls, inline status/priority/assignee/milestone/due-date edits, custom-field columns, and shared metadata badges
 - **Docs** with Markdown editing, sanitized rendering, internal embeds, backlinks, router-safe in-app navigation for preview links, correct pane updates when switching documents, draft-preserving editor resets, shared confirmation for document deletion, and safe navigation to the next active document after deleting the open one
 - **Roadmap / timeline** with date drag/resize, milestone lanes, dependency awareness, and shared zoom/anchor controls
 - **Calendar** with accessible month navigation controls, month grid, and date-based item visibility
@@ -20,6 +20,7 @@ The MVP implementation is in place. The current build supports:
 - **Settings** for theme, left-panel visibility, editable members, statuses, priorities, types, labels, milestones, custom fields, plugins, export, AI bridge, semantic section tabs, and inline import errors
 - **Consistent settings editing** for members, statuses, priorities, types, and plugin trust with explicit edit or save/cancel flows instead of always-live row inputs
 - **Shared navigation config** so sidebar navigation and left-panel visibility toggles stay in sync
+- **Saved planning views** in the project view bar, with board/backlog/table save, update, delete, and reorder flows backed by validated shared filters
 - **Command palette** with `Ctrl/Cmd+K` and `C` to create items through a draft-preserving dialog with view-aware defaults
 - **Trash** with restore and confirmed permanent deletion for work items, documents, and attachments, including inline feedback when a recovery action cannot be completed
 - **Modal-style work item detail** backed by the shared modal primitive, with full edit, checklist (with convert-to-subtask), inline comment editing, an accessible comment composer, subtasks, relationship add/remove controls, custom fields, attachment upload/preview/delete, reminder create/update/delete, readable activity, app-owned permanent-delete confirmation, archive/trash/delete, and a pinned action footer
@@ -68,8 +69,8 @@ Note: This is a static client-side demo only. All data lives in the browser (loc
 - In the **desktop shell**, you can still work browser-locally, or attach a folder path for `.pm-suite` saves and reopen those folder-backed projects from the launcher.
 - Desktop folder-backed saves, loads, existence checks, and deletes now call the registered Tauri commands (`save_project`, `load_project`, `project_exists`, `delete_project`) instead of unregistered filesystem-plugin command names.
 - Removing a folder-backed recent from the launcher only removes the shortcut; it does not delete the underlying filesystem project.
-- The command layer now hard-fails unknown member edits, validates item, custom-field, and saved-view references, rejects project-id mismatches, rejects unknown mutation targets, preserves `hiddenViewIds` defaults when opening older bundles, rejects lossy checklist reorders, and keeps document trash/restore valid by moving document-scoped attachments to trash records while preserving document reminders for restore.
-- JSON import now performs deeper bundle integrity checks, so dangling item, relationship, reminder, attachment, and board-view references are rejected before replacing the active project.
+- The command layer now hard-fails unknown member edits, validates item, custom-field, and saved-view references, rejects project-id mismatches, rejects unknown mutation targets, preserves `hiddenViewIds` defaults when opening older bundles, rejects lossy checklist reorders, validates saved-view filter/sort/order configuration, and keeps document trash/restore valid by moving document-scoped attachments to trash records while preserving document reminders for restore.
+- JSON import now performs deeper bundle integrity checks, so dangling item, relationship, reminder, attachment, board-view, and saved-view filter references are rejected before replacing the active project.
 - Starter templates now carry different left-panel defaults, and the bug-tracker template seeds bug-safe defaults so creating a new bug does not fail on status mismatch.
 - The simple-kanban starter template now seeds a working welcome-doc link to its sample task instead of rendering a broken placeholder token.
 - Settings registry rows now reset cleanly when the underlying project bundle changes, so import/undo flows do not leave stale inline edit drafts behind.
@@ -94,8 +95,8 @@ The UI/UX overhaul planning package lives in `docs/superpowers/specs/2026-07-02-
 
 | Suite | Count | Notes |
 | --- | --- | --- |
-| `packages/core` | 45 | Domain, storage, dispatcher, export, import |
-| `packages/ui` | 54 | AppShell, shared button and surface primitives, WorkItemModal attachment/reminder/custom-field coverage, TrashView, BoardView, BacklogView, BugTriageView, MyWorkView, TableView, CommandPalette, CreateItemDialog, launcher, docs, settings |
+| `packages/core` | 47 | Domain, storage, dispatcher, export, import |
+| `packages/ui` | 59 | AppShell, ProjectRouter, shared button and surface primitives, WorkItemModal attachment/reminder/custom-field coverage, TrashView, BoardView, saved planning views, BacklogView, BugTriageView, MyWorkView, TableView, CommandPalette, CreateItemDialog, launcher, docs, settings |
 | `apps/desktop` | 2 | Desktop storage adapter command wiring |
 | `tests/e2e` | 7 | Hybrid parity, project workflow, theme, palette, export, search |
 

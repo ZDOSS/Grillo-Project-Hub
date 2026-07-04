@@ -1,4 +1,4 @@
-import type { ViewId, ColumnId, StatusId, MemberId } from "./ids";
+import type { ViewId, ColumnId, StatusId, MemberId, TypeId, PriorityId, LabelId, MilestoneId } from "./ids";
 import { generateId } from "./ids";
 
 /**
@@ -11,10 +11,33 @@ import { generateId } from "./ids";
 
 export type ViewType = "board" | "backlog" | "table" | "roadmap" | "docs" | "calendar" | "bugs" | "myWork";
 
+export type WorkItemFilter = {
+  query?: string;
+  typeIds?: TypeId[];
+  statusIds?: StatusId[];
+  priorityIds?: PriorityId[];
+  assigneeIds?: MemberId[];
+  labelIds?: LabelId[];
+  milestoneIds?: MilestoneId[];
+};
+
+export type ViewSortField = "title" | "status" | "priority" | "type" | "dueDate" | "updatedAt" | "createdAt";
+
+export type ViewSort = {
+  field: ViewSortField;
+  direction: "asc" | "desc";
+};
+
 export type ViewBase = {
   id: ViewId;
   type: ViewType;
   name: string;
+  /** Shared work-item filters used by board, backlog, table, bug, and my-work contexts. */
+  filter?: WorkItemFilter;
+  /** Shared sort settings for dense planning views. */
+  sort?: ViewSort;
+  /** Stable project viewbar order. Lower numbers render first. */
+  order?: number;
   /** Saved view filters, e.g. for My Work. */
   filterMemberId?: MemberId | null;
   archived?: boolean;
@@ -42,12 +65,13 @@ export type BoardView = ViewBase & {
 
 export type BacklogView = ViewBase & {
   type: "backlog";
-  groupBy?: "priority" | "milestone" | "type" | "none";
+  groupBy?: "priority" | "milestone" | "status" | "type" | "none";
 };
 
 export type TableView = ViewBase & {
   type: "table";
   visibleColumns?: string[];
+  columnOrder?: string[];
 };
 
 export type RoadmapView = ViewBase & {
@@ -65,12 +89,18 @@ export type View = BoardView | BacklogView | TableView | RoadmapView | DocsView 
 export function createBoardView(input: {
   name: string;
   columns: Array<Omit<BoardColumn, "id"> & { id?: string }>;
+  filter?: WorkItemFilter;
   id?: string;
+  order?: number;
+  sort?: ViewSort;
 }): BoardView {
   return {
     id: input.id ?? generateId("view"),
     type: "board",
     name: input.name,
+    filter: input.filter,
+    order: input.order,
+    sort: input.sort,
     columns: input.columns.map((c, idx) => ({
       id: c.id ?? generateId("col"),
       name: c.name,
@@ -83,12 +113,44 @@ export function createBoardView(input: {
   };
 }
 
-export function createBacklogView(input: { name: string; groupBy?: BacklogView["groupBy"]; id?: string }): BacklogView {
-  return { id: input.id ?? generateId("view"), type: "backlog", name: input.name, groupBy: input.groupBy ?? "priority" };
+export function createBacklogView(input: {
+  name: string;
+  filter?: WorkItemFilter;
+  groupBy?: BacklogView["groupBy"];
+  id?: string;
+  order?: number;
+  sort?: ViewSort;
+}): BacklogView {
+  return {
+    id: input.id ?? generateId("view"),
+    type: "backlog",
+    name: input.name,
+    filter: input.filter,
+    groupBy: input.groupBy ?? "priority",
+    order: input.order,
+    sort: input.sort
+  };
 }
 
-export function createTableView(input: { name: string; visibleColumns?: string[]; id?: string }): TableView {
-  return { id: input.id ?? generateId("view"), type: "table", name: input.name, visibleColumns: input.visibleColumns ?? [] };
+export function createTableView(input: {
+  columnOrder?: string[];
+  filter?: WorkItemFilter;
+  id?: string;
+  name: string;
+  order?: number;
+  sort?: ViewSort;
+  visibleColumns?: string[];
+}): TableView {
+  return {
+    id: input.id ?? generateId("view"),
+    type: "table",
+    name: input.name,
+    columnOrder: input.columnOrder ?? [],
+    filter: input.filter,
+    order: input.order,
+    sort: input.sort,
+    visibleColumns: input.visibleColumns ?? []
+  };
 }
 
 export function createRoadmapView(input: { name: string; zoom?: RoadmapView["zoom"]; id?: string }): RoadmapView {

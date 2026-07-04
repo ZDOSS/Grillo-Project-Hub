@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { MemoryRouter } from "react-router-dom";
@@ -86,5 +86,38 @@ describe("TableView", () => {
       entry.textContent?.includes("Risk table item")
     );
     expect(row).toHaveTextContent("High");
+  });
+
+  it("supports column visibility, inline status edits, and saved table views", async () => {
+    const bundle = buildProjectFromTemplate("simple-kanban", "Table");
+    useProjectStore.setState({ bundle });
+
+    render(<MemoryRouter><TableView /></MemoryRouter>);
+
+    expect(screen.getByText("Labels")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("checkbox", { name: "Labels column" }));
+    expect(screen.queryByText("Labels")).not.toBeInTheDocument();
+
+    const row = Array.from(document.querySelectorAll("tbody tr")).find((entry) =>
+      entry.textContent?.includes("Add your first task")
+    )!;
+    await userEvent.selectOptions(within(row).getByLabelText("Status for Add your first task"), "done");
+    expect(
+      useProjectStore.getState().bundle!.core.items.find((item) => item.title === "Add your first task")?.statusId
+    ).toBe("done");
+
+    await userEvent.type(screen.getByLabelText("Filter"), "Welcome");
+    await userEvent.type(screen.getByLabelText("View name"), "Welcome table");
+    await userEvent.click(screen.getByRole("button", { name: "Save view" }));
+
+    const savedViews = (useProjectStore.getState().bundle!.modules["builtin.kanban"].data as { views?: Record<string, unknown> }).views ?? {};
+    const saved = Object.values(savedViews).find((view) => (view as { name?: string }).name === "Welcome table") as {
+      filter?: { query?: string };
+      type?: string;
+      visibleColumns?: string[];
+    };
+    expect(saved.type).toBe("table");
+    expect(saved.filter?.query).toBe("Welcome");
+    expect(saved.visibleColumns).not.toContain("labels");
   });
 });

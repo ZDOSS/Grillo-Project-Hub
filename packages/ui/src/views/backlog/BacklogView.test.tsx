@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, beforeEach } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { BacklogView } from "./BacklogView";
@@ -7,6 +8,7 @@ import { buildProjectFromTemplate } from "@gph/core";
 
 describe("BacklogView", () => {
   beforeEach(() => {
+    cleanup();
     useProjectStore.setState({ bundle: null });
   });
   it("renders items in priority order", () => {
@@ -52,5 +54,28 @@ describe("BacklogView", () => {
       entry.textContent?.includes("Risk backlog item")
     );
     expect(row).toHaveTextContent("Risk: High");
+  });
+
+  it("filters backlog items by status and saves the filter as a named view", async () => {
+    const bundle = buildProjectFromTemplate("simple-kanban", "Test");
+    useProjectStore.setState({ bundle });
+
+    render(<MemoryRouter><BacklogView /></MemoryRouter>);
+
+    await userEvent.selectOptions(screen.getByLabelText("Status"), "ready");
+
+    expect(screen.getByRole("link", { name: /welcome to your board/i })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /add your first task/i })).not.toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText("View name"), "Ready backlog");
+    await userEvent.click(screen.getByRole("button", { name: "Save view" }));
+
+    const savedViews = (useProjectStore.getState().bundle!.modules["builtin.kanban"].data as { views?: Record<string, unknown> }).views ?? {};
+    const saved = Object.values(savedViews).find((view) => (view as { name?: string }).name === "Ready backlog") as {
+      filter?: { statusIds?: string[] };
+      type?: string;
+    };
+    expect(saved.type).toBe("backlog");
+    expect(saved.filter?.statusIds).toEqual(["ready"]);
   });
 });
