@@ -411,12 +411,14 @@ This combines the original saved-views slice and backlog/table parity slice into
 - [x] Add backlog text/type/status/priority/assignee/milestone filters and saved-view-backed sort persistence.
 - [x] Add table column visibility settings and persisted column-order storage. Drag/drop column reordering remains deferred.
 - [x] Add safe inline edits for status, priority, assignee, milestone, and due date.
-- [ ] Add bulk selection and bulk status/priority/assignee updates.
+- [x] Add bulk selection and bulk status/priority/assignee updates.
 - [x] Preserve keyboard navigation and accessible sortable headers.
 
 ### PR 5: Roadmap And Milestone Planning
 
 **Intent:** Make planning across dates and milestones useful without becoming heavyweight scheduling software.
+
+**Delivery note:** This scope was bundled into the July Planning Workflow milestone PR alongside table bulk actions, bug triage actions, calendar agenda, and the project overview route.
 
 **Files:**
 
@@ -427,16 +429,18 @@ This combines the original saved-views slice and backlog/table parity slice into
 - Modify: `AI.md`
 - Modify: `Readme.md`
 
-- [ ] Show milestone progress and target dates.
-- [ ] Draw dependency indicators for blocked work.
-- [ ] Show explicit invalid-range feedback.
-- [ ] Support moving items between milestone lanes.
-- [ ] Add an agenda-style calendar list for upcoming start/due dates and reminders.
-- [ ] Keep date-only semantics unchanged.
+- [x] Show milestone progress and target dates.
+- [x] Draw dependency indicators for blocked work.
+- [x] Show explicit invalid-range feedback.
+- [x] Support moving items between milestone lanes.
+- [x] Add an agenda-style calendar list for upcoming start/due dates and reminders.
+- [x] Keep date-only semantics unchanged.
 
 ### PR 6: Bug Intake And Triage Workflow
 
 **Intent:** Turn bug triage into a true intake and decision surface.
+
+**Delivery note:** The July Planning Workflow milestone PR shipped the command-backed triage actions and practical filters using existing `item.update`, `relationship.create`, and `reminder.create` commands. Configurable severity/priority gates and extra plugin-owned bug source/context fields remain open.
 
 **Files:**
 
@@ -448,11 +452,12 @@ This combines the original saved-views slice and backlog/table parity slice into
 - Modify: `AI.md`
 - Modify: `Readme.md`
 
-- [ ] Add triage actions: accept, decline, mark duplicate, snooze, assign owner.
+- [x] Add triage actions: accept, decline, mark duplicate, snooze, assign owner.
 - [ ] Require severity or priority before leaving intake when configured.
-- [ ] Add duplicate relationship support through existing relationship mechanics when possible.
+- [x] Add duplicate relationship support through existing relationship mechanics when possible.
 - [ ] Add bug source/context fields using plugin-owned data.
-- [ ] Add filters for severity, priority, stale bugs, unassigned bugs, and needs-repro.
+- [x] Add filters for stale bugs, unassigned bugs, and needs-repro.
+- [ ] Add severity and priority filters to the bug triage toolbar.
 
 ### PR 7: Automation Rule Builder
 
@@ -479,6 +484,8 @@ This combines the original saved-views slice and backlog/table parity slice into
 
 **Intent:** Give users a first screen that answers "what needs attention?"
 
+**Delivery note:** This scope was bundled into the July Planning Workflow milestone PR and `/overview` is now the default in-project landing route.
+
 **Files:**
 
 - Create: `packages/ui/src/views/overview/OverviewView.tsx`
@@ -489,13 +496,13 @@ This combines the original saved-views slice and backlog/table parity slice into
 - Modify: `AI.md`
 - Modify: `Readme.md`
 
-- [ ] Add overview route as the default project landing view.
-- [ ] Show active milestone progress.
-- [ ] Show blocked items.
-- [ ] Show overdue and upcoming work.
-- [ ] Show recent activity.
-- [ ] Show open bugs by severity.
-- [ ] Show storage trust and save state in context.
+- [x] Add overview route as the default project landing view.
+- [x] Show active milestone progress.
+- [x] Show blocked items.
+- [x] Show upcoming work and reminders.
+- [x] Show recent activity.
+- [x] Show bug intake pressure.
+- [x] Show storage trust and save state in context.
 
 ### PR 9: Docs Knowledge System
 

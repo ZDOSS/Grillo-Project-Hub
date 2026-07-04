@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
@@ -14,6 +14,7 @@ function LocationProbe() {
 
 describe("ProjectsListView", () => {
   beforeEach(() => {
+    cleanup();
     const storage = localStorage as Storage & { clear?: () => void };
     storage.clear?.();
     storage.removeItem?.("gph.workspace");
@@ -59,7 +60,7 @@ describe("ProjectsListView", () => {
       <MemoryRouter initialEntries={["/"]}>
         <Routes>
           <Route path="/" element={<ProjectsListView />} />
-          <Route path="/board" element={<LocationProbe />} />
+          <Route path="/overview" element={<LocationProbe />} />
         </Routes>
       </MemoryRouter>
     );
@@ -67,9 +68,29 @@ describe("ProjectsListView", () => {
     await userEvent.click(screen.getByRole("button", { name: /open/i }));
 
     await waitFor(() => {
-      expect(screen.getByTestId("location")).toHaveTextContent("/board");
+      expect(screen.getByTestId("location")).toHaveTextContent("/overview");
     });
     expect(useProjectStore.getState().bundle?.project.name).toBe("Saved Project");
+  });
+
+  it("creates new projects into the overview landing surface", async () => {
+    (window as typeof window & { __gph_store?: unknown }).__gph_store = new InMemoryProjectStore();
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route path="/" element={<ProjectsListView />} />
+          <Route path="/overview" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/overview");
+    });
+    expect(useProjectStore.getState().bundle?.project.name).toBe("My Project");
   });
 
   it("uses inline confirmation before deleting a saved browser project", async () => {

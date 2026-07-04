@@ -32,6 +32,7 @@ function App() {
         <AppShell appMode="desktop">
           <Routes>
             <Route path="/" element={<ProjectsListView />} />
+            <Route path="/projects" element={<ProjectsListView />} />
             <Route path="/open" element={<OpenProjectView />} />
             <Route path="/demo" element={<DemoFolderView />} />
             <Route path="/*" element={<ProjectRouter />} />

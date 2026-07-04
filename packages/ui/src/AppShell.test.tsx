@@ -1,10 +1,15 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { buildProjectFromTemplate } from "@gph/core";
 import { AppShell } from "./AppShell";
 import { ThemeProvider } from "./theme/theme-provider";
 import { useProjectStore } from "./store/project-store";
+
+function LocationProbe() {
+  const location = useLocation();
+  return <div data-testid="location">{location.pathname}</div>;
+}
 
 describe("AppShell", () => {
   beforeEach(() => {
@@ -95,5 +100,29 @@ describe("AppShell", () => {
 
     expect(screen.queryByRole("tab", { name: "Saved bugs" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Saved my work" })).not.toBeInTheDocument();
+  });
+
+  it("routes an open project from the app root to overview while keeping Projects as a launcher link", async () => {
+    const bundle = buildProjectFromTemplate("simple-kanban", "Project");
+    useProjectStore.setState({ bundle });
+
+    render(
+      <ThemeProvider>
+        <MemoryRouter initialEntries={["/"]}>
+          <AppShell appMode="web">
+            <Routes>
+              <Route path="/" element={<LocationProbe />} />
+              <Route path="/overview" element={<LocationProbe />} />
+              <Route path="/projects" element={<LocationProbe />} />
+            </Routes>
+          </AppShell>
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/overview");
+    });
+    expect(screen.getByRole("link", { name: /Projects/i })).toHaveAttribute("href", "/projects");
   });
 });

@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Link } from "react-router-dom";
-import type { WorkItem } from "@gph/core";
-import { Button, IconButton, ViewToolbar } from "../../components";
+import { dateOnlyFromTimestamp, todayDateOnly, type Reminder, type WorkItem } from "@gph/core";
+import { Button, IconButton, MetadataBadge, ViewToolbar } from "../../components";
 import { useProjectStore } from "../../store/project-store";
 
 /**
@@ -12,7 +12,7 @@ import { useProjectStore } from "../../store/project-store";
 export function CalendarView() {
   const bundle = useProjectStore((s) => s.bundle);
   const [anchor, setAnchor] = useState<string>(
-    new Date().toISOString().slice(0, 10)
+    () => todayDateOnly()
   );
 
   if (!bundle) return null;
@@ -27,7 +27,7 @@ export function CalendarView() {
     const gridStart = new Date(first);
     gridStart.setUTCDate(first.getUTCDate() - firstWeekday);
     const days: { date: string; other: boolean; today: boolean }[] = [];
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayDateOnly();
     for (let index = 0; index < 42; index += 1) {
       const day = new Date(gridStart);
       day.setUTCDate(gridStart.getUTCDate() + index);
@@ -65,6 +65,8 @@ export function CalendarView() {
     return map;
   }, [items]);
 
+  const agenda = useMemo(() => buildAgenda(anchor, items, bundle.core.reminders), [anchor, bundle.core.reminders, items]);
+
   return (
     <div className="calendar">
       <ViewToolbar>
@@ -81,31 +83,59 @@ export function CalendarView() {
         >
           <ChevronRight aria-hidden="true" />
         </IconButton>
-        <Button size="sm" onClick={() => setAnchor(new Date().toISOString().slice(0, 10))}>
+        <Button size="sm" onClick={() => setAnchor(todayDateOnly())}>
           Today
         </Button>
       </ViewToolbar>
-      <div className="calendar-grid" role="grid" aria-label="Calendar">
-        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-          <div key={day} className="roadmap-month" style={{ textAlign: "left" }}>
-            {day}
+      <div className="calendar-layout">
+        <div className="calendar-grid" role="grid" aria-label="Calendar">
+          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+            <div key={day} className="roadmap-month" style={{ textAlign: "left" }}>
+              {day}
+            </div>
+          ))}
+          {weeks.flat().map((day) => (
+            <div
+              key={day.date}
+              className="calendar-day"
+              data-other-month={day.other}
+              data-today={day.today}
+            >
+              <div className="calendar-day-num">{Number(day.date.slice(-2))}</div>
+              {(itemsByDate.get(day.date) ?? []).map((item) => (
+                <Link key={item.id} to={`/item/${item.id}`} className="calendar-pill">
+                  {item.title}
+                </Link>
+              ))}
+            </div>
+          ))}
+        </div>
+        <aside className="calendar-agenda" aria-label="Agenda">
+          <div className="row-between">
+            <h2>Agenda</h2>
+            <span className="text-xs text-muted">Next 30 days</span>
           </div>
-        ))}
-        {weeks.flat().map((day) => (
-          <div
-            key={day.date}
-            className="calendar-day"
-            data-other-month={day.other}
-            data-today={day.today}
-          >
-            <div className="calendar-day-num">{Number(day.date.slice(-2))}</div>
-            {(itemsByDate.get(day.date) ?? []).map((item) => (
-              <Link key={item.id} to={`/item/${item.id}`} className="calendar-pill">
-                {item.title}
-              </Link>
-            ))}
-          </div>
-        ))}
+          {agenda.length === 0 ? (
+            <div className="text-sm text-muted">No upcoming dates or reminders.</div>
+          ) : (
+            <div className="calendar-agenda-list">
+              {agenda.map((entry) => (
+                <div key={entry.id} className="calendar-agenda-row">
+                  <div className="row" style={{ gap: 6 }}>
+                    <MetadataBadge>{entry.kind}</MetadataBadge>
+                    <span className="text-xs text-muted">{entry.date}</span>
+                  </div>
+                  <span>{entry.title}</span>
+                  {entry.item ? (
+                    <Link className="text-xs" to={`/item/${entry.item.id}`}>
+                      Open {entry.item.title}
+                    </Link>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          )}
+        </aside>
       </div>
     </div>
   );
@@ -123,4 +153,48 @@ function chunk<T>(arr: T[], size: number): T[][] {
     out.push(arr.slice(index, index + size));
   }
   return out;
+}
+
+type AgendaEntry = {
+  id: string;
+  date: string;
+  kind: "Start" | "Due" | "Reminder";
+  title: string;
+  item: WorkItem | null;
+};
+
+function buildAgenda(anchor: string, items: WorkItem[], reminders: Reminder[]): AgendaEntry[] {
+  const start = anchor;
+  const endDate = new Date(anchor + "T00:00:00Z");
+  endDate.setUTCDate(endDate.getUTCDate() + 30);
+  const end = endDate.toISOString().slice(0, 10);
+  const entries: AgendaEntry[] = [];
+  for (const item of items) {
+    if (item.startDate && item.startDate >= start && item.startDate <= end) {
+      entries.push({ id: `start-${item.id}`, date: item.startDate, kind: "Start", title: item.title, item });
+    }
+    if (item.dueDate && item.dueDate >= start && item.dueDate <= end) {
+      entries.push({ id: `due-${item.id}`, date: item.dueDate, kind: "Due", title: item.title, item });
+    }
+  }
+  for (const reminder of reminders.filter((entry) => !entry.archived)) {
+    const date = dateOnlyFromTimestamp(reminder.remindAt, reminder.timeZone);
+    const utcDate = reminder.remindAt.slice(0, 10);
+    if (!dateInRange(date, start, end) && !dateInRange(utcDate, start, end)) continue;
+    const item = reminder.targetType === "workItem"
+      ? items.find((entry) => entry.id === reminder.targetId) ?? null
+      : null;
+    entries.push({
+      id: `reminder-${reminder.id}`,
+      date,
+      kind: "Reminder",
+      title: reminder.message || item?.title || "Reminder",
+      item
+    });
+  }
+  return entries.sort((a, b) => a.date.localeCompare(b.date) || a.kind.localeCompare(b.kind) || a.title.localeCompare(b.title));
+}
+
+function dateInRange(date: string, start: string, end: string): boolean {
+  return date >= start && date <= end;
 }

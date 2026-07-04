@@ -1,4 +1,5 @@
 export const PROJECT_NAV_ITEMS = [
+  { id: "overview", to: "/overview", label: "Overview" },
   { id: "board", to: "/board", label: "Board" },
   { id: "backlog", to: "/backlog", label: "Backlog" },
   { id: "table", to: "/table", label: "Table" },

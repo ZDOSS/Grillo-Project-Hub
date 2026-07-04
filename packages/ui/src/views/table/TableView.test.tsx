@@ -158,4 +158,88 @@ describe("TableView", () => {
     expect(updated.filter?.statusIds).toEqual(["ready", "done"]);
     expect(updated.columnOrder).toEqual(["priority", "title", "status"]);
   });
+
+  it("applies bulk status priority and assignee updates to selected rows", async () => {
+    const bundle = buildProjectFromTemplate("simple-kanban", "Table");
+    useProjectStore.setState({ bundle });
+    const apply = useProjectStore.getState().applyCommand;
+    const withMember = apply({
+      type: "member.create",
+      projectId: bundle.project.id,
+      displayName: "Ada"
+    }).bundle;
+    const member = withMember.core.members.find((entry) => entry.displayName === "Ada")!;
+    apply({
+      type: "item.create",
+      projectId: bundle.project.id,
+      typeId: "task",
+      title: "Bulk first",
+      statusId: "inbox",
+      priorityId: "low"
+    });
+    apply({
+      type: "item.create",
+      projectId: bundle.project.id,
+      typeId: "task",
+      title: "Bulk second",
+      statusId: "inbox",
+      priorityId: "medium"
+    });
+
+    render(<MemoryRouter><TableView /></MemoryRouter>);
+
+    await userEvent.click(screen.getByRole("checkbox", { name: "Select Bulk first" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "Select Bulk second" }));
+    await userEvent.selectOptions(screen.getByLabelText("Bulk status"), "ready");
+    await userEvent.selectOptions(screen.getByLabelText("Bulk priority"), "urgent");
+    await userEvent.selectOptions(screen.getByLabelText("Bulk assignee"), member.id);
+    await userEvent.click(screen.getByRole("button", { name: "Apply bulk changes" }));
+
+    const updated = useProjectStore.getState().bundle!.core.items.filter((item) =>
+      item.title === "Bulk first" || item.title === "Bulk second"
+    );
+    expect(updated).toHaveLength(2);
+    expect(updated.every((item) => item.statusId === "ready")).toBe(true);
+    expect(updated.every((item) => item.priorityId === "urgent")).toBe(true);
+    expect(updated.every((item) => item.assigneeId === member.id)).toBe(true);
+    expect(screen.getByText("Updated 2 items.")).toBeInTheDocument();
+    expect(screen.queryByText("2 selected")).not.toBeInTheDocument();
+  });
+
+  it("applies bulk edits to selected rows that are hidden by the current filter", async () => {
+    const bundle = buildProjectFromTemplate("simple-kanban", "Table");
+    useProjectStore.setState({ bundle });
+    const apply = useProjectStore.getState().applyCommand;
+    apply({
+      type: "item.create",
+      projectId: bundle.project.id,
+      typeId: "task",
+      title: "Hidden bulk first",
+      statusId: "inbox"
+    });
+    apply({
+      type: "item.create",
+      projectId: bundle.project.id,
+      typeId: "task",
+      title: "Hidden bulk second",
+      statusId: "inbox"
+    });
+
+    render(<MemoryRouter><TableView /></MemoryRouter>);
+
+    await userEvent.click(screen.getByRole("checkbox", { name: "Select Hidden bulk first" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "Select Hidden bulk second" }));
+    await userEvent.type(screen.getByLabelText("Filter"), "Hidden bulk first");
+
+    expect(screen.getByText("2 selected (1 visible)")).toBeInTheDocument();
+
+    await userEvent.selectOptions(screen.getByLabelText("Bulk status"), "ready");
+    await userEvent.click(screen.getByRole("button", { name: "Apply bulk changes" }));
+
+    const updated = useProjectStore.getState().bundle!.core.items.filter((item) =>
+      item.title === "Hidden bulk first" || item.title === "Hidden bulk second"
+    );
+    expect(updated).toHaveLength(2);
+    expect(updated.every((item) => item.statusId === "ready")).toBe(true);
+  });
 });

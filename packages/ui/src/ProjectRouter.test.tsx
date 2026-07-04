@@ -42,4 +42,17 @@ describe("ProjectRouter", () => {
     expect(screen.getByRole("region", { name: "Board board" })).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Saved board board" })).not.toBeInTheDocument();
   });
+
+  it("routes the project root to overview", () => {
+    const bundle = buildProjectFromTemplate("simple-kanban", "Project");
+    useProjectStore.setState({ bundle });
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <ProjectRouter />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole("heading", { name: "Overview" })).toBeInTheDocument();
+  });
 });

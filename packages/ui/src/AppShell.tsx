@@ -7,6 +7,7 @@ import {
   FolderKanban,
   FolderOpen,
   KanbanSquare,
+  LayoutDashboard,
   ListTodo,
   Moon,
   Play,
@@ -68,6 +69,7 @@ const GrilloLogo = () => (
 // ── Nav config ───────────────────────────────────────────────────────────────
 
 const NAV_ICONS = {
+  overview: <LayoutDashboard {...navIconProps} />,
   board: <KanbanSquare {...navIconProps} />,
   backlog: <ListTodo {...navIconProps} />,
   table: <Table2 {...navIconProps} />,
@@ -98,6 +100,12 @@ export function AppShell({ appMode, children }: AppShellProps) {
   const { resolved, toggle } = useTheme();
 
   useEffect(() => registerCoreCommands(), []);
+
+  useEffect(() => {
+    if (bundle && location.pathname === "/") {
+      navigate("/overview", { replace: true });
+    }
+  }, [bundle, location.pathname, navigate]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -160,6 +168,7 @@ export function AppShell({ appMode, children }: AppShellProps) {
   const isProjectRoute = useMemo(
     () =>
       location.pathname !== "/" &&
+      !location.pathname.startsWith("/projects") &&
       !location.pathname.startsWith("/open") &&
       !location.pathname.startsWith("/demo"),
     [location.pathname]
@@ -176,9 +185,9 @@ export function AppShell({ appMode, children }: AppShellProps) {
         <div className="sidebar-section">
           <div className="sidebar-section-title">Workspace</div>
           <Link
-            to="/"
+            to="/projects"
             className="sidebar-link"
-            aria-current={location.pathname === "/" ? "page" : undefined}
+            aria-current={location.pathname === "/projects" ? "page" : undefined}
           >
             <FolderKanban {...navIconProps} /> Projects
           </Link>
