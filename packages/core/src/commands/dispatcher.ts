@@ -36,7 +36,7 @@ import { createEvent } from "../domain/event";
 import { nowTimestamp } from "../domain/dates";
 import { bumpRevision, type TrashRecord } from "../domain/project";
 import type { Document } from "../domain/document";
-import { createBoardView, createBacklogView, createTableView, createRoadmapView, createDocsView, createCalendarView, createBugsView, createMyWorkView, findColumnForStatus, type View } from "../domain/view";
+import { createBoardView, createBacklogView, createTableView, createRoadmapView, createDocsView, createCalendarView, createBugsView, createMyWorkView, findColumnForStatus, type View, type ViewSort, type WorkItemFilter } from "../domain/view";
 import { createSeverity } from "../domain/bug";
 import { generateId } from "../domain/ids";
 import { searchProject } from "../search/local-search";
@@ -243,6 +243,11 @@ function isReminderTargetType(value: unknown): value is "workItem" | "milestone"
 }
 
 function validateViewReferences(bundle: ProjectBundle, view: View): void {
+  validateViewFilterReferences(bundle, view.filter);
+  validateViewSort(view.sort);
+  if (view.order !== undefined && typeof view.order !== "number") {
+    throw new Error("View order must be a number");
+  }
   switch (view.type) {
     case "board": {
       for (const column of view.columns) {
@@ -258,6 +263,39 @@ function validateViewReferences(bundle: ProjectBundle, view: View): void {
         findRecordOrThrow(bundle.core.members, view.filterMemberId, "My Work member");
       }
       break;
+  }
+}
+
+function validateViewFilterReferences(bundle: ProjectBundle, filter: WorkItemFilter | undefined): void {
+  if (!filter) return;
+  if (filter.query !== undefined && typeof filter.query !== "string") {
+    throw new Error("View filter query must be a string");
+  }
+  validateFilterIds(bundle.core.itemTypes, filter.typeIds, "View filter type");
+  validateFilterIds(bundle.core.statuses, filter.statusIds, "View filter status");
+  validateFilterIds(bundle.core.priorities, filter.priorityIds, "View filter priority");
+  validateFilterIds(bundle.core.members, filter.assigneeIds, "View filter assignee");
+  validateFilterIds(bundle.core.labels, filter.labelIds, "View filter label");
+  validateFilterIds(bundle.core.milestones, filter.milestoneIds, "View filter milestone");
+}
+
+function validateFilterIds<T extends { id: string }>(records: T[], ids: string[] | undefined, label: string): void {
+  if (!ids) return;
+  if (!Array.isArray(ids)) throw new Error(`${label} ids must be an array`);
+  for (const id of ids) {
+    findRecordOrThrow(records, id, label);
+  }
+}
+
+const VIEW_SORT_FIELDS = new Set(["title", "status", "priority", "type", "dueDate", "updatedAt", "createdAt"]);
+
+function validateViewSort(sort: ViewSort | undefined): void {
+  if (!sort) return;
+  if (!VIEW_SORT_FIELDS.has(sort.field)) {
+    throw new Error(`Invalid view sort field: ${String(sort.field)}`);
+  }
+  if (sort.direction !== "asc" && sort.direction !== "desc") {
+    throw new Error(`Invalid view sort direction: ${String(sort.direction)}`);
   }
 }
 
@@ -1205,22 +1243,37 @@ function createViewCommand(
   payload: { projectId: string; viewType: "board" | "backlog" | "table" | "roadmap" | "docs" | "calendar" | "bugs" | "myWork"; name: string; config?: Record<string, unknown> }
 ): DispatchResult {
   assertProjectId(bundle, payload.projectId);
+  const config = payload.config ?? {};
+  const common = {
+    filter: viewFilterFromConfig(config.filter),
+    order: viewOrderFromConfig(config.order),
+    sort: viewSortFromConfig(config.sort)
+  };
   let view;
   switch (payload.viewType) {
     case "board": {
-      const cols = (payload.config?.columns as never[]) ?? [
+      const cols = (config.columns as never[]) ?? [
         { name: "To Do", statusIds: [bundle.project.defaultInitialStatusId], defaultDropStatusId: bundle.project.defaultInitialStatusId, order: 1024 },
         { name: "In Progress", statusIds: [bundle.core.statuses.find((s) => s.category === "active")?.id].filter(Boolean) as string[], defaultDropStatusId: bundle.core.statuses.find((s) => s.category === "active")?.id ?? bundle.project.defaultInitialStatusId, order: 2048 },
         { name: "Done", statusIds: [bundle.project.defaultCompletedStatusId], defaultDropStatusId: bundle.project.defaultCompletedStatusId, order: 4096 }
       ];
-      view = createBoardView({ name: payload.name, columns: cols as never });
+      view = createBoardView({ name: payload.name, columns: cols as never, ...common });
       break;
     }
     case "backlog":
-      view = createBacklogView({ name: payload.name });
+      view = createBacklogView({
+        name: payload.name,
+        groupBy: viewGroupByFromConfig(config.groupBy),
+        ...common
+      });
       break;
     case "table":
-      view = createTableView({ name: payload.name });
+      view = createTableView({
+        name: payload.name,
+        columnOrder: viewStringArrayFromConfig(config.columnOrder, "View column order"),
+        visibleColumns: viewStringArrayFromConfig(config.visibleColumns, "View visible columns"),
+        ...common
+      });
       break;
     case "roadmap":
       view = createRoadmapView({ name: payload.name });
@@ -1235,7 +1288,7 @@ function createViewCommand(
       view = createBugsView({ name: payload.name });
       break;
     case "myWork": {
-      const memberId = (payload.config?.memberId as string) ?? "";
+      const memberId = (config.memberId as string) ?? "";
       view = createMyWorkView({ name: payload.name, memberId });
       break;
     }
@@ -1261,7 +1314,7 @@ function updateViewCommand(bundle: ProjectBundle, payload: { projectId: string; 
   const existingViews = ((kanbanModule.data as { views?: Record<string, unknown> })?.views) ?? {};
   const current = existingViews[payload.viewId];
   if (!current) throw new Error("View not found");
-  const nextView = { ...(current as object), ...stripReadOnly(payload.patch) } as View;
+  const nextView = { ...(current as object), ...normalizeViewPatch(payload.patch) } as View;
   validateViewReferences(bundle, nextView);
   const nextViews = { ...existingViews, [payload.viewId]: nextView };
   const nextKanbanData = { ...(kanbanModule.data ?? {}), views: nextViews };
@@ -1270,6 +1323,77 @@ function updateViewCommand(bundle: ProjectBundle, payload: { projectId: string; 
     modules: { ...bundle.modules, "builtin.kanban": { ...kanbanModule, data: nextKanbanData } }
   });
   return { bundle: nextBundle, events: [] };
+}
+
+function normalizeViewPatch(patch: Record<string, unknown>): Record<string, unknown> {
+  const next = stripReadOnly(patch);
+  if (Object.prototype.hasOwnProperty.call(next, "filter")) {
+    next.filter = viewFilterFromConfig(next.filter);
+  }
+  if (Object.prototype.hasOwnProperty.call(next, "sort")) {
+    next.sort = viewSortFromConfig(next.sort);
+  }
+  if (Object.prototype.hasOwnProperty.call(next, "order")) {
+    next.order = viewOrderFromConfig(next.order);
+  }
+  if (Object.prototype.hasOwnProperty.call(next, "groupBy")) {
+    next.groupBy = viewGroupByFromConfig(next.groupBy);
+  }
+  if (Object.prototype.hasOwnProperty.call(next, "visibleColumns")) {
+    next.visibleColumns = viewStringArrayFromConfig(next.visibleColumns, "View visible columns");
+  }
+  if (Object.prototype.hasOwnProperty.call(next, "columnOrder")) {
+    next.columnOrder = viewStringArrayFromConfig(next.columnOrder, "View column order");
+  }
+  return next;
+}
+
+function viewFilterFromConfig(input: unknown): WorkItemFilter | undefined {
+  if (input == null) return undefined;
+  if (typeof input !== "object") throw new Error("View filter must be an object");
+  const raw = input as Record<string, unknown>;
+  const filter: WorkItemFilter = {};
+  if (raw.query !== undefined) {
+    if (typeof raw.query !== "string") throw new Error("View filter query must be a string");
+    filter.query = raw.query;
+  }
+  filter.typeIds = viewStringArrayFromConfig(raw.typeIds, "View filter type");
+  filter.statusIds = viewStringArrayFromConfig(raw.statusIds, "View filter status");
+  filter.priorityIds = viewStringArrayFromConfig(raw.priorityIds, "View filter priority");
+  filter.assigneeIds = viewStringArrayFromConfig(raw.assigneeIds, "View filter assignee");
+  filter.labelIds = viewStringArrayFromConfig(raw.labelIds, "View filter label");
+  filter.milestoneIds = viewStringArrayFromConfig(raw.milestoneIds, "View filter milestone");
+  return Object.values(filter).some((value) => Array.isArray(value) ? value.length > 0 : value !== undefined && value !== "") ? filter : undefined;
+}
+
+function viewSortFromConfig(input: unknown): ViewSort | undefined {
+  if (input == null) return undefined;
+  if (typeof input !== "object") throw new Error("View sort must be an object");
+  const raw = input as Record<string, unknown>;
+  if (typeof raw.field !== "string") throw new Error("View sort field must be a string");
+  if (raw.direction !== "asc" && raw.direction !== "desc") throw new Error("View sort direction must be asc or desc");
+  return { field: raw.field as ViewSort["field"], direction: raw.direction };
+}
+
+function viewOrderFromConfig(input: unknown): number | undefined {
+  if (input == null) return undefined;
+  if (typeof input !== "number" || !Number.isFinite(input)) throw new Error("View order must be a finite number");
+  return input;
+}
+
+function viewGroupByFromConfig(input: unknown): "priority" | "milestone" | "status" | "type" | "none" | undefined {
+  if (input == null) return undefined;
+  if (input === "priority" || input === "milestone" || input === "status" || input === "type" || input === "none") return input;
+  throw new Error(`Invalid backlog group: ${String(input)}`);
+}
+
+function viewStringArrayFromConfig(input: unknown, label: string): string[] | undefined {
+  if (input == null) return undefined;
+  if (!Array.isArray(input)) throw new Error(`${label} ids must be an array`);
+  for (const entry of input) {
+    if (typeof entry !== "string") throw new Error(`${label} ids must be strings`);
+  }
+  return [...input];
 }
 
 function deleteViewCommand(bundle: ProjectBundle, payload: { projectId: string; viewId: string }): DispatchResult {

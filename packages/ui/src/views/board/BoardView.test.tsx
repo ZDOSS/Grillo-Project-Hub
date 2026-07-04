@@ -204,4 +204,68 @@ describe("BoardView", () => {
     const created = useProjectStore.getState().bundle?.core.items.find((entry) => entry.title === "Board-created task");
     expect(created?.statusId).toBe("ready");
   });
+
+  it("filters board cards by text and saves the filter as a named board view", async () => {
+    const bundle = buildProjectFromTemplate("simple-kanban", "Test");
+    useProjectStore.setState({ bundle });
+    const apply = useProjectStore.getState().applyCommand;
+    const updated = apply({ type: "item.create", projectId: bundle.project.id, typeId: "task", title: "Fix auth bug", statusId: "inbox" }).bundle;
+    apply({ type: "item.create", projectId: updated.project.id, typeId: "task", title: "Ship docs", statusId: "ready" });
+    const current = useProjectStore.getState().bundle!;
+    const kanbanModule = current.modules["builtin.kanban"];
+    const views = (kanbanModule.data as { views?: Record<string, Parameters<typeof BoardView>[0]["view"]> }).views ?? {};
+    const view = Object.values(views).find((entry) => entry.type === "board")!;
+
+    renderBoard(view);
+
+    await userEvent.type(screen.getByLabelText("Filter board"), "docs");
+
+    expect(screen.queryByText("Fix auth bug")).not.toBeInTheDocument();
+    expect(screen.getByText("Ship docs")).toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText("View name"), "Docs board");
+    await userEvent.click(screen.getByRole("button", { name: "Save view" }));
+
+    const savedViews = (useProjectStore.getState().bundle!.modules["builtin.kanban"].data as { views?: Record<string, unknown> }).views ?? {};
+    const saved = Object.values(savedViews).find((entry) => (entry as { name?: string }).name === "Docs board") as {
+      filter?: { query?: string };
+      type?: string;
+    };
+    expect(saved.type).toBe("board");
+    expect(saved.filter?.query).toBe("docs");
+  });
+
+  it("preserves multi-status saved board filters when updating the view", async () => {
+    const bundle = buildProjectFromTemplate("simple-kanban", "Test");
+    useProjectStore.setState({ bundle });
+    const apply = useProjectStore.getState().applyCommand;
+    const withDone = apply({ type: "item.create", projectId: bundle.project.id, typeId: "task", title: "Done task", statusId: "done" }).bundle;
+    const board = Object.values((withDone.modules["builtin.kanban"].data as { views?: Record<string, Parameters<typeof BoardView>[0]["view"]> }).views ?? {})
+      .find((entry) => entry.type === "board")!;
+    const withSaved = apply({
+      type: "view.create",
+      projectId: bundle.project.id,
+      viewType: "board",
+      name: "Ready and done",
+      config: {
+        columns: board.columns,
+        filter: { statusIds: ["ready", "done"] },
+        order: 256
+      }
+    } as never).bundle;
+    const savedView = Object.values((withSaved.modules["builtin.kanban"].data as { views?: Record<string, Parameters<typeof BoardView>[0]["view"]> }).views ?? {})
+      .find((entry) => entry.name === "Ready and done")!;
+
+    renderBoard(savedView);
+
+    expect(screen.getByText("Welcome to your board")).toBeInTheDocument();
+    expect(screen.getByText("Done task")).toBeInTheDocument();
+    expect(screen.queryByText("Add your first task")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Update view" }));
+
+    const updatedViews = (useProjectStore.getState().bundle!.modules["builtin.kanban"].data as { views?: Record<string, { name?: string; filter?: { statusIds?: string[] } }> }).views ?? {};
+    const updated = Object.values(updatedViews).find((entry) => entry.name === "Ready and done")!;
+    expect(updated.filter?.statusIds).toEqual(["ready", "done"]);
+  });
 });

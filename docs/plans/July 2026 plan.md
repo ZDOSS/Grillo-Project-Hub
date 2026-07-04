@@ -379,50 +379,42 @@ PR body must include:
 - [ ] Add validation and empty-state copy for required custom fields.
 - [ ] Verify with component tests, `npm.cmd run typecheck`, `npm.cmd test`, `npm.cmd run build:web`, and `npm.cmd run build:desktop`.
 
-### PR 4: Saved Views And Consistent Filters
+### PR 4: Saved Views And Backlog/Table Parity
 
-**Intent:** Make views user-shaped instead of fixed route pages.
+**Intent:** Make views user-shaped instead of fixed route pages and make high-density planning credible enough for real work.
+
+This combines the original saved-views slice and backlog/table parity slice into one larger review unit so paid automated review is spent on a bigger planning increment.
 
 **Files:**
 
 - Modify: `packages/core/src/domain/view.ts`
-- Modify: `packages/core/src/commands/envelope.ts`
 - Modify: `packages/core/src/commands/dispatcher.ts`
-- Modify: `packages/ui/src/nav-config.ts`
+- Modify: `packages/core/src/domain/project.ts`
+- Modify: `packages/core/src/import/import-project.ts`
 - Modify: `packages/ui/src/AppShell.tsx`
-- Modify: board, backlog, table, bugs, my work, roadmap, calendar, and search views
-- Add tests in `packages/core/src/commands/dispatcher.test.ts`
-- Add component tests for updated views
-- Modify: `AI.md`
-- Modify: `Readme.md`
-
-- [ ] Define a shared filter representation for type, status, priority, assignee, label, milestone, dates, and text query.
-- [ ] Let users save a filter/view from board, backlog, table, and bug triage.
-- [ ] Show saved views in the project view bar without breaking hidden-view settings.
-- [ ] Add delete/rename/reorder for saved views.
-- [ ] Verify import/export preserves saved views.
-
-### PR 5: Backlog And Table Parity
-
-**Intent:** Make high-density planning feel credible.
-
-**Files:**
-
+- Modify: `packages/ui/src/ProjectRouter.tsx`
+- Create: `packages/ui/src/views/planning/view-helpers.ts`
+- Modify: `packages/ui/src/views/board/BoardView.tsx`
 - Modify: `packages/ui/src/views/backlog/BacklogView.tsx`
 - Modify: `packages/ui/src/views/table/TableView.tsx`
-- Modify: `packages/ui/src/components/table/DataTable.tsx`
-- Modify: `packages/ui/src/components/work/WorkItemRow.tsx`
-- Add or expand tests for backlog/table behavior
+- Modify: `packages/ui/src/theme/global.css`
+- Add or expand tests in `packages/core/src/commands/dispatcher.test.ts`
+- Add or expand component tests for `AppShell`, `ProjectRouter`, `BoardView`, `BacklogView`, and `TableView`
 - Modify: `AI.md`
 - Modify: `Readme.md`
 
-- [ ] Add backlog filters and sort controls.
-- [ ] Add table column visibility and column order settings.
-- [ ] Add safe inline edits for status, priority, assignee, milestone, and due date.
+- [x] Define a shared filter representation for type, status, priority, assignee, label, milestone, and text query. Date filters remain deferred.
+- [x] Let users save a filter/view from board, backlog, and table. Bug triage saved-view creation remains deferred.
+- [x] Show saved views in the project view bar without breaking hidden-view settings.
+- [x] Add delete/rename/reorder for saved board, backlog, and table views.
+- [x] Verify import/export preserves saved views and rejects dangling saved-view filter references.
+- [x] Add backlog text/type/status/priority/assignee/milestone filters and saved-view-backed sort persistence.
+- [x] Add table column visibility settings and persisted column-order storage. Drag/drop column reordering remains deferred.
+- [x] Add safe inline edits for status, priority, assignee, milestone, and due date.
 - [ ] Add bulk selection and bulk status/priority/assignee updates.
-- [ ] Preserve keyboard navigation and accessible sortable headers.
+- [x] Preserve keyboard navigation and accessible sortable headers.
 
-### PR 6: Roadmap And Milestone Planning
+### PR 5: Roadmap And Milestone Planning
 
 **Intent:** Make planning across dates and milestones useful without becoming heavyweight scheduling software.
 
@@ -442,7 +434,7 @@ PR body must include:
 - [ ] Add an agenda-style calendar list for upcoming start/due dates and reminders.
 - [ ] Keep date-only semantics unchanged.
 
-### PR 7: Bug Intake And Triage Workflow
+### PR 6: Bug Intake And Triage Workflow
 
 **Intent:** Turn bug triage into a true intake and decision surface.
 
@@ -462,7 +454,7 @@ PR body must include:
 - [ ] Add bug source/context fields using plugin-owned data.
 - [ ] Add filters for severity, priority, stale bugs, unassigned bugs, and needs-repro.
 
-### PR 8: Automation Rule Builder
+### PR 7: Automation Rule Builder
 
 **Intent:** Surface the structured automation model in a calm rule-builder UI.
 
@@ -483,7 +475,7 @@ PR body must include:
 - [ ] Show a dry-run preview before saving a rule.
 - [ ] Execute rules through the same validated command surface.
 
-### PR 9: Project Overview And Dashboard
+### PR 8: Project Overview And Dashboard
 
 **Intent:** Give users a first screen that answers "what needs attention?"
 
@@ -505,7 +497,7 @@ PR body must include:
 - [ ] Show open bugs by severity.
 - [ ] Show storage trust and save state in context.
 
-### PR 10: Docs Knowledge System
+### PR 9: Docs Knowledge System
 
 **Intent:** Make docs feel like project knowledge rather than a Markdown side tab.
 
@@ -526,7 +518,7 @@ PR body must include:
 - [ ] Add doc search inside the docs surface.
 - [ ] Preserve router-safe internal links.
 
-### PR 11: Settings Decomposition And AI Bridge Truth-In-UI
+### PR 10: Settings Decomposition And AI Bridge Truth-In-UI
 
 **Intent:** Reduce settings risk and remove placeholder bridge promises.
 
@@ -544,7 +536,7 @@ PR body must include:
 - [ ] Keep plugin trust language risk-aware.
 - [ ] Verify settings navigation remains keyboard accessible.
 
-### PR 12: Responsive, Accessibility, And Release Polish
+### PR 11: Responsive, Accessibility, And Release Polish
 
 **Intent:** Make the improved product feel coherent across desktop, narrow screens, keyboard workflows, and release artifacts.
 

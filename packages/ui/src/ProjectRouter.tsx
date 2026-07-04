@@ -12,8 +12,10 @@ import { TrashView } from "./views/trash/TrashView";
 import { SearchView } from "./views/search/SearchView";
 import { SettingsView } from "./views/settings/SettingsView";
 import { WorkItemModal, CreateItemDialog } from "./work-item";
-import { Link, Navigate, Route, Routes } from "react-router-dom";
+import { Link, Navigate, Route, Routes, useLocation, useParams } from "react-router-dom";
 import { openCreateItem } from "./commands/palette-bus";
+import type { BacklogView as BacklogViewDef, BoardView as BoardViewDef, TableView as TableViewDef, View } from "@gph/core";
+import { savedViewsForBundle } from "./views/planning/view-helpers";
 
 /**
  * Routes that need a project. They guard against an empty bundle and prompt the user
@@ -38,17 +40,24 @@ export function ProjectRouter() {
 }
 
 function ProjectRoutes() {
-  const kanbanModule = useProjectStore((s) => s.bundle?.modules["builtin.kanban"]);
-  const views = (kanbanModule?.data as { views?: Record<string, { id: string; type: string; name: string }> })?.views ?? {};
-  const boardView = Object.values(views).find((v) => v.type === "board") ?? Object.values(views)[0];
+  const bundle = useProjectStore((s) => s.bundle);
+  const location = useLocation();
+  const views = bundle ? savedViewsForBundle(bundle) : [];
+  const boardView =
+    views.find((v): v is BoardViewDef => v.id === bundle?.projectSettings.defaultViewId && v.type === "board") ??
+    views.find((v): v is BoardViewDef => v.type === "board");
+  const isItemRoute = location.pathname.startsWith("/item/");
 
   return (
     <>
       <Routes>
         <Route path="/" element={<Navigate to="/board" replace />} />
-        <Route path="/board" element={boardView ? <BoardView view={boardView as never} /> : <BacklogView />} />
+        <Route path="/board" element={boardView ? <BoardView view={boardView as BoardViewDef} /> : <BacklogView />} />
+        <Route path="/board/view/:viewId" element={<SavedBoardRoute views={views} />} />
         <Route path="/backlog" element={<BacklogView />} />
+        <Route path="/backlog/view/:viewId" element={<SavedBacklogRoute views={views} />} />
         <Route path="/table" element={<TableView />} />
+        <Route path="/table/view/:viewId" element={<SavedTableRoute views={views} />} />
         <Route path="/docs" element={<DocsView />} />
         <Route path="/doc/:docId" element={<DocsView />} />
         <Route path="/roadmap" element={<RoadmapView />} />
@@ -58,13 +67,34 @@ function ProjectRoutes() {
         <Route path="/trash" element={<TrashView />} />
         <Route path="/search" element={<SearchView />} />
         <Route path="/settings" element={<SettingsView />} />
+        <Route path="/item/:itemId" element={null} />
       </Routes>
-      <Routes>
-        <Route path="/item/:itemId" element={<WorkItemModal />} />
-      </Routes>
+      {isItemRoute ? (
+        <Routes>
+          <Route path="/item/:itemId" element={<WorkItemModal />} />
+        </Routes>
+      ) : null}
       <CreateItemDialogWithShortcut />
     </>
   );
+}
+
+function SavedBoardRoute({ views }: { views: View[] }) {
+  const { viewId } = useParams();
+  const view = views.find((entry): entry is BoardViewDef => entry.id === viewId && entry.type === "board");
+  return view ? <BoardView view={view} /> : <Navigate to="/board" replace />;
+}
+
+function SavedBacklogRoute({ views }: { views: View[] }) {
+  const { viewId } = useParams();
+  const view = views.find((entry): entry is BacklogViewDef => entry.id === viewId && entry.type === "backlog");
+  return view ? <BacklogView view={view} /> : <Navigate to="/backlog" replace />;
+}
+
+function SavedTableRoute({ views }: { views: View[] }) {
+  const { viewId } = useParams();
+  const view = views.find((entry): entry is TableViewDef => entry.id === viewId && entry.type === "table");
+  return view ? <TableView view={view} /> : <Navigate to="/table" replace />;
 }
 
 function CreateItemDialogWithShortcut() {

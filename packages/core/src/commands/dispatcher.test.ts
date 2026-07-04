@@ -144,6 +144,103 @@ describe("command dispatcher", () => {
     expect(Object.keys(newViews).length).toBe(Object.keys(beforeViews).length + 1);
   });
 
+  it("creates saved planning views with shared filters, sort, and ordering", () => {
+    let bundle = createProjectBundle({ name: "P" });
+    bundle = dispatchCommand(
+      bundle,
+      envelopeFor({ type: "member.create", projectId: bundle.project.id, displayName: "Maya" }, "ui", null)
+    ).bundle;
+    bundle = dispatchCommand(
+      bundle,
+      envelopeFor({ type: "label.create", projectId: bundle.project.id, name: "frontend" }, "ui", null)
+    ).bundle;
+    bundle = dispatchCommand(
+      bundle,
+      envelopeFor({ type: "milestone.create", projectId: bundle.project.id, name: "v1" }, "ui", null)
+    ).bundle;
+    const memberId = bundle.core.members[0].id;
+    const labelId = bundle.core.labels[0].id;
+    const milestoneId = bundle.core.milestones[0].id;
+    const statusId = bundle.core.statuses[0].id;
+    const priorityId = bundle.core.priorities[0].id;
+    const typeId = bundle.core.itemTypes[0].id;
+
+    const result = dispatchCommand(
+      bundle,
+      envelopeFor(
+        {
+          type: "view.create",
+          projectId: bundle.project.id,
+          viewType: "backlog",
+          name: "Current release",
+          config: {
+            order: 512,
+            groupBy: "status",
+            filter: {
+              query: "auth",
+              typeIds: [typeId],
+              statusIds: [statusId],
+              priorityIds: [priorityId],
+              assigneeIds: [memberId],
+              labelIds: [labelId],
+              milestoneIds: [milestoneId]
+            },
+            sort: { field: "dueDate", direction: "asc" }
+          }
+        } as never,
+        "ui",
+        null
+      )
+    );
+    const views = (result.bundle.modules["builtin.kanban"].data as { views?: Record<string, unknown> }).views ?? {};
+    const saved = Object.values(views).find((view) => (view as { name?: string }).name === "Current release") as {
+      filter?: {
+        query?: string;
+        typeIds?: string[];
+        statusIds?: string[];
+        priorityIds?: string[];
+        assigneeIds?: string[];
+        labelIds?: string[];
+        milestoneIds?: string[];
+      };
+      groupBy?: string;
+      order?: number;
+      sort?: { field?: string; direction?: string };
+    };
+
+    expect(saved.order).toBe(512);
+    expect(saved.groupBy).toBe("status");
+    expect(saved.filter?.query).toBe("auth");
+    expect(saved.filter?.typeIds).toEqual([typeId]);
+    expect(saved.filter?.statusIds).toEqual([statusId]);
+    expect(saved.filter?.priorityIds).toEqual([priorityId]);
+    expect(saved.filter?.assigneeIds).toEqual([memberId]);
+    expect(saved.filter?.labelIds).toEqual([labelId]);
+    expect(saved.filter?.milestoneIds).toEqual([milestoneId]);
+    expect(saved.sort).toEqual({ field: "dueDate", direction: "asc" });
+  });
+
+  it("rejects saved view filters with dangling references", () => {
+    const bundle = createProjectBundle({ name: "P" });
+
+    expect(() =>
+      dispatchCommand(
+        bundle,
+        envelopeFor(
+          {
+            type: "view.create",
+            projectId: bundle.project.id,
+            viewType: "table",
+            name: "Broken table",
+            config: { filter: { statusIds: ["status_missing"] } }
+          } as never,
+          "ui",
+          null
+        )
+      )
+    ).toThrow(/View filter status not found/);
+  });
+
   it("permanently deletes an item and cascades to relationships, reminders, attachments, and doc links", () => {
     const bundle = createProjectBundle({ name: "P" });
     let b = bundle;

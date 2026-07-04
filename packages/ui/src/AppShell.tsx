@@ -24,6 +24,7 @@ import { CommandPalette, registerCoreCommands } from "./commands/CommandPalette"
 import { openPalette } from "./commands/palette-bus";
 import { Button, IconButton } from "./components";
 import { PROJECT_NAV_ITEMS } from "./nav-config";
+import { hasRegisteredSavedRoute, savedViewsForBundle, viewRoute } from "./views/planning/view-helpers";
 
 export type AppShellProps = {
   appMode: "web" | "desktop";
@@ -149,6 +150,13 @@ export function AppShell({ appMode, children }: AppShellProps) {
     () => NAV_ITEMS.filter((item) => !hiddenViewIds.includes(item.id)),
     [hiddenViewIds]
   );
+  const savedPlanningViews = useMemo(
+    () => bundle ? savedViewsForBundle(bundle).filter((view) => (
+      view.id !== bundle.projectSettings.defaultViewId &&
+      hasRegisteredSavedRoute(view)
+    )) : [],
+    [bundle]
+  );
   const isProjectRoute = useMemo(
     () =>
       location.pathname !== "/" &&
@@ -259,7 +267,7 @@ export function AppShell({ appMode, children }: AppShellProps) {
       </header>
 
       <main className="app-main">
-        {isProjectRoute && bundle ? <ProjectViewTabs items={visibleNavItems} /> : null}
+        {isProjectRoute && bundle ? <ProjectViewTabs items={visibleNavItems} savedViews={savedPlanningViews} /> : null}
         <div className="view-content">{children}</div>
       </main>
 
@@ -268,7 +276,7 @@ export function AppShell({ appMode, children }: AppShellProps) {
   );
 }
 
-function ProjectViewTabs({ items }: { items: typeof NAV_ITEMS }) {
+function ProjectViewTabs({ items, savedViews }: { items: typeof NAV_ITEMS; savedViews: ReturnType<typeof savedViewsForBundle> }) {
   const location = useLocation();
   return (
     <div className="viewbar" role="tablist" aria-label="Project views">
@@ -285,6 +293,20 @@ function ProjectViewTabs({ items }: { items: typeof NAV_ITEMS }) {
           {item.label}
         </Link>
       ))}
+      {savedViews.map((view) => {
+        const to = viewRoute(view);
+        return (
+          <Link
+            key={view.id}
+            to={to}
+            role="tab"
+            aria-current={location.pathname === to ? "page" : undefined}
+            className="viewbar-tab viewbar-tab-saved"
+          >
+            {view.name}
+          </Link>
+        );
+      })}
     </div>
   );
 }

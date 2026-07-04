@@ -67,6 +67,8 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - `EventRecord` log with `source: "ui" | "import" | "automation" | "mcp" | "system"`
 - project-level `TrashRecord` for soft-deleted records; permanent deletion is gated, and the UI-supported restore/permanent-delete surface currently covers work items, documents, and attachments
 - `projectSettings.hiddenViewIds` for left-panel/viewbar visibility preferences without deleting underlying views
+- saved view definitions now share optional `WorkItemFilter`, `ViewSort`, and `order` fields across board, backlog, table, and my-work style views; the shared filter covers text query plus type, status, priority, assignee, label, and milestone ID arrays
+- table views may persist `visibleColumns` and `columnOrder`; backlog views may group by `status`; board/backlog/table saved views all keep their configuration in the core view map rather than in route-local UI state
 
 ## Storage model summary
 
@@ -108,6 +110,8 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - relationship, comment, milestone, label, status, priority, type, doc, reminder, attachment, view, and search commands now reject project mismatches or unknown mutation targets instead of silently bumping revisions
   - saved view create/update paths validate board status references and my-work member filters before mutating the active bundle, matching the import validator's saved-view checks
   - JSON import now performs deep bundle reference validation through `validateProjectBundle()`, rejecting dangling item, relationship, reminder, attachment, folder, and board-view references before the UI can call `setBundle()`
+  - saved view create/update paths now normalize shared `filter`, `sort`, and `order` configuration, reject malformed filter arrays or unknown sort fields, and validate filter references against known types, statuses, priorities, members, labels, and milestones before mutating the bundle
+  - JSON import now remaps saved-view filter references during project import and validates remapped saved-view filter IDs before replacing the active project, so portable exports cannot retain stale type/status/priority/member/label/milestone references
   - `doc.restore`, `doc.permanentlyDelete`, `attachment.restore`, and `attachment.permanentlyDelete` now use the same command surface as work-item restore/delete, and doc/attachment soft deletes emit readable activity events
   - `doc.delete` removes document-scoped reminders from the active reminder array, moves document-scoped attachments into attachment trash records, and stores removed document reminders with the document trash payload so restore can rehydrate them without leaving invalid active references
   - `doc.permanentlyDelete` removes document-scoped reminders plus active and trashed document-scoped attachments so hard-deleting a trashed document cannot leave dangling document references behind
@@ -159,7 +163,9 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - desktop folder scan/open flow for existing `.pm-suite` saves
   - PWA/browser folder picker for creating and reopening local-folder projects when File System Access is available
   - automatic last-project restore after reload via persisted active-session metadata
-- per-project view tabs across board, backlog, table, roadmap, calendar, docs, bug triage, my work, search, and trash
+- per-project view tabs across board, backlog, table, roadmap, calendar, docs, bug triage, my work, search, trash, and saved planning views; `AppShell` reads saved board/backlog/table/bug/my-work views from the active bundle and keeps them separate from hidden built-in route preferences
+- `ProjectRouter` keeps `/board` pinned to `projectSettings.defaultViewId` when that view is a board, even if saved board views have earlier ordering, and only mounts the work-item modal overlay route while the current path is `/item/:itemId`
+- saved board/backlog/table views keep multi-value filter arrays intact when hydrated into the current single-select toolbar controls; selecting a concrete value intentionally narrows that one dimension, while untouched imported/command-created multi-value filters remain multi-value on update
 - create-item entry points now carry view context through `CreateItemPrefill` in `palette-bus.ts`; the shared dialog can receive and expose `typeId`, `statusId`, `priorityId`, and `assigneeId`, so board, bug triage, and my-work creates no longer drop the context that made the user click that surface's action in the first place
 - the create-item dialog derives type defaults from dependency-tracked type-registry inputs while open, and its form-opening reset is split from derived default refreshes so a settings-level type default change can update selects without clearing a user's typed title or description
 - modal-style work item detail at `/item/:id` with full edit, checklist conversion, inline comment editing, subtasks, relationships, attachments, reminders, custom fields, readable activity, and pinned action footer; `WorkItemModal.tsx` is now the owning implementation and routes through the shared `Modal` primitive with `size="work-item"`, while `WorkItemDrawer.tsx` is only a compatibility wrapper that renders `WorkItemModal`
@@ -170,7 +176,11 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - work-item metadata now surfaces the next scheduled reminder above the detail sections so upcoming item-level follow-up is visible without opening the reminder editor section
 - custom fields in item detail live in `CustomFieldsPanel.tsx` and route through `item.update` with `patch.customFields`; optional empty values are removed from the item map, required empty values stay blocked with inline validation, and the panel only shows fields applicable to the item's current type
 - table view now adds read-only columns for active custom fields, showing `None` for empty applicable values and `Not applicable` where a field does not apply to a row's item type
+- table view now supports shared saved-view filters, base-column visibility toggles, persisted visible-column and column-order settings, and command-backed inline edits for status, priority, assignee, milestone, and due date
+- table saved views apply persisted `columnOrder` during render; custom-field columns still append when not named by the saved order so active custom fields remain discoverable
 - backlog rows now show compact custom-field metadata tags for populated applicable fields, limited to the first few ordered fields to keep the row scannable
+- backlog view now supports shared text/type/status/priority/assignee/milestone filters and board/backlog/table style saved-view actions for save-as, update, delete, and left/right ordering
+- board view now supports text/type/status filtering plus save-as, update, delete, and left/right ordering for saved board views while preserving board-column configuration in the saved view payload
 - `/trash` is a first-class route in the shared navigation; `TrashView` lists project trash records, supports restore and confirmed permanent deletion for work items, documents, and attachments, and marks unsupported trash record types as unavailable instead of pretending they can be restored
 - Trash restore/permanent-delete UI catches command failures, closes the confirmation if one is open, and surfaces an inline danger alert so broken historical references do not trap the user in a modal
 - work-item modal relationship selectors now memoize item and relationship derivations, so transient local-state changes such as typing in comments do not rebuild every relationship group on large projects
@@ -262,6 +272,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - item-reference validation and unknown-target rejection in dispatcher commands
   - reminder target validation on create and update commands
   - saved-view reference validation for `view.create` and `view.update`
+  - saved-view shared filter/sort/order validation, import remapping, project viewbar rendering, default-board route selection, and board/backlog/table save/update/delete/reorder workflows
   - project-id mismatch rejection for `project.updateSettings`
   - lossy checklist reorder rejection
   - deep JSON import reference validation
@@ -412,6 +423,18 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - applied the second PR #14 Greptile follow-up by:
   - making `doc.delete` keep bundles valid during the trash window by moving document-scoped attachments to trash records and storing/removing document reminders until restore
   - extending dispatcher coverage so document trash, document restore, and bundle validation are verified before permanent deletion
+- continued the July 2026 planning parity pass with saved views and backlog/table upgrades by:
+  - adding shared saved-view `WorkItemFilter`, `ViewSort`, and `order` fields to core view definitions and validating them in dispatcher create/update paths
+  - remapping and validating saved-view filter references during JSON import so exported projects remain portable across generated IDs
+  - surfacing saved planning views in the project view bar without changing hidden built-in view preferences
+  - adding board, backlog, and table save-as/update/delete/reorder flows for saved working views
+  - adding backlog shared filters and table column visibility plus command-backed inline status, priority, assignee, milestone, and due-date edits
+  - adding focused core and UI regression coverage for saved-view filters, viewbar rendering, default board routing, backlog saved views, board saved views, and table inline/editable saved views
+- applied the PR #15 Greptile follow-up by:
+  - limiting AppShell saved-view tabs to saved view types with registered routes so bug/my-work saved views cannot navigate to missing `/bugs/view/:id` or `/mywork/view/:id` routes
+  - preserving multi-value saved filters in board, backlog, and table while retaining the current single-select toolbar controls for manual narrowing
+  - applying table `columnOrder` during render and saving the ordered visible column subset on table view save/update
+  - adding regression coverage for all five review findings
 
 ## Open follow-on planning
 
