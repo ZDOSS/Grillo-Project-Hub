@@ -63,6 +63,8 @@ export type CommandPayload =
   | DocCreatePayload
   | DocUpdatePayload
   | DocDeletePayload
+  | DocRestorePayload
+  | DocPermanentlyDeletePayload
   | DocMovePayload
   | CustomFieldDefinePayload
   | ReminderCreatePayload
@@ -70,6 +72,8 @@ export type CommandPayload =
   | ReminderDeletePayload
   | AttachmentAddPayload
   | AttachmentDeletePayload
+  | AttachmentRestorePayload
+  | AttachmentPermanentlyDeletePayload
   | ViewCreatePayload
   | ViewUpdatePayload
   | ViewDeletePayload
@@ -344,6 +348,16 @@ export type DocDeletePayload = {
   projectId: ProjectId;
   docId: string;
 };
+export type DocRestorePayload = {
+  type: "doc.restore";
+  projectId: ProjectId;
+  docId: string;
+};
+export type DocPermanentlyDeletePayload = {
+  type: "doc.permanentlyDelete";
+  projectId: ProjectId;
+  docId: string;
+};
 export type DocMovePayload = {
   type: "doc.move";
   projectId: ProjectId;
@@ -400,6 +414,16 @@ export type AttachmentAddPayload = {
 };
 export type AttachmentDeletePayload = {
   type: "attachment.delete";
+  projectId: ProjectId;
+  attachmentId: string;
+};
+export type AttachmentRestorePayload = {
+  type: "attachment.restore";
+  projectId: ProjectId;
+  attachmentId: string;
+};
+export type AttachmentPermanentlyDeletePayload = {
+  type: "attachment.permanentlyDelete";
   projectId: ProjectId;
   attachmentId: string;
 };

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
+  isFieldApplicableToType,
   type Label,
   type PriorityDefinition,
   type StatusDefinition,
@@ -17,6 +18,10 @@ import {
   type DataTableColumn
 } from "../../components";
 import { useProjectStore } from "../../store/project-store";
+import {
+  activeCustomFields,
+  formatCustomFieldValue
+} from "../../work-item/custom-fields";
 
 type SortKey = "title" | "status" | "priority" | "type" | "due" | "updated";
 
@@ -98,6 +103,10 @@ export function TableView() {
     });
     return out;
   }, [bundle, filterText, sortDir, sortKey, typeFilter]);
+  const customFields = useMemo(
+    () => (bundle ? activeCustomFields(bundle.core.customFields) : []),
+    [bundle]
+  );
 
   if (!bundle) return null;
 
@@ -173,6 +182,16 @@ export function TableView() {
         </div>
       )
     },
+    ...customFields.map((field): DataTableColumn<Row> => ({
+      id: `custom-${field.id}`,
+      header: field.name,
+      render: ({ item }) => {
+        if (!isFieldApplicableToType(field, item.typeId)) {
+          return <span className="text-xs text-muted">Not applicable</span>;
+        }
+        return formatCustomFieldValue(field, item.customFields?.[field.id]);
+      }
+    })),
     {
       id: "due",
       header: header("due", "Due"),

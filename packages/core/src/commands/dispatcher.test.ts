@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createProjectBundle } from "../domain/project";
+import { createProjectBundle, validateProjectBundle } from "../domain/project";
 import { dispatchCommand, envelopeFor } from "./dispatcher";
 
 describe("command dispatcher", () => {
@@ -179,6 +179,335 @@ describe("command dispatcher", () => {
     const doc = r.bundle.core.documents[r.bundle.core.documents.length - 1];
     expect(doc.body).not.toContain(`[[item:${aId}`);
     expect(doc.body).toContain("(deleted item)");
+  });
+
+  it("restores and permanently removes trashed documents through the command surface", () => {
+    const bundle = createProjectBundle({ name: "P" });
+    const withDoc = dispatchCommand(
+      bundle,
+      envelopeFor({ type: "doc.create", projectId: bundle.project.id, title: "Recovery doc", body: "Keep this" }, "ui", null)
+    ).bundle;
+    const docId = withDoc.core.documents[0].id;
+    const trashed = dispatchCommand(
+      withDoc,
+      envelopeFor({ type: "doc.delete", projectId: withDoc.project.id, docId }, "ui", null)
+    ).bundle;
+
+    const restored = dispatchCommand(
+      trashed,
+      envelopeFor({ type: "doc.restore", projectId: trashed.project.id, docId }, "ui", null)
+    ).bundle;
+
+    expect(restored.core.documents.find((doc) => doc.id === docId)?.title).toBe("Recovery doc");
+    expect(restored.core.trash.find((entry) => entry.recordType === "document" && entry.recordId === docId)).toBeUndefined();
+
+    const trashedAgain = dispatchCommand(
+      restored,
+      envelopeFor({ type: "doc.delete", projectId: restored.project.id, docId }, "ui", null)
+    ).bundle;
+    const permanentlyDeleted = dispatchCommand(
+      trashedAgain,
+      envelopeFor({ type: "doc.permanentlyDelete", projectId: trashedAgain.project.id, docId }, "ui", null)
+    ).bundle;
+
+    expect(permanentlyDeleted.core.documents.find((doc) => doc.id === docId)).toBeUndefined();
+    expect(permanentlyDeleted.core.trash.find((entry) => entry.recordType === "document" && entry.recordId === docId)).toBeUndefined();
+  });
+
+  it("trashes a document without leaving active dependent references dangling", () => {
+    const bundle = createProjectBundle({ name: "P" });
+    const withDoc = dispatchCommand(
+      bundle,
+      envelopeFor({ type: "doc.create", projectId: bundle.project.id, title: "Spec", body: "Details" }, "ui", null)
+    ).bundle;
+    const docId = withDoc.core.documents[0].id;
+    const withAttachment = dispatchCommand(
+      withDoc,
+      envelopeFor({
+        type: "attachment.add",
+        projectId: withDoc.project.id,
+        filename: "spec.png",
+        mediaType: "image/png",
+        size: 100,
+        docId
+      }, "ui", null)
+    ).bundle;
+    const attachmentId = withAttachment.core.attachments[0].id;
+    const withReminder = dispatchCommand(
+      withAttachment,
+      envelopeFor({
+        type: "reminder.create",
+        projectId: withAttachment.project.id,
+        targetType: "document",
+        targetId: docId,
+        remindAt: "2030-01-01T00:00:00.000Z",
+        timeZone: "UTC"
+      }, "ui", null)
+    ).bundle;
+    const reminderId = withReminder.core.reminders[0].id;
+
+    const trashed = dispatchCommand(
+      withReminder,
+      envelopeFor({ type: "doc.delete", projectId: withReminder.project.id, docId }, "ui", null)
+    ).bundle;
+
+    expect(trashed.core.documents.some((doc) => doc.id === docId)).toBe(false);
+    expect(trashed.core.attachments.some((attachment) => attachment.docId === docId)).toBe(false);
+    expect(trashed.core.reminders.some((reminder) => reminder.targetType === "document" && reminder.targetId === docId)).toBe(false);
+    expect(trashed.core.trash.some((entry) => entry.recordType === "attachment" && entry.recordId === attachmentId)).toBe(true);
+    expect(() => validateProjectBundle(trashed)).not.toThrow();
+
+    const restored = dispatchCommand(
+      trashed,
+      envelopeFor({ type: "doc.restore", projectId: trashed.project.id, docId }, "ui", null)
+    ).bundle;
+
+    expect(restored.core.documents.some((doc) => doc.id === docId)).toBe(true);
+    expect(restored.core.reminders.some((reminder) => reminder.id === reminderId)).toBe(true);
+    expect(restored.core.attachments.some((attachment) => attachment.id === attachmentId)).toBe(false);
+    expect(restored.core.trash.some((entry) => entry.recordType === "attachment" && entry.recordId === attachmentId)).toBe(true);
+    expect(() => validateProjectBundle(restored)).not.toThrow();
+  });
+
+  it("permanently deletes a document and removes document-scoped dependents", () => {
+    const bundle = createProjectBundle({ name: "P" });
+    const withDoc = dispatchCommand(
+      bundle,
+      envelopeFor({ type: "doc.create", projectId: bundle.project.id, title: "Decision record", body: "Context" }, "ui", null)
+    ).bundle;
+    const docId = withDoc.core.documents[0].id;
+    const withAttachment = dispatchCommand(
+      withDoc,
+      envelopeFor({
+        type: "attachment.add",
+        projectId: withDoc.project.id,
+        filename: "decision.png",
+        mediaType: "image/png",
+        size: 100,
+        docId
+      }, "ui", null)
+    ).bundle;
+    const attachmentId = withAttachment.core.attachments[0].id;
+    const withReminder = dispatchCommand(
+      withAttachment,
+      envelopeFor({
+        type: "reminder.create",
+        projectId: withAttachment.project.id,
+        targetType: "document",
+        targetId: docId,
+        remindAt: "2030-01-01T00:00:00.000Z",
+        timeZone: "UTC"
+      }, "ui", null)
+    ).bundle;
+    const trashedAttachment = dispatchCommand(
+      withReminder,
+      envelopeFor({ type: "attachment.delete", projectId: withReminder.project.id, attachmentId }, "ui", null)
+    ).bundle;
+    const trashedDoc = dispatchCommand(
+      trashedAttachment,
+      envelopeFor({ type: "doc.delete", projectId: trashedAttachment.project.id, docId }, "ui", null)
+    ).bundle;
+
+    const permanentlyDeleted = dispatchCommand(
+      trashedDoc,
+      envelopeFor({ type: "doc.permanentlyDelete", projectId: trashedDoc.project.id, docId }, "ui", null)
+    ).bundle;
+
+    expect(permanentlyDeleted.core.documents.some((doc) => doc.id === docId)).toBe(false);
+    expect(permanentlyDeleted.core.attachments.some((attachment) => attachment.docId === docId)).toBe(false);
+    expect(permanentlyDeleted.core.reminders.some((reminder) => reminder.targetType === "document" && reminder.targetId === docId)).toBe(false);
+    expect(permanentlyDeleted.core.trash.some((entry) => entry.recordType === "attachment" && entry.recordId === attachmentId)).toBe(false);
+    expect(() => validateProjectBundle(permanentlyDeleted)).not.toThrow();
+  });
+
+  it("restores and permanently removes trashed attachments through the command surface", () => {
+    const bundle = createProjectBundle({ name: "P" });
+    const withItem = dispatchCommand(
+      bundle,
+      envelopeFor({ type: "item.create", projectId: bundle.project.id, typeId: "task", title: "Attachment owner" }, "ui", null)
+    ).bundle;
+    const itemId = withItem.core.items[0].id;
+    const withAttachment = dispatchCommand(
+      withItem,
+      envelopeFor({
+        type: "attachment.add",
+        projectId: withItem.project.id,
+        filename: "evidence.txt",
+        mediaType: "text/plain",
+        size: 12,
+        itemId
+      }, "ui", null)
+    ).bundle;
+    const attachmentId = withAttachment.core.attachments[0].id;
+    const trashed = dispatchCommand(
+      withAttachment,
+      envelopeFor({ type: "attachment.delete", projectId: withAttachment.project.id, attachmentId }, "ui", null)
+    ).bundle;
+
+    const restored = dispatchCommand(
+      trashed,
+      envelopeFor({ type: "attachment.restore", projectId: trashed.project.id, attachmentId }, "ui", null)
+    ).bundle;
+
+    expect(restored.core.attachments.find((attachment) => attachment.id === attachmentId)?.filename).toBe("evidence.txt");
+    expect(restored.core.trash.find((entry) => entry.recordType === "attachment" && entry.recordId === attachmentId)).toBeUndefined();
+
+    const trashedAgain = dispatchCommand(
+      restored,
+      envelopeFor({ type: "attachment.delete", projectId: restored.project.id, attachmentId }, "ui", null)
+    ).bundle;
+    const permanentlyDeleted = dispatchCommand(
+      trashedAgain,
+      envelopeFor({ type: "attachment.permanentlyDelete", projectId: trashedAgain.project.id, attachmentId }, "ui", null)
+    ).bundle;
+
+    expect(permanentlyDeleted.core.attachments.find((attachment) => attachment.id === attachmentId)).toBeUndefined();
+    expect(permanentlyDeleted.core.trash.find((entry) => entry.recordType === "attachment" && entry.recordId === attachmentId)).toBeUndefined();
+  });
+
+  it("validates custom field values when item updates include custom fields", () => {
+    const bundle = createProjectBundle({ name: "P" });
+    const withFields = dispatchCommand(
+      bundle,
+      envelopeFor({
+        type: "customField.define",
+        projectId: bundle.project.id,
+        field: {
+          name: "Risk",
+          type: "select",
+          options: ["Low", "High"],
+          required: true
+        }
+      }, "ui", null)
+    ).bundle;
+    const fieldId = withFields.core.customFields[0].id;
+    const withItem = dispatchCommand(
+      withFields,
+      envelopeFor({ type: "item.create", projectId: withFields.project.id, typeId: "task", title: "Risky work" }, "ui", null)
+    ).bundle;
+    const itemId = withItem.core.items[0].id;
+
+    expect(() =>
+      dispatchCommand(
+        withItem,
+        envelopeFor({
+          type: "item.update",
+          projectId: withItem.project.id,
+          itemId,
+          patch: { customFields: { [fieldId]: "Medium" } }
+        }, "ui", null)
+      )
+    ).toThrow(/unknown option/i);
+
+    expect(() =>
+      dispatchCommand(
+        withItem,
+        envelopeFor({
+          type: "item.update",
+          projectId: withItem.project.id,
+          itemId,
+          patch: { customFields: { [fieldId]: null } }
+        }, "ui", null)
+      )
+    ).toThrow(/required/i);
+
+    const updated = dispatchCommand(
+      withItem,
+      envelopeFor({
+        type: "item.update",
+        projectId: withItem.project.id,
+        itemId,
+        patch: { customFields: { [fieldId]: "High" } }
+      }, "ui", null)
+    ).bundle;
+
+    expect(updated.core.items[0].customFields?.[fieldId]).toBe("High");
+  });
+
+  it("rejects new custom field values that do not apply to the item type", () => {
+    const bundle = createProjectBundle({ name: "P" });
+    const withFields = dispatchCommand(
+      bundle,
+      envelopeFor({
+        type: "customField.define",
+        projectId: bundle.project.id,
+        field: {
+          name: "Bug risk",
+          type: "select",
+          options: ["Low", "High"],
+          applicableTypeIds: ["bug"]
+        }
+      }, "ui", null)
+    ).bundle;
+    const withGlobalField = dispatchCommand(
+      withFields,
+      envelopeFor({
+        type: "customField.define",
+        projectId: withFields.project.id,
+        field: {
+          name: "Owner note",
+          type: "text"
+        }
+      }, "ui", null)
+    ).bundle;
+    const bugOnlyFieldId = withGlobalField.core.customFields.find((field) => field.name === "Bug risk")!.id;
+    const globalFieldId = withGlobalField.core.customFields.find((field) => field.name === "Owner note")!.id;
+    const withTask = dispatchCommand(
+      withGlobalField,
+      envelopeFor({ type: "item.create", projectId: withGlobalField.project.id, typeId: "task", title: "Task work" }, "ui", null)
+    ).bundle;
+    const taskId = withTask.core.items[0].id;
+
+    expect(() =>
+      dispatchCommand(
+        withTask,
+        envelopeFor({
+          type: "item.update",
+          projectId: withTask.project.id,
+          itemId: taskId,
+          patch: { customFields: { [bugOnlyFieldId]: "High" } }
+        }, "ui", null)
+      )
+    ).toThrow(/does not apply/i);
+
+    const withBug = dispatchCommand(
+      withGlobalField,
+      envelopeFor({ type: "item.create", projectId: withGlobalField.project.id, typeId: "bug", title: "Bug work" }, "ui", null)
+    ).bundle;
+    const bugId = withBug.core.items[0].id;
+    const bugWithValue = dispatchCommand(
+      withBug,
+      envelopeFor({
+        type: "item.update",
+        projectId: withBug.project.id,
+        itemId: bugId,
+        patch: { customFields: { [bugOnlyFieldId]: "High" } }
+      }, "ui", null)
+    ).bundle;
+    const taskWithHiddenValue = dispatchCommand(
+      bugWithValue,
+      envelopeFor({
+        type: "item.update",
+        projectId: bugWithValue.project.id,
+        itemId: bugId,
+        patch: { typeId: "task" }
+      }, "ui", null)
+    ).bundle;
+
+    const editedWithHiddenValue = dispatchCommand(
+      taskWithHiddenValue,
+      envelopeFor({
+        type: "item.update",
+        projectId: taskWithHiddenValue.project.id,
+        itemId: bugId,
+        patch: { customFields: { [bugOnlyFieldId]: "High", [globalFieldId]: "Still editable" } }
+      }, "ui", null)
+    ).bundle;
+
+    expect(editedWithHiddenValue.core.items.find((item) => item.id === bugId)?.customFields).toMatchObject({
+      [bugOnlyFieldId]: "High",
+      [globalFieldId]: "Still editable"
+    });
   });
 
   it("updates project settings through the command surface", () => {

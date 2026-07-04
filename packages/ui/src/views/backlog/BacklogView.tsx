@@ -4,6 +4,7 @@ import { comparePriority, type WorkItem } from "@gph/core";
 import { Button, EmptyState, MetadataBadge, ViewToolbar } from "../../components";
 import { openCreateItem } from "../../commands/palette-bus";
 import { useProjectStore } from "../../store/project-store";
+import { customFieldSummariesForItem } from "../../work-item/custom-fields";
 
 export function BacklogView() {
   const bundle = useProjectStore((s) => s.bundle);
@@ -54,6 +55,7 @@ export function BacklogView() {
           const status = statuses.find((s) => s.id === item.statusId);
           const priority = priorities.find((p) => p.id === item.priorityId);
           const milestone = milestones.find((m) => m.id === item.milestoneId);
+          const customFieldSummaries = customFieldSummariesForItem(bundle.core.customFields, item);
           return (
             <div key={item.id} className="backlog-row gph-work-row">
               <span className="text-muted text-xs">#{item.id.slice(-4)}</span>
@@ -94,6 +96,13 @@ export function BacklogView() {
               </span>
               <span className="text-xs text-muted">{milestone?.name ?? ""}</span>
               <span className="text-xs">{item.dueDate ?? ""}</span>
+              <span className="backlog-custom-fields">
+                {customFieldSummaries.map((summary) => (
+                  <span key={summary.field.id} className="tag">
+                    {summary.text}
+                  </span>
+                ))}
+              </span>
             </div>
           );
         })}

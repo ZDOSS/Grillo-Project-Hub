@@ -55,7 +55,7 @@ docs/                        # current product/architecture plan
 The core domain in `packages/core/src/domain/` covers the entities the plan calls out:
 
 - `ProjectBundle` with `format`, `project`, `core`, `modules`, and `projectSettings`
-- `WorkItem` with stable IDs, type/priority/status references, parent-child hierarchy via single `parentId`, labels, milestones, dates, checklist, comments, plugin-owned `moduleData`, and typed `customFields`
+- `WorkItem` with stable IDs, type/priority/status references, parent-child hierarchy via single `parentId`, labels, milestones, dates, checklist, comments, plugin-owned `moduleData`, and typed `customFields`; custom field applicability is type-scoped and hidden values are preserved when an item changes to a type where a field no longer applies
 - customizable `WorkItemTypeDefinition` registry with `defaultStatusId` and `defaultPriorityId`
 - customizable `StatusDefinition` mapped to stable `planned`/`active`/`completed`/`canceled` categories
 - customizable `PriorityDefinition` with unique integer `rank`
@@ -65,7 +65,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - `Reminder` with separate UTC `remindAt` and IANA `timeZone`
 - `Attachment` metadata in the bundle, binary payloads in `attachments/` for folder-backed projects
 - `EventRecord` log with `source: "ui" | "import" | "automation" | "mcp" | "system"`
-- project-level `TrashRecord` for soft-deleted records; permanent deletion is gated
+- project-level `TrashRecord` for soft-deleted records; permanent deletion is gated, and the UI-supported restore/permanent-delete surface currently covers work items, documents, and attachments
 - `projectSettings.hiddenViewIds` for left-panel/viewbar visibility preferences without deleting underlying views
 
 ## Storage model summary
@@ -108,6 +108,10 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - relationship, comment, milestone, label, status, priority, type, doc, reminder, attachment, view, and search commands now reject project mismatches or unknown mutation targets instead of silently bumping revisions
   - saved view create/update paths validate board status references and my-work member filters before mutating the active bundle, matching the import validator's saved-view checks
   - JSON import now performs deep bundle reference validation through `validateProjectBundle()`, rejecting dangling item, relationship, reminder, attachment, folder, and board-view references before the UI can call `setBundle()`
+  - `doc.restore`, `doc.permanentlyDelete`, `attachment.restore`, and `attachment.permanentlyDelete` now use the same command surface as work-item restore/delete, and doc/attachment soft deletes emit readable activity events
+  - `doc.delete` removes document-scoped reminders from the active reminder array, moves document-scoped attachments into attachment trash records, and stores removed document reminders with the document trash payload so restore can rehydrate them without leaving invalid active references
+  - `doc.permanentlyDelete` removes document-scoped reminders plus active and trashed document-scoped attachments so hard-deleting a trashed document cannot leave dangling document references behind
+  - `item.update` validates supplied custom field values against the field registry, type, applicability, options, and required rules when the patch includes `customFields`; unrelated item updates intentionally do not revalidate hidden legacy values so type changes preserve existing custom field data
 
 ## Platform differences between web and desktop
 
@@ -140,6 +144,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - reminders store UTC `remindAt` plus IANA `timeZone`; changing display TZ never mutates the instant
 - checklist entries are not hidden work items; convert-to-subtask is one atomic validated command
 - archive preserves identity and references; trash is canonical project data; permanent deletion is explicit
+- custom-field values are stored on `WorkItem.customFields` as typed values keyed by custom field ID; inapplicable values must be hidden in UI surfaces, not deleted, so type changes do not lose data
 - WIP limits warn by default and may hard-block on the board when configured
 - status transitions route through `item.moveStatus` so backend automation and UI share the same validation
 
@@ -154,15 +159,20 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - desktop folder scan/open flow for existing `.pm-suite` saves
   - PWA/browser folder picker for creating and reopening local-folder projects when File System Access is available
   - automatic last-project restore after reload via persisted active-session metadata
-- per-project view tabs across board, backlog, table, roadmap, calendar, docs, bug triage, my work, search
+- per-project view tabs across board, backlog, table, roadmap, calendar, docs, bug triage, my work, search, and trash
 - create-item entry points now carry view context through `CreateItemPrefill` in `palette-bus.ts`; the shared dialog can receive and expose `typeId`, `statusId`, `priorityId`, and `assigneeId`, so board, bug triage, and my-work creates no longer drop the context that made the user click that surface's action in the first place
 - the create-item dialog derives type defaults from dependency-tracked type-registry inputs while open, and its form-opening reset is split from derived default refreshes so a settings-level type default change can update selects without clearing a user's typed title or description
-- modal-style work item detail at `/item/:id` with full edit, checklist conversion, inline comment editing, subtasks, relationships, attachments, reminders, activity, and pinned action footer; `WorkItemModal.tsx` is now the owning implementation and routes through the shared `Modal` primitive with `size="work-item"`, while `WorkItemDrawer.tsx` is only a compatibility wrapper that renders `WorkItemModal`
+- modal-style work item detail at `/item/:id` with full edit, checklist conversion, inline comment editing, subtasks, relationships, attachments, reminders, custom fields, readable activity, and pinned action footer; `WorkItemModal.tsx` is now the owning implementation and routes through the shared `Modal` primitive with `size="work-item"`, while `WorkItemDrawer.tsx` is only a compatibility wrapper that renders `WorkItemModal`
 - work item detail interactions avoid browser-native modal APIs for persisted edits/destructive work: comment edits use inline local state and `comment.edit`, permanent deletion uses shared `ConfirmDialog`, and relationship add/remove controls route through `relationship.create` / `relationship.delete` so duplicate/cycle validation remains in `@gph/core`
 - item-detail attachments live in `AttachmentPanel.tsx`, are filtered by `itemId`, and route through `attachment.add` / `attachment.delete`; browser-local uploads store a data URI fallback with `storagePath: null`, while preview rendering is intentionally constrained to image thumbnails, decoded text snippets, PDF metadata, or no inline preview for unsupported/binary media
 - `AttachmentPanel` rejects files larger than 5 MB before calling `FileReader.readAsDataURL()`, because this UI path currently stores browser-local attachment payloads as base64 data URIs in the bundle
 - item-detail reminders live in `ReminderPanel.tsx`, are filtered by `targetType: "workItem"` and `targetId`, and route through `reminder.create` / `reminder.update` / `reminder.delete`; reminder editing preserves the domain invariant that the stored value is a UTC `remindAt` instant plus the user's current IANA `timeZone`
 - work-item metadata now surfaces the next scheduled reminder above the detail sections so upcoming item-level follow-up is visible without opening the reminder editor section
+- custom fields in item detail live in `CustomFieldsPanel.tsx` and route through `item.update` with `patch.customFields`; optional empty values are removed from the item map, required empty values stay blocked with inline validation, and the panel only shows fields applicable to the item's current type
+- table view now adds read-only columns for active custom fields, showing `None` for empty applicable values and `Not applicable` where a field does not apply to a row's item type
+- backlog rows now show compact custom-field metadata tags for populated applicable fields, limited to the first few ordered fields to keep the row scannable
+- `/trash` is a first-class route in the shared navigation; `TrashView` lists project trash records, supports restore and confirmed permanent deletion for work items, documents, and attachments, and marks unsupported trash record types as unavailable instead of pretending they can be restored
+- Trash restore/permanent-delete UI catches command failures, closes the confirmation if one is open, and surfaces an inline danger alert so broken historical references do not trap the user in a modal
 - work-item modal relationship selectors now memoize item and relationship derivations, so transient local-state changes such as typing in comments do not rebuild every relationship group on large projects
 - comment editing disables `Save comment` until the body is non-empty and actually changed; the new-comment composer has a stable `aria-label="New comment"` instead of depending on placeholder text for its accessible name
 - shared `Modal` supports `closeOnEscape={false}` for stacked modal cases; `WorkItemModal` disables its Escape handler while the permanent-delete `ConfirmDialog` is open so Escape only cancels the top confirmation and preserves item-detail drafts
@@ -239,6 +249,12 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - board-context item creation that uses the first board column default status
   - my-work item creation that preselects the active local member as assignee
   - table priority and updated-date sort direction behavior
+  - trash restore and confirmed permanent deletion for work items, documents, and attachments
+  - document soft-delete cleanup for document-scoped reminders and attachments, including reminder restoration from the document trash payload
+  - document permanent-delete cleanup for document-scoped reminders and attachments
+  - trash action failure feedback that clears the confirmation dialog
+  - readable activity labels in work-item detail instead of raw internal event type strings
+  - work-item custom-field editing, non-applicable custom-field rejection, hidden-value preservation after type change, table custom-field columns, and backlog custom-field summaries
   - docs delete navigation to the nearest active remaining document, skipping archived docs
   - create-dialog default refresh when the type registry changes while the dialog is open, including preservation of typed title and description drafts
   - work-item unchanged-comment save disabling and the new-comment textarea accessible label
@@ -381,6 +397,21 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - applied the second PR #13 Greptile follow-up by:
   - splitting create-dialog opening resets from derived default refreshes so registry updates no longer clear in-progress title or description drafts
   - extending CreateItemDialog regression coverage to prove status defaults refresh while draft text is preserved
+- continued the July 2026 product-depth pass with trash, activity, and custom fields by:
+  - adding a shared `/trash` route with restore and confirmed permanent-delete actions for work items, documents, and attachments
+  - extending the command dispatcher with document and attachment restore/permanent-delete commands plus doc/attachment trash activity events
+  - rendering readable work-item activity labels through `formatActivityEvent()` instead of exposing raw event type strings in the modal
+  - adding `CustomFieldsPanel` for applicable item custom fields and preserving hidden custom-field values across type changes
+  - surfacing active custom fields in table columns and populated applicable custom fields as compact backlog metadata
+  - expanding dispatcher, modal, table, backlog, and trash regression coverage around those workflows
+- applied the PR #14 Greptile follow-up by:
+  - adding DCO sign-off to the implementation commit
+  - cascading document permanent deletion through document-scoped reminders plus active and trashed document attachments
+  - catching Trash view command failures and rendering inline feedback after closing the confirmation dialog
+  - rejecting new non-null values for custom fields that do not apply to the item's current type while still allowing unchanged hidden values to be preserved
+- applied the second PR #14 Greptile follow-up by:
+  - making `doc.delete` keep bundles valid during the trash window by moving document-scoped attachments to trash records and storing/removing document reminders until restore
+  - extending dispatcher coverage so document trash, document restore, and bundle validation are verified before permanent deletion
 
 ## Open follow-on planning
 

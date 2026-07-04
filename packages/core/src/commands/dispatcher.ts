@@ -29,16 +29,22 @@ import {
 } from "../domain/workflow";
 import { createWorkItemType } from "../domain/work-item-type";
 import { createDocument, createFolder } from "../domain/document";
-import { createCustomField } from "../domain/custom-field";
-import { createReminder } from "../domain/reminder";
-import { createAttachment } from "../domain/attachment";
+import { createCustomField, isFieldApplicableToType, validateCustomFieldValue, type CustomFieldValue } from "../domain/custom-field";
+import { createReminder, type Reminder } from "../domain/reminder";
+import { createAttachment, type Attachment } from "../domain/attachment";
 import { createEvent } from "../domain/event";
 import { nowTimestamp } from "../domain/dates";
 import { bumpRevision, type TrashRecord } from "../domain/project";
+import type { Document } from "../domain/document";
 import { createBoardView, createBacklogView, createTableView, createRoadmapView, createDocsView, createCalendarView, createBugsView, createMyWorkView, findColumnForStatus, type View } from "../domain/view";
 import { createSeverity } from "../domain/bug";
 import { generateId } from "../domain/ids";
 import { searchProject } from "../search/local-search";
+
+type DocumentTrashPayload = Document | {
+  document: Document;
+  reminders?: Reminder[];
+};
 
 /**
  * Result of dispatching a command. Includes the new bundle, generated events, and any
@@ -117,6 +123,8 @@ const dispatchers: Record<string, (b: ProjectBundle, env: CommandEnvelope) => Di
   "doc.create": (b, env) => createDocCommand(b, env.payload as Parameters<typeof createDocCommand>[1]),
   "doc.update": (b, env) => updateDocCommand(b, env.payload as Parameters<typeof updateDocCommand>[1]),
   "doc.delete": (b, env) => deleteDocCommand(b, env.payload as Parameters<typeof deleteDocCommand>[1]),
+  "doc.restore": (b, env) => restoreDocCommand(b, env.payload as Parameters<typeof restoreDocCommand>[1]),
+  "doc.permanentlyDelete": (b, env) => permanentlyDeleteDocCommand(b, env.payload as Parameters<typeof permanentlyDeleteDocCommand>[1]),
   "doc.move": (b, env) => moveDocCommand(b, env.payload as Parameters<typeof moveDocCommand>[1]),
   "customField.define": (b, env) => defineCustomFieldCommand(b, env.payload as Parameters<typeof defineCustomFieldCommand>[1]),
   "reminder.create": (b, env) => createReminderCommand(b, env.payload as Parameters<typeof createReminderCommand>[1]),
@@ -124,6 +132,8 @@ const dispatchers: Record<string, (b: ProjectBundle, env: CommandEnvelope) => Di
   "reminder.delete": (b, env) => deleteReminderCommand(b, env.payload as Parameters<typeof deleteReminderCommand>[1]),
   "attachment.add": (b, env) => addAttachmentCommand(b, env.payload as Parameters<typeof addAttachmentCommand>[1]),
   "attachment.delete": (b, env) => deleteAttachmentCommand(b, env.payload as Parameters<typeof deleteAttachmentCommand>[1]),
+  "attachment.restore": (b, env) => restoreAttachmentCommand(b, env.payload as Parameters<typeof restoreAttachmentCommand>[1]),
+  "attachment.permanentlyDelete": (b, env) => permanentlyDeleteAttachmentCommand(b, env.payload as Parameters<typeof permanentlyDeleteAttachmentCommand>[1]),
   "view.create": (b, env) => createViewCommand(b, env.payload as Parameters<typeof createViewCommand>[1]),
   "view.update": (b, env) => updateViewCommand(b, env.payload as Parameters<typeof updateViewCommand>[1]),
   "view.delete": (b, env) => deleteViewCommand(b, env.payload as Parameters<typeof deleteViewCommand>[1]),
@@ -185,6 +195,27 @@ function validateItemReferences(bundle: ProjectBundle, item: WorkItem): void {
       throw new Error("MVP allows only one level of subtasks; parent is already a subtask");
     }
   }
+}
+
+function validateItemCustomFields(bundle: ProjectBundle, item: WorkItem, previousItem?: WorkItem): void {
+  const values = item.customFields ?? {};
+  for (const [fieldId, value] of Object.entries(values)) {
+    const field = findRecordOrThrow(bundle.core.customFields, fieldId, "Custom field");
+    if (!isFieldApplicableToType(field, item.typeId)) {
+      if (value == null) continue;
+      if (previousItem && customFieldValuesEqual(previousItem.customFields?.[fieldId], value as CustomFieldValue)) continue;
+      throw new Error(`${field.name} does not apply to item type: ${item.typeId}`);
+    }
+    validateCustomFieldValue(field, value as CustomFieldValue);
+  }
+}
+
+function customFieldValuesEqual(a: CustomFieldValue | undefined, b: CustomFieldValue): boolean {
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b)) return false;
+    return a.length === b.length && a.every((entry, index) => entry === b[index]);
+  }
+  return a === b;
 }
 
 function assertReminderTargetExists(
@@ -336,6 +367,9 @@ function updateItem(bundle: ProjectBundle, payload: { projectId: string; itemId:
   const next: WorkItem = { ...item, ...stripReadOnly(payload.patch), updatedAt: nowTimestamp() };
   validateWorkItem(next);
   validateItemReferences(bundle, next);
+  if (Object.prototype.hasOwnProperty.call(payload.patch, "customFields")) {
+    validateItemCustomFields(bundle, next, item);
+  }
   if (next.parentId !== item.parentId) {
     if (next.parentId === item.id) throw new Error("Item cannot be its own parent");
     if (next.parentId && wouldCreateCycle(bundle.core.items, item.id, next.parentId)) {
@@ -895,13 +929,89 @@ function deleteDocCommand(bundle: ProjectBundle, payload: { projectId: string; d
   assertProjectId(bundle, payload.projectId);
   const doc = bundle.core.documents.find((d) => d.id === payload.docId);
   if (!doc) throw new Error("Document not found");
-  const trash: TrashRecord = { recordType: "document", recordId: doc.id, payload: doc, trashedAt: nowTimestamp() };
+  const now = nowTimestamp();
+  const docReminders = bundle.core.reminders.filter((entry) => entry.targetType === "document" && entry.targetId === doc.id);
+  const docAttachments = bundle.core.attachments.filter((entry) => entry.docId === doc.id);
+  const trashPayload: DocumentTrashPayload = docReminders.length > 0
+    ? { document: doc, reminders: docReminders }
+    : doc;
+  const trash: TrashRecord = { recordType: "document", recordId: doc.id, payload: trashPayload, trashedAt: now };
+  const attachmentTrash = docAttachments.map((attachment): TrashRecord => ({
+    recordType: "attachment",
+    recordId: attachment.id,
+    payload: attachment,
+    trashedAt: now,
+    notes: `Trashed with document ${doc.title}`
+  }));
   const nextBundle = withCore(bundle, (c) => ({
     ...c,
     documents: c.documents.filter((d) => d.id !== payload.docId),
-    trash: [...c.trash, trash]
+    reminders: c.reminders.filter((entry) => !(entry.targetType === "document" && entry.targetId === payload.docId)),
+    attachments: c.attachments.filter((entry) => entry.docId !== payload.docId),
+    trash: [...c.trash, trash, ...attachmentTrash]
   }));
-  return { bundle: nextBundle, events: [] };
+  const event = createEvent({ type: "doc.deleted", projectId: bundle.project.id, docId: doc.id, data: { title: doc.title }, at: now });
+  return { bundle: appendEvent(nextBundle, event), events: [event] };
+}
+
+function restoreDocCommand(bundle: ProjectBundle, payload: { projectId: string; docId: string }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
+  if (bundle.core.documents.some((doc) => doc.id === payload.docId)) {
+    return { bundle, events: [] };
+  }
+  const trash = bundle.core.trash.find((entry) => entry.recordType === "document" && entry.recordId === payload.docId);
+  if (!trash) throw new Error("Document trash record not found");
+  const restored = documentFromTrashPayload(trash.payload);
+  const reminders = documentRemindersFromTrashPayload(trash.payload);
+  const folderExists = restored.folderId == null || bundle.core.folders.some((folder) => folder.id === restored.folderId);
+  const doc: Document = {
+    ...restored,
+    folderId: folderExists ? restored.folderId : null,
+    archived: false,
+    updatedAt: nowTimestamp()
+  };
+  const nextBundle = withCore(bundle, (c) => ({
+    ...c,
+    documents: [...c.documents, doc],
+    reminders: [
+      ...c.reminders,
+      ...reminders.filter((reminder) => !c.reminders.some((entry) => entry.id === reminder.id))
+    ],
+    trash: c.trash.filter((entry) => !(entry.recordType === "document" && entry.recordId === payload.docId))
+  }));
+  const event = createEvent({ type: "doc.restored", projectId: bundle.project.id, docId: doc.id, data: { title: doc.title } });
+  return { bundle: appendEvent(nextBundle, event), events: [event] };
+}
+
+function permanentlyDeleteDocCommand(bundle: ProjectBundle, payload: { projectId: string; docId: string }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
+  const trash = bundle.core.trash.find((entry) => entry.recordType === "document" && entry.recordId === payload.docId);
+  if (!trash) throw new Error("Document trash record not found");
+  const doc = documentFromTrashPayload(trash.payload);
+  const nextBundle = withCore(bundle, (c) => ({
+    ...c,
+    documents: c.documents.filter((entry) => entry.id !== payload.docId),
+    reminders: c.reminders.filter((entry) => !(entry.targetType === "document" && entry.targetId === payload.docId)),
+    attachments: c.attachments.filter((entry) => entry.docId !== payload.docId),
+    trash: c.trash.filter((entry) => !(entry.recordType === "document" && entry.recordId === payload.docId))
+      .filter((entry) => entry.recordType !== "attachment" || (entry.payload as Attachment).docId !== payload.docId)
+  }));
+  const event = createEvent({ type: "doc.permanentlyDeleted", projectId: bundle.project.id, docId: payload.docId, data: { title: doc.title } });
+  return { bundle: appendEvent(nextBundle, event), events: [event] };
+}
+
+function documentFromTrashPayload(payload: unknown): Document {
+  if (isDocumentTrashPayloadWithDependents(payload)) return payload.document;
+  return payload as Document;
+}
+
+function documentRemindersFromTrashPayload(payload: unknown): Reminder[] {
+  if (!isDocumentTrashPayloadWithDependents(payload)) return [];
+  return payload.reminders ?? [];
+}
+
+function isDocumentTrashPayloadWithDependents(payload: unknown): payload is Exclude<DocumentTrashPayload, Document> {
+  return typeof payload === "object" && payload !== null && "document" in payload;
 }
 
 function moveDocCommand(bundle: ProjectBundle, payload: { projectId: string; docId: string; toFolderId: string | null }): DispatchResult {
@@ -1024,13 +1134,68 @@ function deleteAttachmentCommand(bundle: ProjectBundle, payload: { projectId: st
   assertProjectId(bundle, payload.projectId);
   const att = bundle.core.attachments.find((a) => a.id === payload.attachmentId);
   if (!att) throw new Error("Attachment not found");
-  const trash: TrashRecord = { recordType: "attachment", recordId: att.id, payload: att, trashedAt: nowTimestamp() };
+  const now = nowTimestamp();
+  const trash: TrashRecord = { recordType: "attachment", recordId: att.id, payload: att, trashedAt: now };
   const nextBundle = withCore(bundle, (c) => ({
     ...c,
     attachments: c.attachments.filter((a) => a.id !== payload.attachmentId),
     trash: [...c.trash, trash]
   }));
-  return { bundle: nextBundle, events: [] };
+  const event = createEvent({
+    type: "attachment.deleted",
+    projectId: bundle.project.id,
+    itemId: att.itemId ?? undefined,
+    docId: att.docId ?? undefined,
+    data: { attachmentId: att.id, filename: att.filename },
+    at: now
+  });
+  return { bundle: appendEvent(nextBundle, event), events: [event] };
+}
+
+function restoreAttachmentCommand(bundle: ProjectBundle, payload: { projectId: string; attachmentId: string }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
+  if (bundle.core.attachments.some((attachment) => attachment.id === payload.attachmentId)) {
+    return { bundle, events: [] };
+  }
+  const trash = bundle.core.trash.find((entry) => entry.recordType === "attachment" && entry.recordId === payload.attachmentId);
+  if (!trash) throw new Error("Attachment trash record not found");
+  const attachment = trash.payload as Attachment;
+  assertNullableRecordExists(bundle.core.items, attachment.itemId, "Attachment item");
+  assertNullableRecordExists(bundle.core.documents, attachment.docId, "Attachment document");
+  const restored: Attachment = { ...attachment, archived: false };
+  const nextBundle = withCore(bundle, (c) => ({
+    ...c,
+    attachments: [...c.attachments, restored],
+    trash: c.trash.filter((entry) => !(entry.recordType === "attachment" && entry.recordId === payload.attachmentId))
+  }));
+  const event = createEvent({
+    type: "attachment.restored",
+    projectId: bundle.project.id,
+    itemId: restored.itemId ?? undefined,
+    docId: restored.docId ?? undefined,
+    data: { attachmentId: restored.id, filename: restored.filename }
+  });
+  return { bundle: appendEvent(nextBundle, event), events: [event] };
+}
+
+function permanentlyDeleteAttachmentCommand(bundle: ProjectBundle, payload: { projectId: string; attachmentId: string }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
+  const trash = bundle.core.trash.find((entry) => entry.recordType === "attachment" && entry.recordId === payload.attachmentId);
+  if (!trash) throw new Error("Attachment trash record not found");
+  const attachment = trash.payload as Attachment;
+  const nextBundle = withCore(bundle, (c) => ({
+    ...c,
+    attachments: c.attachments.filter((entry) => entry.id !== payload.attachmentId),
+    trash: c.trash.filter((entry) => !(entry.recordType === "attachment" && entry.recordId === payload.attachmentId))
+  }));
+  const event = createEvent({
+    type: "attachment.permanentlyDeleted",
+    projectId: bundle.project.id,
+    itemId: attachment.itemId ?? undefined,
+    docId: attachment.docId ?? undefined,
+    data: { attachmentId: attachment.id, filename: attachment.filename }
+  });
+  return { bundle: appendEvent(nextBundle, event), events: [event] };
 }
 
 /* ----- views ----- */

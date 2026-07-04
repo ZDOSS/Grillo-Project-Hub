@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { buildProjectFromTemplate } from "@gph/core";
+import { buildProjectFromTemplate, type CustomFieldValue } from "@gph/core";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { useProjectStore } from "../store/project-store";
 import { WorkItemModal } from "./WorkItemModal";
@@ -67,6 +67,33 @@ function addAttachment(itemId: string, input: {
   });
 }
 
+function defineCustomField(field: {
+  name: string;
+  type: "text" | "number" | "select" | "multi-select" | "date" | "checkbox";
+  options?: string[];
+  applicableTypeIds?: string[] | null;
+  required?: boolean;
+}) {
+  const projectId = useProjectStore.getState().bundle!.project.id;
+  const result = useProjectStore.getState().applyCommand({
+    type: "customField.define",
+    projectId,
+    field
+  });
+  return result.bundle.core.customFields.find((entry) => entry.name === field.name)!;
+}
+
+function setCustomFieldValue(itemId: string, fieldId: string, value: CustomFieldValue) {
+  const bundle = useProjectStore.getState().bundle!;
+  const item = bundle.core.items.find((entry) => entry.id === itemId)!;
+  useProjectStore.getState().applyCommand({
+    type: "item.update",
+    projectId: bundle.project.id,
+    itemId,
+    patch: { customFields: { ...(item.customFields ?? {}), [fieldId]: value } }
+  });
+}
+
 function renderModal(itemId: string, initialEntries = [`/item/${itemId}`]) {
   render(
     <MemoryRouter initialEntries={initialEntries} initialIndex={initialEntries.length - 1}>
@@ -125,6 +152,59 @@ describe("WorkItemModal", () => {
         .bundle?.core.items.find((entry) => entry.id === item.id);
       expect(updated?.title).toBe("Renamed item");
     });
+  });
+
+  it("edits applicable custom fields in the work item detail", async () => {
+    const item = seedItem();
+    const risk = defineCustomField({
+      name: "Risk",
+      type: "select",
+      options: ["Low", "High"],
+      applicableTypeIds: ["task"],
+      required: true
+    });
+    const effort = defineCustomField({ name: "Effort", type: "number" });
+
+    renderModal(item.id);
+
+    expect(screen.getByRole("heading", { name: "Custom fields" })).toBeInTheDocument();
+
+    await userEvent.selectOptions(screen.getByLabelText("Risk"), "High");
+    fireEvent.change(screen.getByLabelText("Effort"), { target: { value: "5" } });
+    fireEvent.blur(screen.getByLabelText("Effort"));
+
+    await waitFor(() => {
+      const updated = useProjectStore
+        .getState()
+        .bundle?.core.items.find((entry) => entry.id === item.id);
+      expect(updated?.customFields?.[risk.id]).toBe("High");
+      expect(updated?.customFields?.[effort.id]).toBe(5);
+    });
+  });
+
+  it("preserves hidden custom field values when the item type changes", async () => {
+    const item = seedItem();
+    const taskOnly = defineCustomField({
+      name: "Task-only note",
+      type: "text",
+      applicableTypeIds: ["task"]
+    });
+    setCustomFieldValue(item.id, taskOnly.id, "Keep this note");
+
+    renderModal(item.id);
+
+    expect(screen.getByLabelText("Task-only note")).toHaveValue("Keep this note");
+
+    await userEvent.selectOptions(screen.getByLabelText("Type"), "bug");
+
+    await waitFor(() => {
+      const updated = useProjectStore
+        .getState()
+        .bundle?.core.items.find((entry) => entry.id === item.id);
+      expect(updated?.typeId).toBe("bug");
+      expect(updated?.customFields?.[taskOnly.id]).toBe("Keep this note");
+    });
+    expect(screen.queryByLabelText("Task-only note")).not.toBeInTheDocument();
   });
 
   it("edits comments inline without native prompts", async () => {
@@ -374,5 +454,22 @@ describe("WorkItemModal", () => {
     expect(screen.getByText("No reminder scheduled")).toBeInTheDocument();
     expect(screen.queryByText(/Next reminder:/)).not.toBeInTheDocument();
     expect(screen.getByText("Past follow-up")).toBeInTheDocument();
+  });
+
+  it("renders readable activity instead of raw event type strings", () => {
+    const item = seedItem();
+    useProjectStore.getState().applyCommand({
+      type: "comment.create",
+      projectId: useProjectStore.getState().bundle!.project.id,
+      itemId: item.id,
+      body: "Activity comment"
+    });
+
+    renderModal(item.id);
+
+    expect(screen.getByText("Item created")).toBeInTheDocument();
+    expect(screen.getByText("Comment added")).toBeInTheDocument();
+    expect(screen.queryByText("item.created")).not.toBeInTheDocument();
+    expect(screen.queryByText("item.commented")).not.toBeInTheDocument();
   });
 });
