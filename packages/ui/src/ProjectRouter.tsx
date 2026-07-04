@@ -30,7 +30,7 @@ export function ProjectRouter() {
         <div className="empty-title">No project open</div>
         <div>Use the workspace launcher to reopen a saved project, import a bundle, or browse the demo.</div>
         <div className="row" style={{ flexWrap: "wrap", justifyContent: "center" }}>
-          <Link className="btn btn-primary" to="/">Projects</Link>
+          <Link className="btn btn-primary" to="/projects">Projects</Link>
           <Link className="btn" to="/open">Open / import</Link>
           <Link className="btn btn-ghost" to="/demo">Demo</Link>
         </div>

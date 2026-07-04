@@ -11,6 +11,8 @@ test("web app shows the same shell labels across both distributions", async ({ p
 test("a user can create a project and see the board", async ({ page }) => {
   await page.goto("/");
   await page.locator(".modal-footer button.btn-primary").click();
+  await expect(page).toHaveURL(/\/overview/);
+  await page.getByRole("link", { name: "Board" }).click();
   await expect(page).toHaveURL(/\/board/);
   await expect(page.getByText(/To Do/i)).toBeVisible();
 });
@@ -19,7 +21,7 @@ test("opening the command palette lists navigation commands", async ({ page }) =
   await page.goto("/");
   // Create a project first so the navigation commands are useful
   await page.locator(".modal-footer button.btn-primary").click();
-  await expect(page).toHaveURL(/\/board/);
+  await expect(page).toHaveURL(/\/overview/);
   // Wait for the AppShell to register core commands (effects run after first paint)
   await page.waitForTimeout(150);
   await page.getByRole("button", { name: /Search commands/i }).click();
@@ -33,7 +35,7 @@ test("toggling theme switches between light and dark", async ({ page }) => {
   await page.goto("/");
   // Create project first to dismiss the modal so the header toggle is accessible
   await page.locator(".modal-footer button.btn-primary").click();
-  await expect(page).toHaveURL(/\/board/);
+  await expect(page).toHaveURL(/\/overview/);
   const initialTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
   const toggle = page.getByRole("button", { name: /switch to (light|dark) mode/i });
   await toggle.click();

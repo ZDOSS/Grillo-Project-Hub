@@ -102,6 +102,12 @@ export function AppShell({ appMode, children }: AppShellProps) {
   useEffect(() => registerCoreCommands(), []);
 
   useEffect(() => {
+    if (bundle && location.pathname === "/") {
+      navigate("/overview", { replace: true });
+    }
+  }, [bundle, location.pathname, navigate]);
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
       if (mod && e.key.toLowerCase() === "k") {
@@ -162,6 +168,7 @@ export function AppShell({ appMode, children }: AppShellProps) {
   const isProjectRoute = useMemo(
     () =>
       location.pathname !== "/" &&
+      !location.pathname.startsWith("/projects") &&
       !location.pathname.startsWith("/open") &&
       !location.pathname.startsWith("/demo"),
     [location.pathname]
@@ -178,9 +185,9 @@ export function AppShell({ appMode, children }: AppShellProps) {
         <div className="sidebar-section">
           <div className="sidebar-section-title">Workspace</div>
           <Link
-            to="/"
+            to="/projects"
             className="sidebar-link"
-            aria-current={location.pathname === "/" ? "page" : undefined}
+            aria-current={location.pathname === "/projects" ? "page" : undefined}
           >
             <FolderKanban {...navIconProps} /> Projects
           </Link>

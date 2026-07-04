@@ -175,7 +175,7 @@ export function ProjectsListView() {
       lastOpenedAt: new Date().toISOString()
     });
     setShowNew(false);
-    navigate("/board");
+    navigate("/overview");
   };
 
   const openRecentProject = async (recent: RecentProject) => {
@@ -183,7 +183,7 @@ export function ProjectsListView() {
     setBusyRecentKey(recent.key);
     try {
       await openSavedProject(recent, setBundle, recordRecent);
-      navigate("/board");
+      navigate("/overview");
     } catch (error) {
       setWorkspaceError((error as Error).message);
     } finally {
@@ -406,7 +406,7 @@ export function OpenProjectView() {
       validateProjectBundle(r.bundle);
       setBundle(r.bundle, { storageKey: r.bundle.project.id, storagePath: null, storageTrust: "browser" });
       recordRecent({ key: r.bundle.project.id, name: r.bundle.project.name, storagePath: null, trust: "browser", lastOpenedAt: new Date().toISOString() });
-      navigate("/board");
+      navigate("/overview");
     } catch (e) {
       setOpenError(`Open failed: ${(e as Error).message}`);
     } finally {
@@ -467,7 +467,7 @@ export function OpenProjectView() {
         trust: normalizeRecentTrust(loaded.metadata.trust),
         lastOpenedAt: new Date().toISOString()
       });
-      navigate("/board");
+      navigate("/overview");
     } catch (error) {
       setOpenError(`Open failed: ${(error as Error).message}`);
     } finally {
@@ -570,7 +570,7 @@ export function OpenProjectView() {
           </label>
           {busy && <div className="text-xs text-muted">Loading...</div>}
           {openError ? <div className="workspace-alert">{openError}</div> : null}
-          <Link to="/" className="text-sm text-secondary">← Back to projects</Link>
+          <Link to="/projects" className="text-sm text-secondary">← Back to projects</Link>
         </section>
       </div>
     </div>
@@ -585,7 +585,7 @@ export function DemoFolderView() {
     const bundle = buildProjectFromTemplate("software-project", "Demo Project");
     setBundle(bundle, { storageKey: bundle.project.id, storagePath: null, storageTrust: "browser" });
     recordRecent({ key: bundle.project.id, name: bundle.project.name, storagePath: null, trust: "browser", lastOpenedAt: new Date().toISOString() });
-    navigate("/board");
+    navigate("/overview");
   };
   return (
     <div className="empty">

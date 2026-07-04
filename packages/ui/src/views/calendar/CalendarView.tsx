@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Link } from "react-router-dom";
-import { dateOnlyFromTimestamp, type Reminder, type WorkItem } from "@gph/core";
+import { dateOnlyFromTimestamp, todayDateOnly, type Reminder, type WorkItem } from "@gph/core";
 import { Button, IconButton, MetadataBadge, ViewToolbar } from "../../components";
 import { useProjectStore } from "../../store/project-store";
 
@@ -12,7 +12,7 @@ import { useProjectStore } from "../../store/project-store";
 export function CalendarView() {
   const bundle = useProjectStore((s) => s.bundle);
   const [anchor, setAnchor] = useState<string>(
-    new Date().toISOString().slice(0, 10)
+    () => todayDateOnly()
   );
 
   if (!bundle) return null;
@@ -27,7 +27,7 @@ export function CalendarView() {
     const gridStart = new Date(first);
     gridStart.setUTCDate(first.getUTCDate() - firstWeekday);
     const days: { date: string; other: boolean; today: boolean }[] = [];
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayDateOnly();
     for (let index = 0; index < 42; index += 1) {
       const day = new Date(gridStart);
       day.setUTCDate(gridStart.getUTCDate() + index);
@@ -83,7 +83,7 @@ export function CalendarView() {
         >
           <ChevronRight aria-hidden="true" />
         </IconButton>
-        <Button size="sm" onClick={() => setAnchor(new Date().toISOString().slice(0, 10))}>
+        <Button size="sm" onClick={() => setAnchor(todayDateOnly())}>
           Today
         </Button>
       </ViewToolbar>
@@ -179,7 +179,8 @@ function buildAgenda(anchor: string, items: WorkItem[], reminders: Reminder[]): 
   }
   for (const reminder of reminders.filter((entry) => !entry.archived)) {
     const date = dateOnlyFromTimestamp(reminder.remindAt, reminder.timeZone);
-    if (date < start || date > end) continue;
+    const utcDate = reminder.remindAt.slice(0, 10);
+    if (!dateInRange(date, start, end) && !dateInRange(utcDate, start, end)) continue;
     const item = reminder.targetType === "workItem"
       ? items.find((entry) => entry.id === reminder.targetId) ?? null
       : null;
@@ -192,4 +193,8 @@ function buildAgenda(anchor: string, items: WorkItem[], reminders: Reminder[]): 
     });
   }
   return entries.sort((a, b) => a.date.localeCompare(b.date) || a.kind.localeCompare(b.kind) || a.title.localeCompare(b.title));
+}
+
+function dateInRange(date: string, start: string, end: string): boolean {
+  return date >= start && date <= end;
 }

@@ -1,5 +1,5 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { buildProjectFromTemplate } from "@gph/core";
 import { useProjectStore } from "../../store/project-store";
@@ -21,6 +21,10 @@ describe("CalendarView", () => {
   beforeEach(() => {
     cleanup();
     useProjectStore.setState({ bundle: null });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("renders an agenda of upcoming due dates and reminders", () => {
@@ -86,5 +90,39 @@ describe("CalendarView", () => {
     const row = screen.getByText("Tokyo reminder").closest(".calendar-agenda-row");
     expect(row).toBeTruthy();
     expect(within(row as HTMLElement).getByText(expectedLocalDate)).toBeInTheDocument();
+  });
+
+  it("keeps timezone-local reminders visible when their display day is before the UTC anchor day", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-05T02:30:00.000Z"));
+
+    const bundle = buildProjectFromTemplate("software-project", "Calendar");
+    useProjectStore.setState({ bundle });
+    const apply = useProjectStore.getState().applyCommand;
+    apply({
+      type: "item.create",
+      projectId: bundle.project.id,
+      typeId: "task",
+      title: "New York reminder target",
+      statusId: "ready"
+    });
+    const item = useProjectStore.getState().bundle!.core.items.find((entry) =>
+      entry.title === "New York reminder target"
+    )!;
+    apply({
+      type: "reminder.create",
+      projectId: bundle.project.id,
+      targetType: "workItem",
+      targetId: item.id,
+      remindAt: "2026-07-05T02:00:00.000Z",
+      timeZone: "America/New_York",
+      message: "New York local reminder"
+    });
+
+    render(<MemoryRouter><CalendarView /></MemoryRouter>);
+
+    const row = screen.getByText("New York local reminder").closest(".calendar-agenda-row");
+    expect(row).toBeTruthy();
+    expect(within(row as HTMLElement).getByText("2026-07-04")).toBeInTheDocument();
   });
 });
