@@ -108,4 +108,47 @@ describe("RoadmapView", () => {
     expect(updated.dueDate).toBe("2026-07-12");
     expect(updated.milestoneId).toBe(secondMilestone.id);
   });
+
+  it("clears only the edited side of a roadmap date range", () => {
+    const bundle = buildProjectFromTemplate("software-project", "Roadmap");
+    useProjectStore.setState({ bundle });
+    const apply = useProjectStore.getState().applyCommand;
+    apply({
+      type: "item.create",
+      projectId: bundle.project.id,
+      typeId: "task",
+      title: "Clear start roadmap item",
+      statusId: "ready",
+      startDate: "2026-07-01",
+      dueDate: "2026-07-08"
+    });
+    apply({
+      type: "item.create",
+      projectId: bundle.project.id,
+      typeId: "task",
+      title: "Clear due roadmap item",
+      statusId: "ready",
+      startDate: "2026-07-03",
+      dueDate: "2026-07-10"
+    });
+
+    render(<MemoryRouter><RoadmapView /></MemoryRouter>);
+
+    fireEvent.change(screen.getByLabelText("Start date for Clear start roadmap item"), {
+      target: { value: "" }
+    });
+    fireEvent.change(screen.getByLabelText("Due date for Clear due roadmap item"), {
+      target: { value: "" }
+    });
+
+    const updated = useProjectStore.getState().bundle!.core.items;
+    expect(updated.find((item) => item.title === "Clear start roadmap item")).toMatchObject({
+      startDate: null,
+      dueDate: "2026-07-08"
+    });
+    expect(updated.find((item) => item.title === "Clear due roadmap item")).toMatchObject({
+      startDate: "2026-07-03",
+      dueDate: null
+    });
+  });
 });

@@ -114,6 +114,38 @@ describe("BugTriageView", () => {
     expect(within(readyColumn as HTMLElement).getByText("Ready lane bug")).toBeInTheDocument();
   });
 
+  it("declines bugs to an existing completed status when the workflow has no canceled status", async () => {
+    const bundle = buildProjectFromTemplate("software-project", "Software");
+    useProjectStore.setState({
+      bundle: {
+        ...bundle,
+        core: {
+          ...bundle.core,
+          statuses: bundle.core.statuses.filter((status) => status.category !== "canceled")
+        }
+      }
+    });
+    useProjectStore.getState().applyCommand({
+      type: "item.create",
+      projectId: bundle.project.id,
+      typeId: "bug",
+      title: "Custom decline bug",
+      statusId: "inbox",
+      moduleData: {
+        bug: NO_REPRO_BUG_DATA
+      }
+    } as never);
+
+    renderBugTriage();
+
+    const declineCard = screen.getByRole("article", { name: "Custom decline bug" });
+    await userEvent.click(within(declineCard).getByRole("button", { name: "Decline Custom decline bug" }));
+
+    expect(
+      useProjectStore.getState().bundle!.core.items.find((item) => item.title === "Custom decline bug")?.statusId
+    ).toBe("done");
+  });
+
   it("filters intake bugs by triage state", async () => {
     const bundle = buildProjectFromTemplate("software-project", "Software");
     useProjectStore.setState({ bundle });

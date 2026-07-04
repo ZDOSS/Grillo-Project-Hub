@@ -145,7 +145,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - `blocks` is stored once as a directional edge; `blocked by` is derived
 - `relatesTo` is canonicalized so each pair is stored once regardless of which item initiated it
 - planning dates use `YYYY-MM-DD` and never round-trip through UTC midnight
-- reminders store UTC `remindAt` plus IANA `timeZone`; changing display TZ never mutates the instant
+- reminders store UTC `remindAt` plus IANA `timeZone`; changing display TZ never mutates the instant, and agenda-style date-only displays must derive the visible day through `dateOnlyFromTimestamp(remindAt, timeZone)` rather than slicing the UTC string
 - checklist entries are not hidden work items; convert-to-subtask is one atomic validated command
 - archive preserves identity and references; trash is canonical project data; permanent deletion is explicit
 - custom-field values are stored on `WorkItem.customFields` as typed values keyed by custom field ID; inapplicable values must be hidden in UI surfaces, not deleted, so type changes do not lose data
@@ -164,7 +164,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - PWA/browser folder picker for creating and reopening local-folder projects when File System Access is available
   - automatic last-project restore after reload via persisted active-session metadata
 - per-project view tabs across overview, board, backlog, table, roadmap, calendar, docs, bug triage, my work, search, trash, and saved planning views; `AppShell` reads saved board/backlog/table/bug/my-work views from the active bundle and keeps them separate from hidden built-in route preferences
-- `/overview` is now the default in-project landing route; `OverviewView` derives health summaries from the active bundle, including active work, milestone progress, blocking relationships, upcoming dates/reminders, planned bug intake, recent activity, and the current storage trust/save state without adding new persisted overview state
+- `/overview` is now the default in-project landing route; `OverviewView` derives health summaries from the active bundle, including active work, milestone progress, blocking relationships, future-only upcoming dates/reminders, triage-lane bug intake, recent activity, and the current storage trust/save state without adding new persisted overview state
 - `ProjectRouter` keeps `/board` pinned to `projectSettings.defaultViewId` when that view is a board, even if saved board views have earlier ordering, and only mounts the work-item modal overlay route while the current path is `/item/:itemId`
 - saved board/backlog/table views keep multi-value filter arrays intact when hydrated into the current single-select toolbar controls; selecting a concrete value intentionally narrows that one dimension, while untouched imported/command-created multi-value filters remain multi-value on update
 - create-item entry points now carry view context through `CreateItemPrefill` in `palette-bus.ts`; the shared dialog can receive and expose `typeId`, `statusId`, `priorityId`, and `assigneeId`, so board, bug triage, and my-work creates no longer drop the context that made the user click that surface's action in the first place
@@ -178,7 +178,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - custom fields in item detail live in `CustomFieldsPanel.tsx` and route through `item.update` with `patch.customFields`; optional empty values are removed from the item map, required empty values stay blocked with inline validation, and the panel only shows fields applicable to the item's current type
 - table view now adds read-only columns for active custom fields, showing `None` for empty applicable values and `Not applicable` where a field does not apply to a row's item type
 - table view now supports shared saved-view filters, base-column visibility toggles, persisted visible-column and column-order settings, and command-backed inline edits for status, priority, assignee, milestone, and due date
-- table view now supports visible-row selection plus bulk status, priority, and assignee edits; it dispatches one validated `item.update` per selected item and intentionally keeps bulk state route-local rather than persisting it into saved table view definitions
+- table view now supports row selection plus bulk status, priority, and assignee edits; selection intentionally survives local filter changes, bulk apply dispatches one validated `item.update` per selected live item rather than only visible rows, and the toolbar labels hidden selections as `N selected (M visible)`
 - table saved views apply persisted `columnOrder` during render; custom-field columns still append when not named by the saved order so active custom fields remain discoverable
 - backlog rows now show compact custom-field metadata tags for populated applicable fields, limited to the first few ordered fields to keep the row scannable
 - backlog view now supports shared text/type/status/priority/assignee/milestone filters and board/backlog/table style saved-view actions for save-as, update, delete, and left/right ordering
@@ -212,10 +212,10 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - that editor reset now keys only on `doc.id`, so switching documents still refreshes the draft while external bundle updates to the same document do not silently clobber unsaved local typing
 - deleting the currently open doc now routes to the nearest active remaining document, or `/docs` when none remain, so the route does not stay pinned to a deleted or archived document ID while other docs still exist
 - `DocEditor` now keeps that selection-sync effect above its null guard so hook ordering stays valid even if future refactors ever allow the component to see a transient `bundle === null`
-- roadmap lanes now show milestone target dates, completed/total/percent progress, dependency indicators from `relationshipsForItem()`, explicit date inputs, milestone reassignment controls, and inline invalid-range feedback while preserving date-only semantics through `item.update`
-- calendar now keeps the month grid and adds a derived agenda for upcoming item start/due dates plus active reminders; agenda links use existing work-item routes and do not introduce a calendar-specific storage model
-- bug triage now exposes a visible `New bug` action in the intake column, maps software-project `inbox` bugs into Intake, opens the shared create dialog with the correct intake status preselected, and limits Intake's planned-status fallback so custom workflows can still populate Ready
-- bug triage cards are now `<article>` surfaces with an internal item link and real form controls, not whole-card links, so triage buttons/selects are valid and testable; accept/decline/assign dispatch `item.update`, snooze dispatches `reminder.create`, and duplicate linking dispatches `relationship.create` with `relatesTo`
+- roadmap lanes now show milestone target dates, completed/total/percent progress, dependency indicators from `relationshipsForItem()`, explicit date inputs, milestone reassignment controls, and inline invalid-range feedback while preserving date-only semantics through `item.update`; clearing Start or Due clears only that side of the range
+- calendar now keeps the month grid and adds a derived agenda for upcoming item start/due dates plus active reminders; reminder agenda rows use the reminder's IANA timezone to decide the visible date, agenda links use existing work-item routes, and the feature does not introduce a calendar-specific storage model
+- bug triage now exposes a visible `New bug` action in the intake column, maps software-project `inbox` bugs into Intake, opens the shared create dialog with the correct intake status preselected, and limits Intake's planned-status fallback so custom workflows can still populate Ready; `buildBugTriageColumns()` is shared with overview so accepted Ready bugs do not reappear as intake pressure
+- bug triage cards are now `<article>` surfaces with an internal item link and real form controls, not whole-card links, so triage buttons/selects are valid and testable; accept/decline/assign dispatch `item.update`, decline resolves to an existing canceled status or completed fallback before dispatching, snooze dispatches `reminder.create`, and duplicate linking dispatches `relationship.create` with `relatesTo`
 - My Work now has a `New assigned item` action that preselects the current local member as assignee, so work created from that filtered view remains visible in the same workflow after creation
 - board-level `New item` now preselects the first board column's default drop status, which keeps newly created cards visible on boards whose first lane does not use the project/type default status
 - table sorting now uses neutral ascending comparators plus explicit default directions, so `Priority (desc)` puts urgent work first and selecting `Updated` defaults to newest-first order
@@ -265,10 +265,10 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - board-context item creation that uses the first board column default status
   - my-work item creation that preselects the active local member as assignee
   - table priority and updated-date sort direction behavior
-  - table bulk status/priority/assignee editing across selected visible rows
-  - overview route summaries and default root-to-overview routing
-  - roadmap milestone progress, dependency indicators, date inputs, and milestone reassignment controls
-  - calendar agenda rendering from item dates and reminders
+  - table bulk status/priority/assignee editing across selected rows, including selections hidden by a local filter
+  - overview route summaries, default root-to-overview routing, future-only reminders, and triage-lane bug intake matching the bug board
+  - roadmap milestone progress, dependency indicators, date inputs, independent date clearing, and milestone reassignment controls
+  - calendar agenda rendering from item dates and timezone-local reminder dates
   - trash restore and confirmed permanent deletion for work items, documents, and attachments
   - document soft-delete cleanup for document-scoped reminders and attachments, including reminder restoration from the document trash payload
   - document permanent-delete cleanup for document-scoped reminders and attachments
@@ -451,6 +451,13 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - preserving multi-value saved filters in board, backlog, and table while retaining the current single-select toolbar controls for manual narrowing
   - applying table `columnOrder` during render and saving the ordered visible column subset on table view save/update
   - adding regression coverage for all five review findings
+- applied the PR #16 Greptile follow-up by:
+  - making roadmap date inputs preserve the unedited side of a range when Start or Due is cleared
+  - sharing bug triage lane status ownership with overview so Ready bugs stop counting as intake
+  - filtering stale reminders out of the overview agenda and deriving reminder agenda dates from each reminder's `timeZone`
+  - making bug decline choose an existing canceled status, then the project completed default, then any completed status instead of dispatching a literal `wont-fix`
+  - applying table bulk edits to all selected live items even when some selected rows are hidden by the current filter
+  - adding regression coverage for the six review findings
 
 ## Open follow-on planning
 

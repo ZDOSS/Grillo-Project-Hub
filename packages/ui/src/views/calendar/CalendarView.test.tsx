@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { buildProjectFromTemplate } from "@gph/core";
@@ -54,5 +54,37 @@ describe("CalendarView", () => {
     expect(screen.getByText("Due")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Calendar due task" })).toBeInTheDocument();
     expect(screen.getByText("Prepare calendar review")).toBeInTheDocument();
+  });
+
+  it("places reminder agenda rows on their configured timezone day", () => {
+    const bundle = buildProjectFromTemplate("software-project", "Calendar");
+    useProjectStore.setState({ bundle });
+    const apply = useProjectStore.getState().applyCommand;
+    apply({
+      type: "item.create",
+      projectId: bundle.project.id,
+      typeId: "task",
+      title: "Timezone reminder target",
+      statusId: "ready"
+    });
+    const item = useProjectStore.getState().bundle!.core.items.find((entry) =>
+      entry.title === "Timezone reminder target"
+    )!;
+    const expectedLocalDate = datePlus(0);
+    apply({
+      type: "reminder.create",
+      projectId: bundle.project.id,
+      targetType: "workItem",
+      targetId: item.id,
+      remindAt: `${datePlus(-1)}T23:30:00.000Z`,
+      timeZone: "Asia/Tokyo",
+      message: "Tokyo reminder"
+    });
+
+    render(<MemoryRouter><CalendarView /></MemoryRouter>);
+
+    const row = screen.getByText("Tokyo reminder").closest(".calendar-agenda-row");
+    expect(row).toBeTruthy();
+    expect(within(row as HTMLElement).getByText(expectedLocalDate)).toBeInTheDocument();
   });
 });

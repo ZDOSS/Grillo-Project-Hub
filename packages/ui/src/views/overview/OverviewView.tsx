@@ -1,8 +1,10 @@
 import { Link } from "react-router-dom";
 import {
+  dateOnlyFromTimestamp,
   getBugData,
   milestoneProgress,
   relationshipsForItem,
+  todayDateOnly,
   type EventRecord,
   type Milestone,
   type ProjectBundle,
@@ -10,6 +12,7 @@ import {
 } from "@gph/core";
 import { EmptyState, MetadataBadge } from "../../components";
 import { useProjectStore } from "../../store/project-store";
+import { bugIntakeStatusIds } from "../bugs/bug-triage-helpers";
 
 type DatedEntry = {
   id: string;
@@ -214,7 +217,8 @@ function upcomingEntries(bundle: ProjectBundle, items: WorkItem[]): DatedEntry[]
     }
   }
   for (const reminder of bundle.core.reminders.filter((entry) => !entry.archived)) {
-    const date = reminder.remindAt.slice(0, 10);
+    const date = dateOnlyFromTimestamp(reminder.remindAt, reminder.timeZone);
+    if (date < todayDateOnly(reminder.timeZone)) continue;
     const target = reminder.targetType === "workItem"
       ? items.find((item) => item.id === reminder.targetId)
       : null;
@@ -232,11 +236,11 @@ function upcomingEntries(bundle: ProjectBundle, items: WorkItem[]): DatedEntry[]
 function bugIntakeItems(bundle: ProjectBundle, items: WorkItem[]): WorkItem[] {
   const bugModule = bundle.modules["builtin.bugs"];
   const applicableTypeIds = (bugModule?.config?.applicableTypeIds as string[]) ?? [];
+  const intakeStatusIds = new Set(bugIntakeStatusIds(bundle.core.statuses, bundle.project.defaultInitialStatusId));
   return items.filter((item) => {
     if (!applicableTypeIds.includes(item.typeId)) return false;
-    const category = bundle.core.statuses.find((status) => status.id === item.statusId)?.category;
     const hasBugData = getBugData(item) !== null || item.typeId === "bug";
-    return hasBugData && category === "planned";
+    return hasBugData && intakeStatusIds.has(item.statusId);
   });
 }
 

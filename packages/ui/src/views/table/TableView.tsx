@@ -163,6 +163,19 @@ export function TableView({ view }: { view?: TableViewDef }) {
   const visibleRowIdSet = new Set(visibleRowIds);
   const selectedVisibleIds = selectedIds.filter((id) => visibleRowIdSet.has(id));
   const allVisibleSelected = rows.length > 0 && selectedVisibleIds.length === rows.length;
+  const liveItemById = new Map(
+    bundle.core.items
+      .filter((item) => !item.trashedAt && !item.archived)
+      .map((item) => [item.id, item])
+  );
+  const selectedLiveItems = selectedIds
+    .map((id) => liveItemById.get(id))
+    .filter((item): item is WorkItem => Boolean(item));
+  const selectionLabel = selectedLiveItems.length > 0
+    ? selectedVisibleIds.length === selectedLiveItems.length
+      ? `${selectedLiveItems.length} selected`
+      : `${selectedLiveItems.length} selected (${selectedVisibleIds.length} visible)`
+    : "Select visible";
 
   const setSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -220,11 +233,14 @@ export function TableView({ view }: { view?: TableViewDef }) {
       setViewMessage("Choose at least one bulk change.");
       return;
     }
-    const selectedRows = rows.filter((row) => selectedIds.includes(row.item.id));
-    for (const row of selectedRows) {
-      updateItem(row.item, patch);
+    if (selectedLiveItems.length === 0) {
+      setViewMessage("Select at least one item.");
+      return;
     }
-    setViewMessage(`Updated ${selectedRows.length} ${selectedRows.length === 1 ? "item" : "items"}.`);
+    for (const item of selectedLiveItems) {
+      updateItem(item, patch);
+    }
+    setViewMessage(`Updated ${selectedLiveItems.length} ${selectedLiveItems.length === 1 ? "item" : "items"}.`);
     clearBulkSelection();
   };
 
@@ -539,7 +555,7 @@ export function TableView({ view }: { view?: TableViewDef }) {
             onChange={toggleAllVisible}
             type="checkbox"
           />
-          <span>{selectedVisibleIds.length > 0 ? `${selectedVisibleIds.length} selected` : "Select visible"}</span>
+          <span>{selectionLabel}</span>
         </label>
         <SelectField
           label="Bulk status"
@@ -569,7 +585,7 @@ export function TableView({ view }: { view?: TableViewDef }) {
         </SelectField>
         <Button
           size="sm"
-          disabled={selectedVisibleIds.length === 0}
+          disabled={selectedLiveItems.length === 0}
           onClick={applyBulkChanges}
         >
           Apply bulk changes

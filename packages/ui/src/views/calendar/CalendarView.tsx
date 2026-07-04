@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Link } from "react-router-dom";
-import type { Reminder, WorkItem } from "@gph/core";
+import { dateOnlyFromTimestamp, type Reminder, type WorkItem } from "@gph/core";
 import { Button, IconButton, MetadataBadge, ViewToolbar } from "../../components";
 import { useProjectStore } from "../../store/project-store";
 
@@ -178,7 +178,7 @@ function buildAgenda(anchor: string, items: WorkItem[], reminders: Reminder[]): 
     }
   }
   for (const reminder of reminders.filter((entry) => !entry.archived)) {
-    const date = reminder.remindAt.slice(0, 10);
+    const date = dateOnlyFromTimestamp(reminder.remindAt, reminder.timeZone);
     if (date < start || date > end) continue;
     const item = reminder.targetType === "workItem"
       ? items.find((entry) => entry.id === reminder.targetId) ?? null

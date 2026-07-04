@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { getBugData, type StatusDefinition, type WorkItem } from "@gph/core";
+import { getBugData, type WorkItem } from "@gph/core";
 import { openCreateItem } from "../../commands/palette-bus";
 import { Button, EmptyState, InlineAlert, MetadataBadge, SelectField, ViewToolbar, WorkItemCard } from "../../components";
 import { useProjectStore } from "../../store/project-store";
+import { buildBugTriageColumns, declineStatusId } from "./bug-triage-helpers";
 
 type BugFilter = "all" | "intake" | "unassigned" | "needs-repro" | "stale";
 
@@ -29,7 +30,7 @@ export function BugTriageView() {
   const activeMembers = bundle.core.members.filter((member) => !member.archived);
   const columns = buildBugTriageColumns(statuses, bundle.project.defaultInitialStatusId);
   const readyStatusId = columns.find((column) => column.id === "ready")?.defaultCreateStatusId ?? bundle.project.defaultInitialStatusId;
-  const declinedStatusId = statuses.find((status) => status.category === "canceled")?.id ?? "wont-fix";
+  const declinedStatusId = declineStatusId(statuses, bundle.project.defaultCompletedStatusId);
 
   const allBugs = useMemo(() => bundle.core.items.filter((item) =>
     applicableTypeIds.includes(item.typeId) && !item.trashedAt && !item.archived
@@ -155,7 +156,18 @@ export function BugTriageView() {
                       <Button size="sm" onClick={() => updateItem(item, { statusId: readyStatusId })}>
                         Accept {item.title}
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => updateItem(item, { statusId: declinedStatusId })}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={!declinedStatusId}
+                        onClick={() => {
+                          if (!declinedStatusId) {
+                            setActionError("No canceled or completed status is available for declined bugs.");
+                            return;
+                          }
+                          updateItem(item, { statusId: declinedStatusId });
+                        }}
+                      >
                         Decline {item.title}
                       </Button>
                       <Button size="sm" variant="ghost" onClick={() => snooze(item)}>
@@ -211,52 +223,4 @@ function bugMatchesFilter(item: WorkItem, filter: BugFilter, isIntake: boolean) 
     return Date.parse(item.updatedAt) < staleBefore.getTime();
   }
   return true;
-}
-
-function buildBugTriageColumns(statuses: StatusDefinition[], projectDefaultStatusId: string) {
-  const statusById = new Map(statuses.map((status) => [status.id, status]));
-  const used = new Set<string>();
-
-  const take = (
-    preferredIds: string[],
-    fallbackCategory?: StatusDefinition["category"],
-    fallbackLimit = Number.POSITIVE_INFINITY
-  ) => {
-    const ids = preferredIds.filter((id) => statusById.has(id) && !used.has(id));
-    if (ids.length === 0 && fallbackCategory) {
-      ids.push(
-        ...statuses
-          .filter((status) => status.category === fallbackCategory && !used.has(status.id))
-          .slice(0, fallbackLimit)
-          .map((status) => status.id)
-      );
-    }
-    ids.forEach((id) => used.add(id));
-    return ids;
-  };
-
-  const intakeStatusIds = take(["new", "confirmed", "inbox"], "planned", 1);
-  const readyStatusIds = take(["ready"], "planned");
-  const activeStatusIds = take(["in-progress", "blocked", "review", "fixed"], "active");
-
-  return [
-    {
-      id: "intake",
-      title: "Intake",
-      statusIds: intakeStatusIds,
-      defaultCreateStatusId: intakeStatusIds[0] ?? projectDefaultStatusId
-    },
-    {
-      id: "ready",
-      title: "Ready",
-      statusIds: readyStatusIds,
-      defaultCreateStatusId: readyStatusIds[0] ?? projectDefaultStatusId
-    },
-    {
-      id: "in-progress",
-      title: "In Progress",
-      statusIds: activeStatusIds,
-      defaultCreateStatusId: activeStatusIds[0] ?? projectDefaultStatusId
-    }
-  ];
 }

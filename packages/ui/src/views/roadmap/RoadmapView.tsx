@@ -67,7 +67,9 @@ export function RoadmapView() {
   };
 
   const setItemRange = (item: WorkItem, start: string, due: string) => {
-    if (!isDateOnlyOrderValid(start, due)) {
+    const nextStart = start || null;
+    const nextDue = due || null;
+    if (!isDateOnlyOrderValid(nextStart, nextDue)) {
       setRangeError(`${item.title}: start date must not be later than due date.`);
       return;
     }
@@ -76,7 +78,7 @@ export function RoadmapView() {
       type: "item.update",
       projectId: bundle.project.id,
       itemId: item.id,
-      patch: { startDate: start || null, dueDate: due || null }
+      patch: { startDate: nextStart, dueDate: nextDue }
     });
   };
 
@@ -246,7 +248,7 @@ function RoadmapBar({
             className="input roadmap-date-input"
             type="date"
             value={item.startDate ?? ""}
-            onChange={(event) => onChange(event.target.value || item.dueDate || "", item.dueDate ?? event.target.value)}
+            onChange={(event) => onChange(event.target.value, item.dueDate ?? "")}
           />
         </label>
         <label>
@@ -256,7 +258,7 @@ function RoadmapBar({
             className="input roadmap-date-input"
             type="date"
             value={item.dueDate ?? ""}
-            onChange={(event) => onChange(item.startDate ?? event.target.value, event.target.value || item.startDate || "")}
+            onChange={(event) => onChange(item.startDate ?? "", event.target.value)}
           />
         </label>
         <label>

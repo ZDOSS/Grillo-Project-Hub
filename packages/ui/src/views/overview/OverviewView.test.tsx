@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { buildProjectFromTemplate } from "@gph/core";
@@ -128,5 +128,102 @@ describe("OverviewView", () => {
     expect(screen.getByRole("link", { name: "Calendar" })).toHaveAttribute("href", "/calendar");
     expect(screen.getByRole("link", { name: "Bug triage" })).toHaveAttribute("href", "/bugs");
     expect(screen.getByRole("link", { name: "Table" })).toHaveAttribute("href", "/table");
+  });
+
+  it("counts only triage-lane bugs as overview intake pressure", () => {
+    const bundle = buildProjectFromTemplate("software-project", "Overview");
+    useProjectStore.setState({ bundle });
+    const apply = useProjectStore.getState().applyCommand;
+    apply({
+      type: "item.create",
+      projectId: bundle.project.id,
+      typeId: "bug",
+      title: "Fresh intake bug",
+      statusId: "inbox",
+      moduleData: {
+        bug: {
+          severityId: "major",
+          reproductionSteps: [],
+          expectedBehavior: "",
+          actualBehavior: "",
+          environment: "",
+          affectedVersion: null
+        }
+      }
+    } as never);
+    apply({
+      type: "item.create",
+      projectId: bundle.project.id,
+      typeId: "bug",
+      title: "Accepted ready bug",
+      statusId: "ready",
+      moduleData: {
+        bug: {
+          severityId: "major",
+          reproductionSteps: [],
+          expectedBehavior: "",
+          actualBehavior: "",
+          environment: "",
+          affectedVersion: null
+        }
+      }
+    } as never);
+
+    render(
+      <MemoryRouter>
+        <OverviewView />
+      </MemoryRouter>
+    );
+
+    const intakePanel = screen.getByRole("region", { name: "Bug intake" });
+    expect(within(intakePanel).getByText("Fresh intake bug")).toBeInTheDocument();
+    expect(within(intakePanel).queryByText("Accepted ready bug")).not.toBeInTheDocument();
+  });
+
+  it("keeps stale reminders from hiding upcoming agenda work", () => {
+    const bundle = buildProjectFromTemplate("software-project", "Overview");
+    useProjectStore.setState({ bundle });
+    const apply = useProjectStore.getState().applyCommand;
+    apply({
+      type: "item.create",
+      projectId: bundle.project.id,
+      typeId: "task",
+      title: "Reminder target",
+      statusId: "ready"
+    });
+    const item = useProjectStore.getState().bundle!.core.items.find((entry) =>
+      entry.title === "Reminder target"
+    )!;
+
+    for (let index = 0; index < 7; index += 1) {
+      apply({
+        type: "reminder.create",
+        projectId: bundle.project.id,
+        targetType: "workItem",
+        targetId: item.id,
+        remindAt: timestampPlus(-10 - index),
+        timeZone: "UTC",
+        message: `Past reminder ${index}`
+      });
+    }
+    apply({
+      type: "reminder.create",
+      projectId: bundle.project.id,
+      targetType: "workItem",
+      targetId: item.id,
+      remindAt: timestampPlus(2),
+      timeZone: "UTC",
+      message: "Future reminder"
+    });
+
+    render(
+      <MemoryRouter>
+        <OverviewView />
+      </MemoryRouter>
+    );
+
+    const agendaPanel = screen.getByRole("region", { name: "Upcoming agenda" });
+    expect(within(agendaPanel).getByText("Future reminder")).toBeInTheDocument();
+    expect(within(agendaPanel).queryByText("Past reminder 0")).not.toBeInTheDocument();
   });
 });

@@ -70,6 +70,29 @@ export function todayDateOnly(timeZone?: string): DateOnly {
   }
 }
 
+export function dateOnlyFromTimestamp(value: Timestamp | string, timeZone: string): DateOnly {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value.slice(0, 10);
+  }
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).formatToParts(date);
+    const mapped = new Map(parts.map((part) => [part.type, part.value]));
+    const year = mapped.get("year");
+    const month = mapped.get("month");
+    const day = mapped.get("day");
+    if (year && month && day) return `${year}-${month}-${day}`;
+  } catch {
+    // Fall through to the UTC date encoded in the timestamp if the timezone is unusable.
+  }
+  return date.toISOString().slice(0, 10);
+}
+
 export function isValidIanaTimeZone(tz: string): boolean {
   try {
     new Intl.DateTimeFormat("en-US", { timeZone: tz });

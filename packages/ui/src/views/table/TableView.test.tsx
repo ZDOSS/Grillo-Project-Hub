@@ -205,4 +205,41 @@ describe("TableView", () => {
     expect(screen.getByText("Updated 2 items.")).toBeInTheDocument();
     expect(screen.queryByText("2 selected")).not.toBeInTheDocument();
   });
+
+  it("applies bulk edits to selected rows that are hidden by the current filter", async () => {
+    const bundle = buildProjectFromTemplate("simple-kanban", "Table");
+    useProjectStore.setState({ bundle });
+    const apply = useProjectStore.getState().applyCommand;
+    apply({
+      type: "item.create",
+      projectId: bundle.project.id,
+      typeId: "task",
+      title: "Hidden bulk first",
+      statusId: "inbox"
+    });
+    apply({
+      type: "item.create",
+      projectId: bundle.project.id,
+      typeId: "task",
+      title: "Hidden bulk second",
+      statusId: "inbox"
+    });
+
+    render(<MemoryRouter><TableView /></MemoryRouter>);
+
+    await userEvent.click(screen.getByRole("checkbox", { name: "Select Hidden bulk first" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "Select Hidden bulk second" }));
+    await userEvent.type(screen.getByLabelText("Filter"), "Hidden bulk first");
+
+    expect(screen.getByText("2 selected (1 visible)")).toBeInTheDocument();
+
+    await userEvent.selectOptions(screen.getByLabelText("Bulk status"), "ready");
+    await userEvent.click(screen.getByRole("button", { name: "Apply bulk changes" }));
+
+    const updated = useProjectStore.getState().bundle!.core.items.filter((item) =>
+      item.title === "Hidden bulk first" || item.title === "Hidden bulk second"
+    );
+    expect(updated).toHaveLength(2);
+    expect(updated.every((item) => item.statusId === "ready")).toBe(true);
+  });
 });
