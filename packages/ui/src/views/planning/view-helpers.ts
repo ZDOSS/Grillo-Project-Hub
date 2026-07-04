@@ -7,6 +7,7 @@ import type {
 } from "@gph/core";
 
 export const BASE_TABLE_COLUMNS = ["title", "type", "status", "priority", "assignee", "milestone", "labels", "dueDate", "updatedAt"] as const;
+export const MULTI_FILTER_VALUE = "__gph_multi_filter__";
 
 export type BaseTableColumnId = (typeof BASE_TABLE_COLUMNS)[number];
 
@@ -15,6 +16,10 @@ export function savedViewsForBundle(bundle: ProjectBundle): View[] {
   return Object.values(views)
     .filter((view) => !view.archived)
     .sort((a, b) => (a.order ?? 10_000) - (b.order ?? 10_000) || a.name.localeCompare(b.name));
+}
+
+export function hasRegisteredSavedRoute(view: View): boolean {
+  return view.type === "board" || view.type === "backlog" || view.type === "table";
 }
 
 export function viewRoute(view: View): string {
@@ -39,6 +44,17 @@ export function cleanWorkItemFilter(filter: WorkItemFilter): WorkItemFilter | un
   if (filter.labelIds?.length) next.labelIds = [...filter.labelIds];
   if (filter.milestoneIds?.length) next.milestoneIds = [...filter.milestoneIds];
   return Object.keys(next).length > 0 ? next : undefined;
+}
+
+export function selectValueForFilterIds(ids: string[]): string {
+  if (ids.length === 0) return "";
+  if (ids.length === 1) return ids[0];
+  return MULTI_FILTER_VALUE;
+}
+
+export function filterIdsFromSelectValue(value: string): string[] {
+  if (!value || value === MULTI_FILTER_VALUE) return [];
+  return [value];
 }
 
 export function itemMatchesFilter(item: WorkItem, filter: WorkItemFilter | undefined): boolean {

@@ -24,7 +24,7 @@ import { CommandPalette, registerCoreCommands } from "./commands/CommandPalette"
 import { openPalette } from "./commands/palette-bus";
 import { Button, IconButton } from "./components";
 import { PROJECT_NAV_ITEMS } from "./nav-config";
-import { savedViewsForBundle, viewRoute } from "./views/planning/view-helpers";
+import { hasRegisteredSavedRoute, savedViewsForBundle, viewRoute } from "./views/planning/view-helpers";
 
 export type AppShellProps = {
   appMode: "web" | "desktop";
@@ -153,7 +153,7 @@ export function AppShell({ appMode, children }: AppShellProps) {
   const savedPlanningViews = useMemo(
     () => bundle ? savedViewsForBundle(bundle).filter((view) => (
       view.id !== bundle.projectSettings.defaultViewId &&
-      ["board", "backlog", "table", "bugs", "myWork"].includes(view.type)
+      hasRegisteredSavedRoute(view)
     )) : [],
     [bundle]
   );

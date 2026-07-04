@@ -120,4 +120,42 @@ describe("TableView", () => {
     expect(saved.filter?.query).toBe("Welcome");
     expect(saved.visibleColumns).not.toContain("labels");
   });
+
+  it("preserves multi-value saved table filters and renders saved column order", async () => {
+    const bundle = buildProjectFromTemplate("simple-kanban", "Table");
+    useProjectStore.setState({ bundle });
+    const apply = useProjectStore.getState().applyCommand;
+    const withDone = apply({ type: "item.create", projectId: bundle.project.id, typeId: "task", title: "Done table task", statusId: "done" }).bundle;
+    const withSaved = apply({
+      type: "view.create",
+      projectId: withDone.project.id,
+      viewType: "table",
+      name: "Ready and done table",
+      config: {
+        columnOrder: ["priority", "title", "status"],
+        filter: { statusIds: ["ready", "done"] },
+        order: 256,
+        sort: { field: "priority", direction: "desc" },
+        visibleColumns: ["priority", "title", "status"]
+      }
+    } as never).bundle;
+    const savedView = Object.values((withSaved.modules["builtin.kanban"].data as { views?: Record<string, Parameters<typeof TableView>[0]["view"]> }).views ?? {})
+      .find((entry) => entry.name === "Ready and done table")!;
+
+    render(<MemoryRouter><TableView view={savedView} /></MemoryRouter>);
+
+    expect(screen.getByRole("link", { name: /welcome to your board/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /done table task/i })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /add your first task/i })).not.toBeInTheDocument();
+
+    const headers = Array.from(document.querySelectorAll("thead th")).map((header) => header.textContent?.trim());
+    expect(headers.slice(0, 3)).toEqual(["Priority (desc)", "Title", "Status"]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Update view" }));
+
+    const updatedViews = (useProjectStore.getState().bundle!.modules["builtin.kanban"].data as { views?: Record<string, { name?: string; columnOrder?: string[]; filter?: { statusIds?: string[] } }> }).views ?? {};
+    const updated = Object.values(updatedViews).find((entry) => entry.name === "Ready and done table")!;
+    expect(updated.filter?.statusIds).toEqual(["ready", "done"]);
+    expect(updated.columnOrder).toEqual(["priority", "title", "status"]);
+  });
 });

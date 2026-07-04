@@ -61,4 +61,39 @@ describe("AppShell", () => {
     expect(screen.queryByRole("tab", { name: "Backlog" })).not.toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Ready backlog" })).toHaveAttribute("href", expect.stringMatching(/\/backlog\/view\//));
   });
+
+  it("does not show saved planning views whose routes are not registered", () => {
+    const bundle = buildProjectFromTemplate("simple-kanban", "Project");
+    useProjectStore.setState({ bundle });
+    const apply = useProjectStore.getState().applyCommand;
+    const withBugView = apply({
+      type: "view.create",
+      projectId: bundle.project.id,
+      viewType: "bugs",
+      name: "Saved bugs",
+      config: { order: 256 }
+    } as never).bundle;
+    useProjectStore.setState({ bundle: withBugView });
+    const withMyWorkView = useProjectStore.getState().applyCommand({
+      type: "view.create",
+      projectId: bundle.project.id,
+      viewType: "myWork",
+      name: "Saved my work",
+      config: { memberId: "", order: 512 }
+    } as never).bundle;
+    useProjectStore.setState({ bundle: withMyWorkView });
+
+    render(
+      <ThemeProvider>
+        <MemoryRouter initialEntries={["/board"]}>
+          <AppShell appMode="web">
+            <div>content</div>
+          </AppShell>
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    expect(screen.queryByRole("tab", { name: "Saved bugs" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Saved my work" })).not.toBeInTheDocument();
+  });
 });

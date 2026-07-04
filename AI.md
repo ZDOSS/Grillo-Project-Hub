@@ -165,6 +165,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - automatic last-project restore after reload via persisted active-session metadata
 - per-project view tabs across board, backlog, table, roadmap, calendar, docs, bug triage, my work, search, trash, and saved planning views; `AppShell` reads saved board/backlog/table/bug/my-work views from the active bundle and keeps them separate from hidden built-in route preferences
 - `ProjectRouter` keeps `/board` pinned to `projectSettings.defaultViewId` when that view is a board, even if saved board views have earlier ordering, and only mounts the work-item modal overlay route while the current path is `/item/:itemId`
+- saved board/backlog/table views keep multi-value filter arrays intact when hydrated into the current single-select toolbar controls; selecting a concrete value intentionally narrows that one dimension, while untouched imported/command-created multi-value filters remain multi-value on update
 - create-item entry points now carry view context through `CreateItemPrefill` in `palette-bus.ts`; the shared dialog can receive and expose `typeId`, `statusId`, `priorityId`, and `assigneeId`, so board, bug triage, and my-work creates no longer drop the context that made the user click that surface's action in the first place
 - the create-item dialog derives type defaults from dependency-tracked type-registry inputs while open, and its form-opening reset is split from derived default refreshes so a settings-level type default change can update selects without clearing a user's typed title or description
 - modal-style work item detail at `/item/:id` with full edit, checklist conversion, inline comment editing, subtasks, relationships, attachments, reminders, custom fields, readable activity, and pinned action footer; `WorkItemModal.tsx` is now the owning implementation and routes through the shared `Modal` primitive with `size="work-item"`, while `WorkItemDrawer.tsx` is only a compatibility wrapper that renders `WorkItemModal`
@@ -176,6 +177,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - custom fields in item detail live in `CustomFieldsPanel.tsx` and route through `item.update` with `patch.customFields`; optional empty values are removed from the item map, required empty values stay blocked with inline validation, and the panel only shows fields applicable to the item's current type
 - table view now adds read-only columns for active custom fields, showing `None` for empty applicable values and `Not applicable` where a field does not apply to a row's item type
 - table view now supports shared saved-view filters, base-column visibility toggles, persisted visible-column and column-order settings, and command-backed inline edits for status, priority, assignee, milestone, and due date
+- table saved views apply persisted `columnOrder` during render; custom-field columns still append when not named by the saved order so active custom fields remain discoverable
 - backlog rows now show compact custom-field metadata tags for populated applicable fields, limited to the first few ordered fields to keep the row scannable
 - backlog view now supports shared text/type/status/priority/assignee/milestone filters and board/backlog/table style saved-view actions for save-as, update, delete, and left/right ordering
 - board view now supports text/type/status filtering plus save-as, update, delete, and left/right ordering for saved board views while preserving board-column configuration in the saved view payload
@@ -428,6 +430,11 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - adding board, backlog, and table save-as/update/delete/reorder flows for saved working views
   - adding backlog shared filters and table column visibility plus command-backed inline status, priority, assignee, milestone, and due-date edits
   - adding focused core and UI regression coverage for saved-view filters, viewbar rendering, default board routing, backlog saved views, board saved views, and table inline/editable saved views
+- applied the PR #15 Greptile follow-up by:
+  - limiting AppShell saved-view tabs to saved view types with registered routes so bug/my-work saved views cannot navigate to missing `/bugs/view/:id` or `/mywork/view/:id` routes
+  - preserving multi-value saved filters in board, backlog, and table while retaining the current single-select toolbar controls for manual narrowing
+  - applying table `columnOrder` during render and saving the ordered visible column subset on table view save/update
+  - adding regression coverage for all five review findings
 
 ## Open follow-on planning
 

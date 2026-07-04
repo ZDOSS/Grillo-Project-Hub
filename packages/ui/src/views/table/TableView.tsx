@@ -32,8 +32,11 @@ import {
   BASE_TABLE_COLUMNS,
   cleanWorkItemFilter,
   compareItemsBySort,
+  filterIdsFromSelectValue,
   itemMatchesFilter,
+  MULTI_FILTER_VALUE,
   nextViewOrder,
+  selectValueForFilterIds,
   type BaseTableColumnId
 } from "../planning/view-helpers";
 
@@ -63,6 +66,15 @@ const COLUMN_LABELS: Record<BaseTableColumnId, string> = {
   updatedAt: "Updated"
 };
 
+function initialVisibleColumns(view: TableViewDef | undefined): string[] {
+  return view?.visibleColumns?.length ? [...view.visibleColumns] : [...BASE_TABLE_COLUMNS];
+}
+
+function initialColumnOrder(view: TableViewDef | undefined): string[] {
+  const visible = initialVisibleColumns(view);
+  return view?.columnOrder?.length ? [...view.columnOrder] : visible;
+}
+
 type Row = {
   item: WorkItem;
   labels: Label[];
@@ -78,14 +90,13 @@ export function TableView({ view }: { view?: TableViewDef }) {
   const [sortKey, setSortKey] = useState<SortKey>(initialSort.field);
   const [sortDir, setSortDir] = useState<"asc" | "desc">(initialSort.direction);
   const [filterText, setFilterText] = useState(view?.filter?.query ?? "");
-  const [typeFilter, setTypeFilter] = useState(view?.filter?.typeIds?.[0] ?? "");
-  const [statusFilter, setStatusFilter] = useState(view?.filter?.statusIds?.[0] ?? "");
-  const [priorityFilter, setPriorityFilter] = useState(view?.filter?.priorityIds?.[0] ?? "");
-  const [assigneeFilter, setAssigneeFilter] = useState(view?.filter?.assigneeIds?.[0] ?? "");
-  const [milestoneFilter, setMilestoneFilter] = useState(view?.filter?.milestoneIds?.[0] ?? "");
-  const [visibleColumns, setVisibleColumns] = useState<string[]>(
-    view?.visibleColumns?.length ? view.visibleColumns : [...BASE_TABLE_COLUMNS]
-  );
+  const [typeFilterIds, setTypeFilterIds] = useState<string[]>(view?.filter?.typeIds ?? []);
+  const [statusFilterIds, setStatusFilterIds] = useState<string[]>(view?.filter?.statusIds ?? []);
+  const [priorityFilterIds, setPriorityFilterIds] = useState<string[]>(view?.filter?.priorityIds ?? []);
+  const [assigneeFilterIds, setAssigneeFilterIds] = useState<string[]>(view?.filter?.assigneeIds ?? []);
+  const [milestoneFilterIds, setMilestoneFilterIds] = useState<string[]>(view?.filter?.milestoneIds ?? []);
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(initialVisibleColumns(view));
+  const [columnOrder, setColumnOrder] = useState<string[]>(initialColumnOrder(view));
   const [viewName, setViewName] = useState(view?.name ?? "");
   const [viewMessage, setViewMessage] = useState<string | null>(null);
 
@@ -94,24 +105,25 @@ export function TableView({ view }: { view?: TableViewDef }) {
     setSortKey(nextSort.field);
     setSortDir(nextSort.direction);
     setFilterText(view?.filter?.query ?? "");
-    setTypeFilter(view?.filter?.typeIds?.[0] ?? "");
-    setStatusFilter(view?.filter?.statusIds?.[0] ?? "");
-    setPriorityFilter(view?.filter?.priorityIds?.[0] ?? "");
-    setAssigneeFilter(view?.filter?.assigneeIds?.[0] ?? "");
-    setMilestoneFilter(view?.filter?.milestoneIds?.[0] ?? "");
-    setVisibleColumns(view?.visibleColumns?.length ? view.visibleColumns : [...BASE_TABLE_COLUMNS]);
+    setTypeFilterIds(view?.filter?.typeIds ?? []);
+    setStatusFilterIds(view?.filter?.statusIds ?? []);
+    setPriorityFilterIds(view?.filter?.priorityIds ?? []);
+    setAssigneeFilterIds(view?.filter?.assigneeIds ?? []);
+    setMilestoneFilterIds(view?.filter?.milestoneIds ?? []);
+    setVisibleColumns(initialVisibleColumns(view));
+    setColumnOrder(initialColumnOrder(view));
     setViewName(view?.name ?? "");
     setViewMessage(null);
   }, [view?.id]);
 
   const activeFilter = useMemo<WorkItemFilter>(() => ({
     query: filterText,
-    typeIds: typeFilter ? [typeFilter] : undefined,
-    statusIds: statusFilter ? [statusFilter] : undefined,
-    priorityIds: priorityFilter ? [priorityFilter] : undefined,
-    assigneeIds: assigneeFilter ? [assigneeFilter] : undefined,
-    milestoneIds: milestoneFilter ? [milestoneFilter] : undefined
-  }), [assigneeFilter, filterText, milestoneFilter, priorityFilter, statusFilter, typeFilter]);
+    typeIds: typeFilterIds.length ? typeFilterIds : undefined,
+    statusIds: statusFilterIds.length ? statusFilterIds : undefined,
+    priorityIds: priorityFilterIds.length ? priorityFilterIds : undefined,
+    assigneeIds: assigneeFilterIds.length ? assigneeFilterIds : undefined,
+    milestoneIds: milestoneFilterIds.length ? milestoneFilterIds : undefined
+  }), [assigneeFilterIds, filterText, milestoneFilterIds, priorityFilterIds, statusFilterIds, typeFilterIds]);
   const activeSort = useMemo<ViewSort>(() => ({ field: sortKey, direction: sortDir }), [sortDir, sortKey]);
 
   const rows: Row[] = useMemo(() => {
@@ -309,7 +321,8 @@ export function TableView({ view }: { view?: TableViewDef }) {
     }
   }));
 
-  const columns = [...baseColumns, ...customFieldColumns].filter((column) => visibleColumns.includes(column.id) || column.id.startsWith("custom-"));
+  const columns = orderedColumns([...baseColumns, ...customFieldColumns], columnOrder)
+    .filter((column) => visibleColumns.includes(column.id) || column.id.startsWith("custom-"));
 
   const toggleColumn = (columnId: string) => {
     setVisibleColumns((current) =>
@@ -317,7 +330,10 @@ export function TableView({ view }: { view?: TableViewDef }) {
         ? current.filter((entry) => entry !== columnId)
         : [...current, columnId]
     );
+    setColumnOrder((current) => current.includes(columnId) ? current : [...current, columnId]);
   };
+
+  const persistedColumnOrder = columnOrder.filter((columnId) => visibleColumns.includes(columnId));
 
   const saveView = () => {
     const name = viewName.trim();
@@ -331,7 +347,7 @@ export function TableView({ view }: { view?: TableViewDef }) {
       viewType: "table",
       name,
       config: {
-        columnOrder: visibleColumns,
+        columnOrder: persistedColumnOrder,
         filter: cleanFilter,
         order: nextViewOrder(bundle),
         sort: activeSort,
@@ -353,7 +369,7 @@ export function TableView({ view }: { view?: TableViewDef }) {
       projectId: bundle.project.id,
       viewId: view.id,
       patch: {
-        columnOrder: visibleColumns,
+        columnOrder: persistedColumnOrder,
         filter: cleanFilter,
         name,
         sort: activeSort,
@@ -391,30 +407,51 @@ export function TableView({ view }: { view?: TableViewDef }) {
         />
         <SelectField
           label="Type"
-          value={typeFilter}
-          onChange={(event) => setTypeFilter(event.target.value)}
+          value={selectValueForFilterIds(typeFilterIds)}
+          onChange={(event) => setTypeFilterIds(filterIdsFromSelectValue(event.target.value))}
         >
           <option value="">All types</option>
+          {typeFilterIds.length > 1 ? <option value={MULTI_FILTER_VALUE}>Multiple types</option> : null}
           {bundle.core.itemTypes.map((type) => (
             <option key={type.id} value={type.id}>
               {type.name}
             </option>
           ))}
         </SelectField>
-        <SelectField label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+        <SelectField
+          label="Status"
+          value={selectValueForFilterIds(statusFilterIds)}
+          onChange={(event) => setStatusFilterIds(filterIdsFromSelectValue(event.target.value))}
+        >
           <option value="">All statuses</option>
+          {statusFilterIds.length > 1 ? <option value={MULTI_FILTER_VALUE}>Multiple statuses</option> : null}
           {bundle.core.statuses.map((status) => <option key={status.id} value={status.id}>{status.name}</option>)}
         </SelectField>
-        <SelectField label="Priority" value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)}>
+        <SelectField
+          label="Priority"
+          value={selectValueForFilterIds(priorityFilterIds)}
+          onChange={(event) => setPriorityFilterIds(filterIdsFromSelectValue(event.target.value))}
+        >
           <option value="">All priorities</option>
+          {priorityFilterIds.length > 1 ? <option value={MULTI_FILTER_VALUE}>Multiple priorities</option> : null}
           {bundle.core.priorities.map((priority) => <option key={priority.id} value={priority.id}>{priority.name}</option>)}
         </SelectField>
-        <SelectField label="Assignee" value={assigneeFilter} onChange={(event) => setAssigneeFilter(event.target.value)}>
+        <SelectField
+          label="Assignee"
+          value={selectValueForFilterIds(assigneeFilterIds)}
+          onChange={(event) => setAssigneeFilterIds(filterIdsFromSelectValue(event.target.value))}
+        >
           <option value="">All assignees</option>
+          {assigneeFilterIds.length > 1 ? <option value={MULTI_FILTER_VALUE}>Multiple assignees</option> : null}
           {bundle.core.members.filter((member) => !member.archived).map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}
         </SelectField>
-        <SelectField label="Milestone" value={milestoneFilter} onChange={(event) => setMilestoneFilter(event.target.value)}>
+        <SelectField
+          label="Milestone"
+          value={selectValueForFilterIds(milestoneFilterIds)}
+          onChange={(event) => setMilestoneFilterIds(filterIdsFromSelectValue(event.target.value))}
+        >
           <option value="">All milestones</option>
+          {milestoneFilterIds.length > 1 ? <option value={MULTI_FILTER_VALUE}>Multiple milestones</option> : null}
           {bundle.core.milestones.map((milestone) => <option key={milestone.id} value={milestone.id}>{milestone.name}</option>)}
         </SelectField>
         <TextField
@@ -459,4 +496,17 @@ export function TableView({ view }: { view?: TableViewDef }) {
       </div>
     </div>
   );
+}
+
+function orderedColumns<Row>(columns: Array<DataTableColumn<Row>>, columnOrder: string[]): Array<DataTableColumn<Row>> {
+  if (columnOrder.length === 0) return columns;
+  const remaining = new Map(columns.map((column) => [column.id, column]));
+  const ordered: Array<DataTableColumn<Row>> = [];
+  for (const columnId of columnOrder) {
+    const column = remaining.get(columnId);
+    if (!column) continue;
+    ordered.push(column);
+    remaining.delete(columnId);
+  }
+  return [...ordered, ...remaining.values()];
 }

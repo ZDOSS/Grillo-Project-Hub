@@ -5,7 +5,15 @@ import { Button, EmptyState, InlineAlert, MetadataBadge, SelectField, TextField,
 import { openCreateItem } from "../../commands/palette-bus";
 import { useProjectStore } from "../../store/project-store";
 import { customFieldSummariesForItem } from "../../work-item/custom-fields";
-import { cleanWorkItemFilter, compareItemsBySort, itemMatchesFilter, nextViewOrder } from "../planning/view-helpers";
+import {
+  cleanWorkItemFilter,
+  compareItemsBySort,
+  filterIdsFromSelectValue,
+  itemMatchesFilter,
+  MULTI_FILTER_VALUE,
+  nextViewOrder,
+  selectValueForFilterIds
+} from "../planning/view-helpers";
 
 const DEFAULT_BACKLOG_SORT: ViewSort = { field: "priority", direction: "desc" };
 
@@ -14,33 +22,33 @@ export function BacklogView({ view }: { view?: BacklogViewDef }) {
   const applyCommand = useProjectStore((s) => s.applyCommand);
   const [editing, setEditing] = useState<string | null>(null);
   const [query, setQuery] = useState(view?.filter?.query ?? "");
-  const [typeFilter, setTypeFilter] = useState(view?.filter?.typeIds?.[0] ?? "");
-  const [statusFilter, setStatusFilter] = useState(view?.filter?.statusIds?.[0] ?? "");
-  const [priorityFilter, setPriorityFilter] = useState(view?.filter?.priorityIds?.[0] ?? "");
-  const [assigneeFilter, setAssigneeFilter] = useState(view?.filter?.assigneeIds?.[0] ?? "");
-  const [milestoneFilter, setMilestoneFilter] = useState(view?.filter?.milestoneIds?.[0] ?? "");
+  const [typeFilterIds, setTypeFilterIds] = useState<string[]>(view?.filter?.typeIds ?? []);
+  const [statusFilterIds, setStatusFilterIds] = useState<string[]>(view?.filter?.statusIds ?? []);
+  const [priorityFilterIds, setPriorityFilterIds] = useState<string[]>(view?.filter?.priorityIds ?? []);
+  const [assigneeFilterIds, setAssigneeFilterIds] = useState<string[]>(view?.filter?.assigneeIds ?? []);
+  const [milestoneFilterIds, setMilestoneFilterIds] = useState<string[]>(view?.filter?.milestoneIds ?? []);
   const [viewName, setViewName] = useState(view?.name ?? "");
   const [viewMessage, setViewMessage] = useState<string | null>(null);
 
   useEffect(() => {
     setQuery(view?.filter?.query ?? "");
-    setTypeFilter(view?.filter?.typeIds?.[0] ?? "");
-    setStatusFilter(view?.filter?.statusIds?.[0] ?? "");
-    setPriorityFilter(view?.filter?.priorityIds?.[0] ?? "");
-    setAssigneeFilter(view?.filter?.assigneeIds?.[0] ?? "");
-    setMilestoneFilter(view?.filter?.milestoneIds?.[0] ?? "");
+    setTypeFilterIds(view?.filter?.typeIds ?? []);
+    setStatusFilterIds(view?.filter?.statusIds ?? []);
+    setPriorityFilterIds(view?.filter?.priorityIds ?? []);
+    setAssigneeFilterIds(view?.filter?.assigneeIds ?? []);
+    setMilestoneFilterIds(view?.filter?.milestoneIds ?? []);
     setViewName(view?.name ?? "");
     setViewMessage(null);
   }, [view?.id]);
 
   const activeFilter = useMemo<WorkItemFilter>(() => ({
     query,
-    typeIds: typeFilter ? [typeFilter] : undefined,
-    statusIds: statusFilter ? [statusFilter] : undefined,
-    priorityIds: priorityFilter ? [priorityFilter] : undefined,
-    assigneeIds: assigneeFilter ? [assigneeFilter] : undefined,
-    milestoneIds: milestoneFilter ? [milestoneFilter] : undefined
-  }), [assigneeFilter, milestoneFilter, priorityFilter, query, statusFilter, typeFilter]);
+    typeIds: typeFilterIds.length ? typeFilterIds : undefined,
+    statusIds: statusFilterIds.length ? statusFilterIds : undefined,
+    priorityIds: priorityFilterIds.length ? priorityFilterIds : undefined,
+    assigneeIds: assigneeFilterIds.length ? assigneeFilterIds : undefined,
+    milestoneIds: milestoneFilterIds.length ? milestoneFilterIds : undefined
+  }), [assigneeFilterIds, milestoneFilterIds, priorityFilterIds, query, statusFilterIds, typeFilterIds]);
 
   if (!bundle) return null;
   const { itemTypes, members, priorities, statuses, milestones } = bundle.core;
@@ -135,24 +143,49 @@ export function BacklogView({ view }: { view?: BacklogViewDef }) {
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
-        <SelectField label="Type" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}>
+        <SelectField
+          label="Type"
+          value={selectValueForFilterIds(typeFilterIds)}
+          onChange={(event) => setTypeFilterIds(filterIdsFromSelectValue(event.target.value))}
+        >
           <option value="">All types</option>
+          {typeFilterIds.length > 1 ? <option value={MULTI_FILTER_VALUE}>Multiple types</option> : null}
           {itemTypes.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}
         </SelectField>
-        <SelectField label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+        <SelectField
+          label="Status"
+          value={selectValueForFilterIds(statusFilterIds)}
+          onChange={(event) => setStatusFilterIds(filterIdsFromSelectValue(event.target.value))}
+        >
           <option value="">All statuses</option>
+          {statusFilterIds.length > 1 ? <option value={MULTI_FILTER_VALUE}>Multiple statuses</option> : null}
           {statuses.map((status) => <option key={status.id} value={status.id}>{status.name}</option>)}
         </SelectField>
-        <SelectField label="Priority" value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)}>
+        <SelectField
+          label="Priority"
+          value={selectValueForFilterIds(priorityFilterIds)}
+          onChange={(event) => setPriorityFilterIds(filterIdsFromSelectValue(event.target.value))}
+        >
           <option value="">All priorities</option>
+          {priorityFilterIds.length > 1 ? <option value={MULTI_FILTER_VALUE}>Multiple priorities</option> : null}
           {priorities.map((priority) => <option key={priority.id} value={priority.id}>{priority.name}</option>)}
         </SelectField>
-        <SelectField label="Assignee" value={assigneeFilter} onChange={(event) => setAssigneeFilter(event.target.value)}>
+        <SelectField
+          label="Assignee"
+          value={selectValueForFilterIds(assigneeFilterIds)}
+          onChange={(event) => setAssigneeFilterIds(filterIdsFromSelectValue(event.target.value))}
+        >
           <option value="">All assignees</option>
+          {assigneeFilterIds.length > 1 ? <option value={MULTI_FILTER_VALUE}>Multiple assignees</option> : null}
           {members.filter((member) => !member.archived).map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}
         </SelectField>
-        <SelectField label="Milestone" value={milestoneFilter} onChange={(event) => setMilestoneFilter(event.target.value)}>
+        <SelectField
+          label="Milestone"
+          value={selectValueForFilterIds(milestoneFilterIds)}
+          onChange={(event) => setMilestoneFilterIds(filterIdsFromSelectValue(event.target.value))}
+        >
           <option value="">All milestones</option>
+          {milestoneFilterIds.length > 1 ? <option value={MULTI_FILTER_VALUE}>Multiple milestones</option> : null}
           {milestones.map((milestone) => <option key={milestone.id} value={milestone.id}>{milestone.name}</option>)}
         </SelectField>
         <TextField

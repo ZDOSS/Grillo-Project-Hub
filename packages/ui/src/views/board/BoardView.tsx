@@ -5,7 +5,14 @@ import { findColumnForStatus } from "@gph/core";
 import { Button, EmptyState, InlineAlert, SelectField, TextField, ViewToolbar } from "../../components";
 import { openCreateItem } from "../../commands/palette-bus";
 import { ItemCard } from "./ItemCard";
-import { cleanWorkItemFilter, itemMatchesFilter, nextViewOrder } from "../planning/view-helpers";
+import {
+  filterIdsFromSelectValue,
+  cleanWorkItemFilter,
+  itemMatchesFilter,
+  MULTI_FILTER_VALUE,
+  nextViewOrder,
+  selectValueForFilterIds
+} from "../planning/view-helpers";
 
 export type BoardViewProps = {
   view: BoardViewDef;
@@ -18,8 +25,8 @@ export function BoardView({ view }: BoardViewProps) {
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [dropFeedback, setDropFeedback] = useState<string | null>(null);
   const [query, setQuery] = useState(view.filter?.query ?? "");
-  const [typeFilter, setTypeFilter] = useState(view.filter?.typeIds?.[0] ?? "");
-  const [statusFilter, setStatusFilter] = useState(view.filter?.statusIds?.[0] ?? "");
+  const [typeFilterIds, setTypeFilterIds] = useState<string[]>(view.filter?.typeIds ?? []);
+  const [statusFilterIds, setStatusFilterIds] = useState<string[]>(view.filter?.statusIds ?? []);
   const [viewName, setViewName] = useState(defaultSaveNameForView(view));
   const [viewMessage, setViewMessage] = useState<string | null>(null);
   const dragCounter = useRef(0);
@@ -30,17 +37,17 @@ export function BoardView({ view }: BoardViewProps) {
 
   useEffect(() => {
     setQuery(view.filter?.query ?? "");
-    setTypeFilter(view.filter?.typeIds?.[0] ?? "");
-    setStatusFilter(view.filter?.statusIds?.[0] ?? "");
+    setTypeFilterIds(view.filter?.typeIds ?? []);
+    setStatusFilterIds(view.filter?.statusIds ?? []);
     setViewName(defaultSaveNameForView(view));
     setViewMessage(null);
   }, [view.id]);
 
   const activeFilter = useMemo<WorkItemFilter>(() => ({
     query,
-    typeIds: typeFilter ? [typeFilter] : undefined,
-    statusIds: statusFilter ? [statusFilter] : undefined
-  }), [query, statusFilter, typeFilter]);
+    typeIds: typeFilterIds.length ? typeFilterIds : undefined,
+    statusIds: statusFilterIds.length ? statusFilterIds : undefined
+  }), [query, statusFilterIds, typeFilterIds]);
   const cleanFilter = useMemo(() => cleanWorkItemFilter(activeFilter), [activeFilter]);
 
   const itemsByStatus = useMemo(() => {
@@ -180,12 +187,22 @@ export function BoardView({ view }: BoardViewProps) {
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
-        <SelectField label="Board type" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}>
+        <SelectField
+          label="Board type"
+          value={selectValueForFilterIds(typeFilterIds)}
+          onChange={(event) => setTypeFilterIds(filterIdsFromSelectValue(event.target.value))}
+        >
           <option value="">All types</option>
+          {typeFilterIds.length > 1 ? <option value={MULTI_FILTER_VALUE}>Multiple types</option> : null}
           {itemTypes.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}
         </SelectField>
-        <SelectField label="Board status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+        <SelectField
+          label="Board status"
+          value={selectValueForFilterIds(statusFilterIds)}
+          onChange={(event) => setStatusFilterIds(filterIdsFromSelectValue(event.target.value))}
+        >
           <option value="">All statuses</option>
+          {statusFilterIds.length > 1 ? <option value={MULTI_FILTER_VALUE}>Multiple statuses</option> : null}
           {statuses.map((status) => <option key={status.id} value={status.id}>{status.name}</option>)}
         </SelectField>
         <TextField
