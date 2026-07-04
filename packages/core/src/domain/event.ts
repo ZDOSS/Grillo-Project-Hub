@@ -28,6 +28,12 @@ export type EventType =
   | "milestone.assigned"
   | "doc.created"
   | "doc.updated"
+  | "doc.deleted"
+  | "doc.permanentlyDeleted"
+  | "doc.restored"
+  | "attachment.deleted"
+  | "attachment.permanentlyDeleted"
+  | "attachment.restored"
   | "automation.executed";
 
 export type EventRecord = {

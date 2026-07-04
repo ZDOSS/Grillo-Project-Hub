@@ -14,6 +14,7 @@ import {
   Settings,
   Sun,
   Table2,
+  Trash2,
   UserRound
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -74,6 +75,7 @@ const NAV_ICONS = {
   docs: <FileText {...navIconProps} />,
   bugs: <Bug {...navIconProps} />,
   mywork: <UserRound {...navIconProps} />,
+  trash: <Trash2 {...navIconProps} />,
   search: <Search {...navIconProps} />
 } satisfies Record<(typeof PROJECT_NAV_ITEMS)[number]["id"], ReactNode>;
 

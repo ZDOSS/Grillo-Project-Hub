@@ -4,6 +4,8 @@ import { useProjectStore } from "../store/project-store";
 import { getBugData, setBugData, type WorkItem, type BugItemData, type Relationship, type Attachment, type Reminder } from "@gph/core";
 import { ConfirmDialog, InlineAlert, Modal } from "../components";
 import { AttachmentPanel } from "./AttachmentPanel";
+import { CustomFieldsPanel } from "./CustomFieldsPanel";
+import { formatActivityEvent } from "./activity";
 import { formatReminderDateTime, ReminderPanel } from "./ReminderPanel";
 
 type RelationshipDraftType = "blocks" | "blockedBy" | "relatesTo";
@@ -150,6 +152,7 @@ export function WorkItemModal() {
   const members = bundle.core.members;
   const labels = bundle.core.labels;
   const milestones = bundle.core.milestones;
+  const hasCustomFields = bundle.core.customFields.some((field) => !field.archived);
 
   const bugModule = bundle.modules["builtin.bugs"];
   const applicableBugTypes: string[] = (bugModule?.config?.applicableTypeIds as string[]) ?? [];
@@ -419,6 +422,17 @@ export function WorkItemModal() {
                 )}
               </div>
             </div>
+
+            {hasCustomFields ? (
+              <div className="item-detail-section">
+                <h3>Custom fields</h3>
+                <CustomFieldsPanel
+                  fields={bundle.core.customFields}
+                  item={item}
+                  onChange={(customFields) => saveField({ customFields })}
+                />
+              </div>
+            ) : null}
 
             <div className="item-detail-section">
               <h3>Description</h3>
@@ -802,11 +816,17 @@ export function WorkItemModal() {
                   .filter((e) => e.itemId === item.id)
                   .slice(-20)
                   .reverse()
-                  .map((e) => (
-                    <div key={e.id} className="text-xs text-secondary">
-                      <span className="mono">{e.type}</span> · {new Date(e.at).toLocaleString()} · <span className="text-muted">{e.source}</span>
-                    </div>
-                  ))}
+                  .map((e) => {
+                    const activity = formatActivityEvent(e);
+                    return (
+                      <div key={e.id} className="activity-entry">
+                        <span className="activity-entry-label">{activity.label}</span>
+                        {activity.detail ? <span className="text-muted">{activity.detail}</span> : null}
+                        <span className="text-muted">{new Date(e.at).toLocaleString()}</span>
+                        <span className="tag">{e.source}</span>
+                      </div>
+                    );
+                  })}
               </div>
             </div>
           </div>

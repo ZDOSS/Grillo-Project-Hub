@@ -59,4 +59,32 @@ describe("TableView", () => {
 
     expect(rowIndexFor("Newer table item")).toBeLessThan(rowIndexFor("Older table item"));
   });
+
+  it("shows custom field columns with formatted values", () => {
+    const bundle = buildProjectFromTemplate("simple-kanban", "Table");
+    useProjectStore.setState({ bundle });
+    const apply = useProjectStore.getState().applyCommand;
+    apply({ type: "item.create", projectId: bundle.project.id, typeId: "task", title: "Risk table item", statusId: "inbox" });
+    const withField = apply({
+      type: "customField.define",
+      projectId: bundle.project.id,
+      field: { name: "Risk", type: "select", options: ["Low", "High"], applicableTypeIds: ["task"] }
+    }).bundle;
+    const item = withField.core.items.find((entry) => entry.title === "Risk table item")!;
+    const field = withField.core.customFields.find((entry) => entry.name === "Risk")!;
+    apply({
+      type: "item.update",
+      projectId: bundle.project.id,
+      itemId: item.id,
+      patch: { customFields: { [field.id]: "High" } }
+    });
+
+    render(<MemoryRouter><TableView /></MemoryRouter>);
+
+    expect(screen.getByText("Risk")).toBeInTheDocument();
+    const row = Array.from(document.querySelectorAll("tbody tr")).find((entry) =>
+      entry.textContent?.includes("Risk table item")
+    );
+    expect(row).toHaveTextContent("High");
+  });
 });

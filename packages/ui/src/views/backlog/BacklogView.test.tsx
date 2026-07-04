@@ -26,4 +26,31 @@ describe("BacklogView", () => {
     expect(urgentIdx).toBeLessThan(laterIdx);
     expect(laterIdx).toBeLessThan(unrankedIdx);
   });
+
+  it("shows custom field metadata on backlog rows", () => {
+    const bundle = buildProjectFromTemplate("simple-kanban", "Test");
+    useProjectStore.setState({ bundle });
+    const apply = useProjectStore.getState().applyCommand;
+    apply({ type: "item.create", projectId: bundle.project.id, typeId: "task", title: "Risk backlog item", statusId: "inbox" });
+    const withField = apply({
+      type: "customField.define",
+      projectId: bundle.project.id,
+      field: { name: "Risk", type: "select", options: ["Low", "High"], applicableTypeIds: ["task"] }
+    }).bundle;
+    const item = withField.core.items.find((entry) => entry.title === "Risk backlog item")!;
+    const field = withField.core.customFields.find((entry) => entry.name === "Risk")!;
+    apply({
+      type: "item.update",
+      projectId: bundle.project.id,
+      itemId: item.id,
+      patch: { customFields: { [field.id]: "High" } }
+    });
+
+    render(<MemoryRouter><BacklogView /></MemoryRouter>);
+
+    const row = Array.from(document.querySelectorAll(".backlog-row")).find((entry) =>
+      entry.textContent?.includes("Risk backlog item")
+    );
+    expect(row).toHaveTextContent("Risk: High");
+  });
 });

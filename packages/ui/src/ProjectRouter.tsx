@@ -8,6 +8,7 @@ import { RoadmapView } from "./views/roadmap/RoadmapView";
 import { CalendarView } from "./views/calendar/CalendarView";
 import { BugTriageView } from "./views/bugs/BugTriageView";
 import { MyWorkView } from "./views/mywork/MyWorkView";
+import { TrashView } from "./views/trash/TrashView";
 import { SearchView } from "./views/search/SearchView";
 import { SettingsView } from "./views/settings/SettingsView";
 import { WorkItemModal, CreateItemDialog } from "./work-item";
@@ -54,6 +55,7 @@ function ProjectRoutes() {
         <Route path="/calendar" element={<CalendarView />} />
         <Route path="/bugs" element={<BugTriageView />} />
         <Route path="/mywork" element={<MyWorkView />} />
+        <Route path="/trash" element={<TrashView />} />
         <Route path="/search" element={<SearchView />} />
         <Route path="/settings" element={<SettingsView />} />
       </Routes>

@@ -340,51 +340,46 @@ PR body must include:
 - [ ] Render upcoming reminders in the item modal metadata area.
 - [ ] Verify with `npm.cmd run typecheck`, `npm.cmd test`, and `npm.cmd run build:web`.
 
-### PR 3: Trash, Restore, And Activity
+### PR 3: Trash, Restore, Activity, And Custom Fields
 
-**Intent:** Make deletion and history feel trustworthy.
+**Intent:** Make deletion/history trustworthy and turn custom fields from settings-only configuration into usable work metadata. This combines the original PR 3 and PR 4 slices into one larger review unit so paid automated review is spent on a bigger product-depth increment.
 
 **Files:**
 
+- Modify: `packages/core/src/commands/envelope.ts`
+- Modify: `packages/core/src/commands/dispatcher.ts`
+- Modify: `packages/core/src/commands/dispatcher.test.ts`
 - Create: `packages/ui/src/views/trash/TrashView.tsx`
 - Create: `packages/ui/src/views/trash/TrashView.test.tsx`
+- Create: `packages/ui/src/work-item/CustomFieldsPanel.tsx`
+- Create or modify: shared activity/custom-field formatting helpers under `packages/ui/src/work-item/` or `packages/ui/src/components/`
 - Modify: `packages/ui/src/nav-config.ts`
 - Modify: `packages/ui/src/ProjectRouter.tsx`
 - Modify: `packages/ui/src/AppShell.tsx`
 - Modify: `packages/ui/src/work-item/WorkItemModal.tsx`
+- Modify: `packages/ui/src/work-item/WorkItemModal.test.tsx`
+- Modify: `packages/ui/src/views/table/TableView.tsx`
+- Modify: `packages/ui/src/views/table/TableView.test.tsx`
+- Modify: `packages/ui/src/views/backlog/BacklogView.tsx`
+- Modify: `packages/ui/src/views/backlog/BacklogView.test.tsx`
+- Modify: `packages/ui/src/views/settings/SettingsView.tsx` only if needed to support workflow tests without redesigning settings
+- Modify: `packages/ui/src/theme/global.css`
 - Modify: `AI.md`
 - Modify: `Readme.md`
 
 - [ ] Add a first-class Trash route.
-- [ ] Show trashed work items, docs, attachments, labels, milestones, and relationships where available.
-- [ ] Add restore actions for supported record types.
+- [ ] Show trashed work items, docs, and attachments; labels, milestones, relationships, and other typed trash entries should display as unsupported unless commands actually produce them.
+- [ ] Add restore actions for supported record types through the command dispatcher.
 - [ ] Add permanent delete with impact review copy.
 - [ ] Improve item activity display so events are readable by humans, not only event-type strings.
-- [ ] Verify with component tests, `npm.cmd run typecheck`, `npm.cmd test`, and `npm.cmd run build:web`.
-
-### PR 4: Custom Fields In Real Workflows
-
-**Intent:** Turn custom fields from settings-only configuration into usable work metadata.
-
-**Files:**
-
-- Create: `packages/ui/src/work-item/CustomFieldsPanel.tsx`
-- Modify: `packages/ui/src/work-item/WorkItemModal.tsx`
-- Modify: `packages/ui/src/views/table/TableView.tsx`
-- Modify: `packages/ui/src/views/backlog/BacklogView.tsx`
-- Modify: `packages/ui/src/views/settings/SettingsView.tsx`
-- Modify: relevant tests in `packages/ui/src/views/**`
-- Modify: `AI.md`
-- Modify: `Readme.md`
-
 - [ ] Render applicable custom fields in item detail.
 - [ ] Preserve hidden-but-existing values when an item type changes.
 - [ ] Let table show selected custom fields as columns.
 - [ ] Let backlog optionally show compact custom-field metadata.
 - [ ] Add validation and empty-state copy for required custom fields.
-- [ ] Verify with targeted tests plus `npm.cmd test`.
+- [ ] Verify with component tests, `npm.cmd run typecheck`, `npm.cmd test`, `npm.cmd run build:web`, and `npm.cmd run build:desktop`.
 
-### PR 5: Saved Views And Consistent Filters
+### PR 4: Saved Views And Consistent Filters
 
 **Intent:** Make views user-shaped instead of fixed route pages.
 
@@ -407,7 +402,7 @@ PR body must include:
 - [ ] Add delete/rename/reorder for saved views.
 - [ ] Verify import/export preserves saved views.
 
-### PR 6: Backlog And Table Parity
+### PR 5: Backlog And Table Parity
 
 **Intent:** Make high-density planning feel credible.
 
@@ -427,7 +422,7 @@ PR body must include:
 - [ ] Add bulk selection and bulk status/priority/assignee updates.
 - [ ] Preserve keyboard navigation and accessible sortable headers.
 
-### PR 7: Roadmap And Milestone Planning
+### PR 6: Roadmap And Milestone Planning
 
 **Intent:** Make planning across dates and milestones useful without becoming heavyweight scheduling software.
 
@@ -447,7 +442,7 @@ PR body must include:
 - [ ] Add an agenda-style calendar list for upcoming start/due dates and reminders.
 - [ ] Keep date-only semantics unchanged.
 
-### PR 8: Bug Intake And Triage Workflow
+### PR 7: Bug Intake And Triage Workflow
 
 **Intent:** Turn bug triage into a true intake and decision surface.
 
@@ -467,7 +462,7 @@ PR body must include:
 - [ ] Add bug source/context fields using plugin-owned data.
 - [ ] Add filters for severity, priority, stale bugs, unassigned bugs, and needs-repro.
 
-### PR 9: Automation Rule Builder
+### PR 8: Automation Rule Builder
 
 **Intent:** Surface the structured automation model in a calm rule-builder UI.
 
@@ -488,7 +483,7 @@ PR body must include:
 - [ ] Show a dry-run preview before saving a rule.
 - [ ] Execute rules through the same validated command surface.
 
-### PR 10: Project Overview And Dashboard
+### PR 9: Project Overview And Dashboard
 
 **Intent:** Give users a first screen that answers "what needs attention?"
 
@@ -510,7 +505,7 @@ PR body must include:
 - [ ] Show open bugs by severity.
 - [ ] Show storage trust and save state in context.
 
-### PR 11: Docs Knowledge System
+### PR 10: Docs Knowledge System
 
 **Intent:** Make docs feel like project knowledge rather than a Markdown side tab.
 
@@ -531,7 +526,7 @@ PR body must include:
 - [ ] Add doc search inside the docs surface.
 - [ ] Preserve router-safe internal links.
 
-### PR 12: Settings Decomposition And AI Bridge Truth-In-UI
+### PR 11: Settings Decomposition And AI Bridge Truth-In-UI
 
 **Intent:** Reduce settings risk and remove placeholder bridge promises.
 
@@ -549,7 +544,7 @@ PR body must include:
 - [ ] Keep plugin trust language risk-aware.
 - [ ] Verify settings navigation remains keyboard accessible.
 
-### PR 13: Responsive, Accessibility, And Release Polish
+### PR 12: Responsive, Accessibility, And Release Polish
 
 **Intent:** Make the improved product feel coherent across desktop, narrow screens, keyboard workflows, and release artifacts.
 
