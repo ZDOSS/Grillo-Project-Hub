@@ -7,6 +7,7 @@ import {
   FolderKanban,
   FolderOpen,
   KanbanSquare,
+  LayoutDashboard,
   ListTodo,
   Moon,
   Play,
@@ -68,6 +69,7 @@ const GrilloLogo = () => (
 // ── Nav config ───────────────────────────────────────────────────────────────
 
 const NAV_ICONS = {
+  overview: <LayoutDashboard {...navIconProps} />,
   board: <KanbanSquare {...navIconProps} />,
   backlog: <ListTodo {...navIconProps} />,
   table: <Table2 {...navIconProps} />,

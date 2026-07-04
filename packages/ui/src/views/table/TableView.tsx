@@ -99,6 +99,10 @@ export function TableView({ view }: { view?: TableViewDef }) {
   const [columnOrder, setColumnOrder] = useState<string[]>(initialColumnOrder(view));
   const [viewName, setViewName] = useState(view?.name ?? "");
   const [viewMessage, setViewMessage] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkStatusId, setBulkStatusId] = useState("");
+  const [bulkPriorityId, setBulkPriorityId] = useState("__no-change");
+  const [bulkAssigneeId, setBulkAssigneeId] = useState("__no-change");
 
   useEffect(() => {
     const nextSort = view?.sort ?? DEFAULT_TABLE_SORT;
@@ -114,6 +118,7 @@ export function TableView({ view }: { view?: TableViewDef }) {
     setColumnOrder(initialColumnOrder(view));
     setViewName(view?.name ?? "");
     setViewMessage(null);
+    setSelectedIds([]);
   }, [view?.id]);
 
   const activeFilter = useMemo<WorkItemFilter>(() => ({
@@ -154,6 +159,10 @@ export function TableView({ view }: { view?: TableViewDef }) {
   if (!bundle) return null;
 
   const cleanFilter = cleanWorkItemFilter(activeFilter);
+  const visibleRowIds = rows.map((row) => row.item.id);
+  const visibleRowIdSet = new Set(visibleRowIds);
+  const selectedVisibleIds = selectedIds.filter((id) => visibleRowIdSet.has(id));
+  const allVisibleSelected = rows.length > 0 && selectedVisibleIds.length === rows.length;
 
   const setSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -176,6 +185,49 @@ export function TableView({ view }: { view?: TableViewDef }) {
     });
   };
 
+  const toggleSelected = (itemId: string) => {
+    setSelectedIds((current) =>
+      current.includes(itemId)
+        ? current.filter((id) => id !== itemId)
+        : [...current, itemId]
+    );
+  };
+
+  const toggleAllVisible = () => {
+    setSelectedIds((current) => {
+      if (allVisibleSelected) return current.filter((id) => !visibleRowIdSet.has(id));
+      return Array.from(new Set([...current, ...visibleRowIds]));
+    });
+  };
+
+  const clearBulkSelection = () => {
+    setSelectedIds([]);
+    setBulkStatusId("");
+    setBulkPriorityId("__no-change");
+    setBulkAssigneeId("__no-change");
+  };
+
+  const applyBulkChanges = () => {
+    const patch: Record<string, unknown> = {};
+    if (bulkStatusId) patch.statusId = bulkStatusId;
+    if (bulkPriorityId !== "__no-change") {
+      patch.priorityId = bulkPriorityId === "__none" ? null : bulkPriorityId;
+    }
+    if (bulkAssigneeId !== "__no-change") {
+      patch.assigneeId = bulkAssigneeId === "__none" ? null : bulkAssigneeId;
+    }
+    if (Object.keys(patch).length === 0) {
+      setViewMessage("Choose at least one bulk change.");
+      return;
+    }
+    const selectedRows = rows.filter((row) => selectedIds.includes(row.item.id));
+    for (const row of selectedRows) {
+      updateItem(row.item, patch);
+    }
+    setViewMessage(`Updated ${selectedRows.length} ${selectedRows.length === 1 ? "item" : "items"}.`);
+    clearBulkSelection();
+  };
+
   const baseColumns: Array<DataTableColumn<Row>> = [
     {
       id: "title",
@@ -183,12 +235,20 @@ export function TableView({ view }: { view?: TableViewDef }) {
       onSort: () => setSort("title"),
       sortButtonLabel: "Sort by title",
       render: ({ item }) => (
-        <Link
-          to={`/item/${item.id}`}
-          style={{ color: "inherit", fontWeight: 600, textDecoration: "none" }}
-        >
-          {item.title}
-        </Link>
+        <div className="table-title-cell">
+          <input
+            aria-label={`Select ${item.title}`}
+            checked={selectedIds.includes(item.id)}
+            onChange={() => toggleSelected(item.id)}
+            type="checkbox"
+          />
+          <Link
+            to={`/item/${item.id}`}
+            style={{ color: "inherit", fontWeight: 600, textDecoration: "none" }}
+          >
+            {item.title}
+          </Link>
+        </div>
       )
     },
     {
@@ -471,6 +531,51 @@ export function TableView({ view }: { view?: TableViewDef }) {
         ) : null}
         {viewMessage ? <InlineAlert tone="info">{viewMessage}</InlineAlert> : null}
       </ViewToolbar>
+      <div className="table-bulk-toolbar" aria-label="Bulk table actions">
+        <label className="table-master-select">
+          <input
+            aria-label="Select all visible rows"
+            checked={allVisibleSelected}
+            onChange={toggleAllVisible}
+            type="checkbox"
+          />
+          <span>{selectedVisibleIds.length > 0 ? `${selectedVisibleIds.length} selected` : "Select visible"}</span>
+        </label>
+        <SelectField
+          label="Bulk status"
+          value={bulkStatusId}
+          onChange={(event) => setBulkStatusId(event.target.value)}
+        >
+          <option value="">Leave status</option>
+          {bundle.core.statuses.map((status) => <option key={status.id} value={status.id}>{status.name}</option>)}
+        </SelectField>
+        <SelectField
+          label="Bulk priority"
+          value={bulkPriorityId}
+          onChange={(event) => setBulkPriorityId(event.target.value)}
+        >
+          <option value="__no-change">Leave priority</option>
+          <option value="__none">No priority</option>
+          {bundle.core.priorities.map((priority) => <option key={priority.id} value={priority.id}>{priority.name}</option>)}
+        </SelectField>
+        <SelectField
+          label="Bulk assignee"
+          value={bulkAssigneeId}
+          onChange={(event) => setBulkAssigneeId(event.target.value)}
+        >
+          <option value="__no-change">Leave assignee</option>
+          <option value="__none">Unassigned</option>
+          {bundle.core.members.filter((member) => !member.archived).map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}
+        </SelectField>
+        <Button
+          size="sm"
+          disabled={selectedVisibleIds.length === 0}
+          onClick={applyBulkChanges}
+        >
+          Apply bulk changes
+        </Button>
+        <Button size="sm" variant="ghost" onClick={clearBulkSelection}>Clear selection</Button>
+      </div>
       <div className="table-column-picker" aria-label="Column visibility">
         {BASE_TABLE_COLUMNS.map((columnId) => (
           <CheckboxField

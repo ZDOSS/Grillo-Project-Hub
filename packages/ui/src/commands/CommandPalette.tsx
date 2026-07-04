@@ -130,6 +130,7 @@ export function registerCoreCommands(): () => void {
 
   const commands: Array<Omit<CommandEntry, "run"> & { run: () => void }> = [
     { id: "nav.projects", title: "Go to projects", group: "navigation", run: () => nav("/") },
+    { id: "nav.overview", title: "Go to overview", group: "navigation", run: () => nav("/overview") },
     { id: "nav.board", title: "Go to board", group: "navigation", run: () => nav("/board") },
     { id: "nav.backlog", title: "Go to backlog", group: "navigation", run: () => nav("/backlog") },
     { id: "nav.table", title: "Go to table", group: "navigation", run: () => nav("/table") },

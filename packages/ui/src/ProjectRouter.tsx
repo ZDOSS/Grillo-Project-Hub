@@ -3,6 +3,7 @@ import { useProjectStore } from "./store/project-store";
 import { BoardView } from "./views/board/BoardView";
 import { BacklogView } from "./views/backlog/BacklogView";
 import { TableView } from "./views/table/TableView";
+import { OverviewView } from "./views/overview/OverviewView";
 import { DocsView } from "./views/docs/DocsView";
 import { RoadmapView } from "./views/roadmap/RoadmapView";
 import { CalendarView } from "./views/calendar/CalendarView";
@@ -51,7 +52,8 @@ function ProjectRoutes() {
   return (
     <>
       <Routes>
-        <Route path="/" element={<Navigate to="/board" replace />} />
+        <Route path="/" element={<Navigate to="/overview" replace />} />
+        <Route path="/overview" element={<OverviewView />} />
         <Route path="/board" element={boardView ? <BoardView view={boardView as BoardViewDef} /> : <BacklogView />} />
         <Route path="/board/view/:viewId" element={<SavedBoardRoute views={views} />} />
         <Route path="/backlog" element={<BacklogView />} />

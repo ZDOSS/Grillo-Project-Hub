@@ -502,6 +502,31 @@
   flex-direction: column;
   min-height: 0;
 }
+.table-bulk-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-surface);
+}
+.table-bulk-toolbar .gph-field {
+  min-width: 150px;
+}
+.table-master-select,
+.table-title-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.table-master-select {
+  min-height: 32px;
+  font-size: var(--font-size-sm);
+}
+.table-title-cell {
+  min-width: 220px;
+}
 .table-wrap {
   padding: var(--space-4);
   flex: 1;
@@ -601,6 +626,9 @@
   left: 0;
   z-index: 1;
 }
+.roadmap-lane-title {
+  margin-bottom: 2px;
+}
 .roadmap-row-cell {
   border-bottom: 1px solid var(--color-border-subtle);
   border-left: 1px solid var(--color-border-subtle);
@@ -610,20 +638,44 @@
 .roadmap-bar {
   position: absolute;
   top: 8px;
-  height: 36px;
+  min-height: 72px;
+  min-width: 360px;
   border-radius: var(--radius-sm);
   background: var(--color-accent-soft);
   border: 1px solid var(--color-accent);
-  padding: 0 var(--space-2);
+  padding: var(--space-2);
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-1);
   font-size: var(--font-size-xs);
   color: var(--color-text-primary);
   cursor: grab;
   user-select: none;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  overflow: visible;
+  white-space: normal;
+}
+.roadmap-bar-main,
+.roadmap-bar-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.roadmap-bar-controls label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.roadmap-date-input {
+  width: 132px;
+  min-height: 28px;
+  font-size: var(--font-size-2xs);
+}
+.roadmap-milestone-select {
+  width: 150px;
+  min-height: 28px;
+  font-size: var(--font-size-2xs);
 }
 .roadmap-bar[data-status="completed"] { background: var(--color-bg-status-done); border-color: var(--color-status-completed); }
 .roadmap-bar[data-status="active"] { background: var(--color-bg-status-ok); border-color: var(--color-status-active); }
@@ -714,11 +766,16 @@
   flex: 1;
   overflow: auto;
 }
+.calendar-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: var(--space-4);
+  margin: var(--space-4);
+}
 .calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 1px;
-  margin: var(--space-4);
   background: var(--color-border-subtle);
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-md);
@@ -757,8 +814,138 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.calendar-agenda {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  align-self: start;
+}
+.calendar-agenda h2 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+}
+.calendar-agenda-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+.calendar-agenda-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-muted);
+}
+
+/* ---- Overview ---- */
+.overview-view {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-4);
+}
+.overview-header,
+.overview-actions,
+.overview-badges,
+.overview-metrics,
+.overview-stack,
+.overview-event-row,
+.overview-agenda-row {
+  display: flex;
+}
+.overview-header {
+  justify-content: space-between;
+  gap: var(--space-3);
+  align-items: start;
+}
+.overview-header h1 {
+  margin: 0;
+  font-size: var(--font-size-2xl);
+}
+.overview-actions,
+.overview-badges {
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.overview-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(140px, 1fr));
+  gap: var(--space-3);
+}
+.overview-metric,
+.overview-panel {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+}
+.overview-metric {
+  padding: var(--space-3);
+}
+.overview-metric[data-tone="warning"] { border-color: var(--color-warning); }
+.overview-metric[data-tone="danger"] { border-color: var(--color-danger); }
+.overview-metric-value {
+  display: block;
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  line-height: 1;
+}
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+.overview-panel {
+  padding: var(--space-3);
+  min-width: 0;
+}
+.overview-panel h2 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+}
+.overview-panel-wide {
+  grid-column: 1 / -1;
+}
+.overview-stack {
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+.overview-item-link,
+.overview-event-row,
+.overview-agenda-row {
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-muted);
+}
+.overview-progress-bar {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-bg-muted);
+}
+.overview-progress-bar span {
+  display: block;
+  height: 100%;
+  background: var(--color-accent);
+}
 
 /* ---- Bugs view ---- */
+.bugs-view {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
 .bugs {
   padding: var(--space-4);
   display: grid;
@@ -782,9 +969,27 @@
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-sm);
   padding: var(--space-3);
-  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 .bugs-card:hover { box-shadow: var(--shadow-1); }
+.bugs-card-link {
+  color: inherit;
+  text-decoration: none;
+}
+.bugs-card-meta,
+.bugs-card-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.bugs-action-select {
+  min-width: 140px;
+  min-height: 30px;
+  font-size: var(--font-size-xs);
+}
 .bugs-severity {
   display: inline-flex;
   align-items: center;
@@ -1727,6 +1932,11 @@
     grid-template-columns: 1fr;
   }
   .bugs {
+    grid-template-columns: 1fr;
+  }
+  .calendar-layout,
+  .overview-grid,
+  .overview-metrics {
     grid-template-columns: 1fr;
   }
   .settings-table-header,
