@@ -73,7 +73,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 ## Storage model summary
 
 - canonical durable format: `project.pms.json` inside `.pm-suite/` (or browser `localStorage` as a labeled compatibility layer)
-- adapter contract: `ProjectStoreAdapter` in `packages/core/src/storage/store.ts`
+- adapter contract: `ProjectStoreAdapter` in `packages/core/src/storage/store.ts`; folder-capable adapters may implement `loadFolderProject(key)` for files discovered by a currently selected folder even when the browser-local metadata index has never seen that project
 - `WebLocalStorageAdapter` for browser/PWA mode
 - the web adapter is now hybrid: browser-local storage remains the default, but browsers with File System Access support can persist project files into a user-chosen local folder and remember that folder handle through IndexedDB
 - `DesktopAdapter` for Tauri (calls the registered Rust commands and falls back to `localStorage` when Tauri is absent in dev)
@@ -82,6 +82,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - trust status is surfaced in the UI as a `Folder-backed` / `Browser-local` / `Unsaved` badge
 - desktop storage now only writes to the filesystem when a folder path has actually been attached; otherwise the desktop shell behaves as browser-local storage on purpose instead of pretending to be folder-backed
 - recent-project reopen uses the active adapter's `load()` path rather than forcing JSON import; desktop recents restore the remembered folder path before loading
+- new project creation now saves through the active adapter before navigation, so folder-backed creates produce the initial `.pm-suite/<project-id>.pms.json` immediately instead of waiting for a later dirty auto-save
 - launcher reopen paths now validate imported bundles before calling `setBundle()`, matching the startup restore and direct storage-load paths so corrupt saved data is rejected consistently instead of silently entering the UI store
 - the two UI JSON-import entry points now also perform an explicit `validateProjectBundle()` immediately before `setBundle()`, mirroring the reopen paths even though `importProjectJson()` already validates internally; this keeps the UI-side contract obvious and avoids review drift about where store writes are gated
 - the desktop recent-project reopen path still depends on `DesktopAdapter.load()` reading the active folder from `localStorage` at call time; `ProjectsListView` now documents that ordering explicitly so later adapter refactors do not accidentally cache the folder too early
@@ -90,6 +91,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - session restore now treats corrupt or invalid persisted bundles as stale state: failed import/validation clears `gph.active.project` instead of bubbling an unhandled rejection through the startup hook
 - the web runtime now installs the same `WebLocalStorageAdapter` instance into both `window.__gph_store` and `WebStorageAdapter.adapter`, preventing auto-save and startup restore from drifting onto different adapter instances if adapter-local state is added later
 - the desktop runtime now installs the same `DesktopStorageAdapter.adapter` instance into `window.__gph_store`; folder-backed desktop saves/loads/existence checks/deletes call `save_project`, `load_project`, `project_exists`, and `delete_project`
+- `useProjectStore.setBundle()` and `markSaved()` normalize `bundle.projectSettings.storageTrust` to the runtime storage trust, so overview/settings/header storage surfaces do not keep showing browser-local after a folder save or open
 
 ## Command surface
 
@@ -164,10 +166,12 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - browser-vs-folder storage explanation
   - explicit delete/remove confirmation for saved projects
   - folder-backed delete is intentionally "remove recent shortcut only" and does not delete filesystem data
-  - desktop folder-path attach flow for new projects
+  - desktop folder-path attach flow for new projects, with the first project file written before entering the app
   - desktop folder scan/open flow for existing `.pm-suite` saves
   - PWA/browser folder picker for creating and reopening local-folder projects when File System Access is available
+  - direct folder-file open through `loadFolderProject()` when a selected folder lists a project that has no local index metadata
   - automatic last-project restore after reload via persisted active-session metadata
+  - new-project modal dismissal is explicit through Cancel/Create, not backdrop or header-close clicks
   - an explicit `/projects` launcher route; `/` redirects an already-open/restored project to `/overview` so the real app root honors the in-project overview default without removing the launcher
 - per-project view tabs across overview, board, backlog, table, roadmap, calendar, docs, bug triage, my work, search, trash, and saved planning views; `AppShell` reads saved board/backlog/table/bug/my-work views from the active bundle and keeps them separate from hidden built-in route preferences
 - `/overview` is now the default in-project landing route; `OverviewView` derives health summaries from the active bundle, including active work, milestone progress, blocking relationships, future-only upcoming dates/reminders, triage-lane bug intake, recent activity, and the current storage trust/save state without adding new persisted overview state
@@ -229,7 +233,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - roadmap lanes now show milestone target dates, completed/total/percent progress, dependency indicators from `relationshipsForItem()`, explicit date inputs, milestone reassignment controls, and inline invalid-range feedback while preserving date-only semantics through `item.update`; clearing Start or Due clears only that side of the range
 - calendar now keeps the month grid and adds a derived agenda for upcoming item start/due dates plus active reminders; reminder agenda rows use the reminder's IANA timezone to decide the visible date, boundary filtering keeps reminders visible when their local display date and UTC date straddle the agenda start, agenda links use existing work-item routes, and the feature does not introduce a calendar-specific storage model
 - bug triage now exposes a visible `New bug` action in the intake column, maps software-project `inbox` bugs into Intake, opens the shared create dialog with the correct intake status preselected, and limits Intake's planned-status fallback so custom workflows can still populate Ready; `buildBugTriageColumns()` is shared with overview so accepted Ready bugs do not reappear as intake pressure
-- bug triage cards are now `<article>` surfaces with an internal item link and real form controls, not whole-card links, so triage buttons/selects are valid and testable; accept/decline/assign dispatch `item.update`, decline resolves to an existing canceled status or completed fallback before dispatching, snooze dispatches `reminder.create`, and duplicate linking dispatches `relationship.create` with `relatesTo`
+- bug triage cards are now `<article>` surfaces with an internal item link and real form controls, not whole-card links, so triage buttons/selects are valid and testable; accept/decline/assign dispatch `item.update`, decline resolves to an existing canceled status or completed fallback before dispatching, snooze dispatches `reminder.create`, and duplicate linking opens a picker modal before dispatching `relationship.create` with `relatesTo`
 - bug triage toolbar now includes severity and priority filters, cards can edit severity/priority plus plugin-owned source/context data stored under `moduleData.bug`, and the optional Workflow setting blocks Accept/Decline out of intake until a bug has either severity or priority
 - automation settings can create, dry-run preview, enable/disable, and delete rules; the first builder supports item-created/updated/status/due-date/milestone triggers plus set-field, add/remove-label, move-status, assign-milestone, create-subtask, and generate-doc actions
 - automation rule execution is a side-effect layer after the originating item command succeeds: each action still dispatches through the validated command surface with source `automation`, but action validation failures are captured on `automation.executed.data.failedActionCount` / `failures` instead of throwing back through the user's item command
@@ -267,6 +271,9 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - board-card click behavior via `useNavigate` invocation
   - board-card keyboard activation with link semantics
   - silent handling of cancelled browser folder picks
+  - immediate adapter save for new folder-backed PWA projects
+  - local-folder project open without requiring browser-local index metadata
+  - explicit Cancel/Create dismissal for the new-project modal
   - settings-row draft reset when upstream bundle data changes
   - work-item comment editing without `window.prompt`
   - work-item permanent delete confirmation without `window.confirm`
@@ -278,7 +285,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - work-item next-reminder summary behavior that ignores past reminders instead of promoting stale reminders as upcoming follow-up
   - bug triage intake visibility for software-workflow `inbox` bugs and intake-status prefill for `New bug`
   - bug triage fallback mapping that keeps a non-standard planned Ready status visible
-  - bug triage filters for needs-repro and command-backed accept/decline/snooze/assign/duplicate actions
+  - bug triage filters for needs-repro and command-backed accept/decline/snooze/assign/duplicate actions, including the duplicate picker modal and stale duplicate-error cleanup on cancel
   - bug triage severity/priority filtering, plugin-owned source/context editing, and the configured severity-or-priority intake exit gate
   - automation rule create/update/delete/enable/disable/dry-run commands, dispatcher execution through automation source commands, and Settings automation rule preview/save/toggle/delete flows
   - settings section decomposition, keyboard tab navigation, draft preservation across panel switches, and AI bridge future-capability copy that avoids placeholder install instructions
@@ -507,6 +514,13 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - combining labels/milestones and import/export into clearer workflow panels while preserving the existing command paths
   - replacing placeholder AI bridge install/setup copy with real command-coverage documentation and explicit "not shipped yet" runtime gaps
   - adding SettingsView regression coverage for panel splitting, keyboard navigation, and bridge truth copy
+- fixed folder-backed project and duplicate-link user-flow defects by:
+  - saving new projects through the active storage adapter before navigating so selected-folder creates immediately write `.pm-suite/<project-id>.pms.json`
+  - adding adapter-level `loadFolderProject()` support so folder scans can open selected `.pms.json` files even without browser-local index metadata
+  - synchronizing runtime storage trust into `projectSettings.storageTrust` during `setBundle()` and `markSaved()`
+  - requiring explicit Cancel/Create dismissal for the new-project modal
+  - replacing the bug-triage duplicate target select with a searchable picker modal that confirms an existing bug before dispatching `relationship.create`; canceling the picker clears duplicate-scoped errors so stale relationship failures do not leak back into the toolbar
+  - adding focused launcher and bug-triage regression coverage for those flows
 
 ## Open follow-on planning
 

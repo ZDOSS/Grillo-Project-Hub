@@ -2,10 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   buildProjectFromTemplate,
+  exportProjectJson,
   importProjectJson,
   listTemplates,
   validateProjectBundle,
+  type ProjectBundle,
   type ProjectStoreAdapter,
+  type StorageTrust,
   type TemplateId
 } from "@gph/core";
 import { useProjectStore } from "../../store/project-store";
@@ -32,6 +35,16 @@ function getActiveAdapter(): ProjectStoreAdapter | null {
 
 function normalizeRecentTrust(trust: "folder" | "browser" | "unsaved"): "folder" | "browser" {
   return trust === "folder" ? "folder" : "browser";
+}
+
+function withStorageTrust(bundle: ProjectBundle, storageTrust: StorageTrust): ProjectBundle {
+  return {
+    ...bundle,
+    projectSettings: {
+      ...bundle.projectSettings,
+      storageTrust
+    }
+  };
 }
 
 function setDesktopFolderPath(path: string): void {
@@ -124,6 +137,7 @@ export function ProjectsListView() {
   const [templateId, setTemplateId] = useState<TemplateId>("software-project");
   const [folderPath, setFolderPath] = useState(getDesktopFolderPath());
   const [browserFolderLabel, setBrowserFolderLabel] = useState("");
+  const [creating, setCreating] = useState(false);
   const [busyRecentKey, setBusyRecentKey] = useState<string | null>(null);
   const [pendingDeleteRecentKey, setPendingDeleteRecentKey] = useState<string | null>(null);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
@@ -153,29 +167,46 @@ export function ProjectsListView() {
     }
   };
 
-  const create = () => {
-    const bundle = buildProjectFromTemplate(templateId, newName.trim() || "Untitled");
-    const normalizedFolder = folderPath.trim();
-    if (desktopRuntime && normalizedFolder) {
-      setDesktopFolderPath(normalizedFolder);
+  const create = async () => {
+    const activeAdapter = getActiveAdapter();
+    if (!activeAdapter) {
+      setWorkspaceError("No storage adapter is available in this runtime.");
+      return;
     }
-    const folderDisplay = desktopRuntime
-      ? normalizedFolder
-      : browserFolderLabel.trim();
-    const storagePath = folderDisplay
-      ? `${folderDisplay.replace(/[\\/]$/, "")}/.pm-suite/${bundle.project.id}.pms.json`
-      : null;
-    const storageTrust = folderDisplay ? "folder" : "browser";
-    setBundle(bundle, { storageKey: bundle.project.id, storagePath, storageTrust });
-    recordRecent({
-      key: bundle.project.id,
-      name: bundle.project.name,
-      storagePath,
-      trust: storageTrust,
-      lastOpenedAt: new Date().toISOString()
-    });
-    setShowNew(false);
-    navigate("/overview");
+    setCreating(true);
+    setWorkspaceError(null);
+    try {
+      const normalizedFolder = folderPath.trim();
+      if (desktopRuntime && normalizedFolder) {
+        setDesktopFolderPath(normalizedFolder);
+      }
+      const folderDisplay = desktopRuntime ? normalizedFolder : browserFolderLabel.trim();
+      const intendedTrust: StorageTrust = folderDisplay ? "folder" : "browser";
+      const bundle = withStorageTrust(
+        buildProjectFromTemplate(templateId, newName.trim() || "Untitled"),
+        intendedTrust
+      );
+      const metadata = await activeAdapter.save(bundle.project.id, exportProjectJson(bundle), null);
+      const savedBundle = withStorageTrust(bundle, metadata.trust);
+      setBundle(savedBundle, {
+        storageKey: savedBundle.project.id,
+        storagePath: metadata.displayPath,
+        storageTrust: metadata.trust
+      });
+      recordRecent({
+        key: savedBundle.project.id,
+        name: savedBundle.project.name,
+        storagePath: metadata.displayPath,
+        trust: normalizeRecentTrust(metadata.trust),
+        lastOpenedAt: new Date().toISOString()
+      });
+      setShowNew(false);
+      navigate("/overview");
+    } catch (error) {
+      setWorkspaceError(`Create failed: ${(error as Error).message}`);
+    } finally {
+      setCreating(false);
+    }
   };
 
   const openRecentProject = async (recent: RecentProject) => {
@@ -316,11 +347,10 @@ export function ProjectsListView() {
       </div>
 
       {showNew && (
-        <div className="modal-backdrop" onClick={() => setShowNew(false)}>
+        <div className="modal-backdrop">
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <strong>New project</strong>
-              <button className="btn btn-ghost btn-sm" onClick={() => setShowNew(false)}>×</button>
             </div>
             <div className="modal-body">
               <div className="col" style={{ gap: 12 }}>
@@ -369,8 +399,10 @@ export function ProjectsListView() {
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn" onClick={() => setShowNew(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={create}>Create</button>
+              <button className="btn" onClick={() => setShowNew(false)} disabled={creating}>Cancel</button>
+              <button className="btn btn-primary" onClick={() => void create()} disabled={creating}>
+                {creating ? "Creating..." : "Create"}
+              </button>
             </div>
           </div>
         </div>
@@ -449,13 +481,16 @@ export function OpenProjectView() {
         setDesktopFolderPath(normalizedFolder);
       }
       const key = filename.replace(/\.pms\.json$/i, "");
-      const loaded = await activeAdapter.load(key);
+      const loaded = activeAdapter.loadFolderProject
+        ? await activeAdapter.loadFolderProject(key)
+        : await activeAdapter.load(key);
       if (!loaded) {
         throw new Error(`No saved project found for ${filename}.`);
       }
       const imported = importProjectJson(loaded.json);
       validateProjectBundle(imported.bundle);
-      setBundle(imported.bundle, {
+      const openedBundle = withStorageTrust(imported.bundle, loaded.metadata.trust);
+      setBundle(openedBundle, {
         storageKey: imported.bundle.project.id,
         storagePath: loaded.metadata.displayPath,
         storageTrust: loaded.metadata.trust
