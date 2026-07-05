@@ -17,6 +17,7 @@ export function CreateItemDialog() {
   const [description, setDescription] = useState("");
   const [priorityId, setPriorityId] = useState<string>("");
   const [assigneeId, setAssigneeId] = useState<string>("");
+  const [milestoneId, setMilestoneId] = useState<string>("");
   const [startDate, setStartDate] = useState<string>("");
   const [dueDate, setDueDate] = useState<string>("");
   const navigate = useNavigate();
@@ -55,12 +56,14 @@ export function CreateItemDialog() {
         : defaultPriorityIdForType(nextTypeId)
     );
     setAssigneeId(prefill?.assigneeId ?? "");
+    setMilestoneId(prefill?.milestoneId ?? "");
     setStartDate(prefill?.startDate ?? "");
     setDueDate(prefill?.dueDate ?? "");
   }, [
     open,
     prefill?.assigneeId,
     prefill?.dueDate,
+    prefill?.milestoneId,
     prefill?.priorityId,
     prefill?.startDate,
     prefill?.statusId,
@@ -77,6 +80,7 @@ export function CreateItemDialog() {
   const statuses = bundle.core.statuses;
   const priorities = bundle.core.priorities;
   const members = bundle.core.members.filter((member) => !member.archived);
+  const milestones = bundle.core.milestones;
   const invalidDateRange = Boolean(startDate && dueDate && startDate > dueDate);
 
   const changeType = (nextTypeId: string) => {
@@ -96,6 +100,7 @@ export function CreateItemDialog() {
       statusId: statusId || undefined,
       priorityId: priorityId || null,
       assigneeId: assigneeId || null,
+      milestoneId: milestoneId || null,
       startDate: startDate || null,
       dueDate: dueDate || null
     });
@@ -173,6 +178,15 @@ export function CreateItemDialog() {
                 <option value="">Unassigned</option>
                 {members.map((member) => (
                   <option key={member.id} value={member.id}>{member.displayName}</option>
+                ))}
+              </select>
+            </label>
+            <label className="label label-row">
+              Milestone
+              <select className="select" value={milestoneId} onChange={(e) => setMilestoneId(e.target.value)}>
+                <option value="">No milestone</option>
+                {milestones.map((milestone) => (
+                  <option key={milestone.id} value={milestone.id}>{milestone.name}</option>
                 ))}
               </select>
             </label>

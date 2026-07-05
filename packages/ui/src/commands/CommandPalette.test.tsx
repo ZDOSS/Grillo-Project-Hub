@@ -1,4 +1,4 @@
-import { render, screen, act, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, act, fireEvent, cleanup, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { CommandPalette, registerCoreCommands } from "./CommandPalette";
@@ -59,6 +59,7 @@ describe("CommandPalette", () => {
     expect(input).toHaveAttribute("aria-controls", listbox.id);
     expect(input).toHaveAttribute("aria-activedescendant", expect.stringMatching(/^command-option-/));
 
+    await waitFor(() => expect(input).toHaveFocus());
     const firstActiveId = input.getAttribute("aria-activedescendant");
     await userEvent.keyboard("{ArrowDown}");
 

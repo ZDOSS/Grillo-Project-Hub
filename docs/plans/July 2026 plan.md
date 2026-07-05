@@ -185,7 +185,7 @@ The product becomes easier to evaluate, adopt, and trust.
 - Modify if behavior changes: `AI.md`
 - Modify if user-facing feature list changes: `Readme.md`
 
-- [ ] **Step 1: Keep the plan in the implementation PR**
+- [x] **Step 1: Keep the plan in the implementation PR**
 
 Verify this plan file is present on the feature branch but do not open a PR until the code steps below are complete.
 
@@ -197,7 +197,7 @@ git status --short
 
 Expected: this plan is staged or unstaged alongside implementation changes before PR creation.
 
-- [ ] **Step 2: Add a regression test that item detail does not use native prompts**
+- [x] **Step 2: Add a regression test that item detail does not use native prompts**
 
 Update `packages/ui/src/work-item/WorkItemModal.test.tsx` with coverage that opens an item, clicks comment edit, and sees an in-app editing control rather than relying on `window.prompt`.
 
@@ -207,7 +207,7 @@ Expected behavior:
 - comment body can be edited in a visible textarea or input
 - save routes through the existing `comment.edit` command path
 
-- [ ] **Step 3: Add a regression test that destructive item actions use app confirmation**
+- [x] **Step 3: Add a regression test that destructive item actions use app confirmation**
 
 Update `packages/ui/src/work-item/WorkItemModal.test.tsx` with coverage that clicks permanent delete and sees a `ConfirmDialog`.
 
@@ -218,7 +218,7 @@ Expected behavior:
 - cancel closes the dialog without deleting
 - confirm dispatches `item.permanentlyDelete`
 
-- [ ] **Step 4: Move the modal implementation into `WorkItemModal.tsx`**
+- [x] **Step 4: Move the modal implementation into `WorkItemModal.tsx`**
 
 Replace the current re-export in `packages/ui/src/work-item/WorkItemModal.tsx` with the actual modal implementation.
 
@@ -234,7 +234,7 @@ Expected behavior:
 - imports from `./work-item` continue to resolve
 - no route depends on drawer-era component internals
 
-- [ ] **Step 5: Replace native comment edit with inline edit state**
+- [x] **Step 5: Replace native comment edit with inline edit state**
 
 Implement local edit state inside the comment section:
 
@@ -246,7 +246,7 @@ Implement local edit state inside the comment section:
 
 Use existing shared primitives where practical.
 
-- [ ] **Step 6: Replace native permanent-delete confirmation**
+- [x] **Step 6: Replace native permanent-delete confirmation**
 
 Implement a local pending-action state:
 
@@ -261,7 +261,7 @@ type PendingAction =
 
 Use `ConfirmDialog` for destructive actions. Keep archive/trash confirmation only if the copy makes the action clearer; permanent delete must always require explicit confirmation.
 
-- [ ] **Step 7: Add relationship management to item detail**
+- [x] **Step 7: Add relationship management to item detail**
 
 Add a `Relationships` section to the work-item modal.
 
@@ -279,7 +279,7 @@ Use existing commands:
 - `relationship.create`
 - `relationship.delete`
 
-- [ ] **Step 8: Verify PR 1 locally**
+- [x] **Step 8: Verify PR 1 locally**
 
 Run:
 
@@ -295,13 +295,13 @@ Expected:
 - unit/component tests exit 0
 - web build exits 0
 
-- [ ] **Step 9: Update docs and architecture ledger**
+- [x] **Step 9: Update docs and architecture ledger**
 
 Update `AI.md` if implementation changes component ownership, item-detail behavior, or modal/delete/relationship workflow.
 
 Update `Readme.md` if the user-facing feature list should mention relationship management or item modal hardening.
 
-- [ ] **Step 10: Open PR 1**
+- [x] **Step 10: Open PR 1**
 
 Open the PR only after the plan and implementation are both present.
 
@@ -333,12 +333,12 @@ PR body must include:
 - Modify: `AI.md`
 - Modify: `Readme.md`
 
-- [ ] Add tests for adding and deleting item attachments through `attachment.add` and `attachment.delete`.
-- [ ] Add tests for browser-local attachment upload using a data URI fallback.
-- [ ] Add safe preview rules for image, text, and PDF metadata.
-- [ ] Add tests for creating, updating, and deleting item reminders.
-- [ ] Render upcoming reminders in the item modal metadata area.
-- [ ] Verify with `npm.cmd run typecheck`, `npm.cmd test`, and `npm.cmd run build:web`.
+- [x] Add tests for adding and deleting item attachments through `attachment.add` and `attachment.delete`.
+- [x] Add tests for browser-local attachment upload using a data URI fallback.
+- [x] Add safe preview rules for image, text, and PDF metadata.
+- [x] Add tests for creating, updating, and deleting item reminders.
+- [x] Render upcoming reminders in the item modal metadata area.
+- [x] Verify with `npm.cmd run typecheck`, `npm.cmd test`, and `npm.cmd run build:web`.
 
 ### PR 3: Trash, Restore, Activity, And Custom Fields
 
@@ -367,17 +367,17 @@ PR body must include:
 - Modify: `AI.md`
 - Modify: `Readme.md`
 
-- [ ] Add a first-class Trash route.
-- [ ] Show trashed work items, docs, and attachments; labels, milestones, relationships, and other typed trash entries should display as unsupported unless commands actually produce them.
-- [ ] Add restore actions for supported record types through the command dispatcher.
-- [ ] Add permanent delete with impact review copy.
-- [ ] Improve item activity display so events are readable by humans, not only event-type strings.
-- [ ] Render applicable custom fields in item detail.
-- [ ] Preserve hidden-but-existing values when an item type changes.
-- [ ] Let table show selected custom fields as columns.
-- [ ] Let backlog optionally show compact custom-field metadata.
-- [ ] Add validation and empty-state copy for required custom fields.
-- [ ] Verify with component tests, `npm.cmd run typecheck`, `npm.cmd test`, `npm.cmd run build:web`, and `npm.cmd run build:desktop`.
+- [x] Add a first-class Trash route.
+- [x] Show trashed work items, docs, and attachments; labels, milestones, relationships, and other typed trash entries should display as unsupported unless commands actually produce them.
+- [x] Add restore actions for supported record types through the command dispatcher.
+- [x] Add permanent delete with impact review copy.
+- [x] Improve item activity display so events are readable by humans, not only event-type strings.
+- [x] Render applicable custom fields in item detail.
+- [x] Preserve hidden-but-existing values when an item type changes.
+- [x] Let table show selected custom fields as columns.
+- [x] Let backlog optionally show compact custom-field metadata.
+- [x] Add validation and empty-state copy for required custom fields.
+- [x] Verify with component tests, `npm.cmd run typecheck`, `npm.cmd test`, `npm.cmd run build:web`, and `npm.cmd run build:desktop`.
 
 ### PR 4: Saved Views And Backlog/Table Parity
 

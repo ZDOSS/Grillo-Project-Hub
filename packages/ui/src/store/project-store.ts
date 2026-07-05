@@ -134,7 +134,9 @@ export async function restoreLastProjectSession(): Promise<boolean> {
   const adapter = activeAdapter();
   if (!adapter) return false;
   try {
-    const loaded = await adapter.load(session.storageKey);
+    const loaded = session.storageTrust === "folder"
+      ? await adapter.loadFolderProject?.(session.storageKey)
+      : await adapter.load(session.storageKey);
     if (!loaded) {
       saveProjectSession(null);
       return false;

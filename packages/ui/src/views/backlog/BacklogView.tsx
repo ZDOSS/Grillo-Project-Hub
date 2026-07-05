@@ -8,6 +8,7 @@ import { customFieldSummariesForItem } from "../../work-item/custom-fields";
 import {
   cleanWorkItemFilter,
   compareItemsBySort,
+  createItemPrefillFromFilter,
   filterIdsFromSelectValue,
   itemMatchesFilter,
   MULTI_FILTER_VALUE,
@@ -53,6 +54,7 @@ export function BacklogView({ view }: { view?: BacklogViewDef }) {
   if (!bundle) return null;
   const { itemTypes, members, priorities, statuses, milestones } = bundle.core;
   const cleanFilter = cleanWorkItemFilter(activeFilter);
+  const createPrefill = createItemPrefillFromFilter(cleanFilter);
   const activeSort = view?.sort ?? DEFAULT_BACKLOG_SORT;
   const items = bundle.core.items.filter(
     (item) => !item.trashedAt && !item.archived && item.parentId == null && itemMatchesFilter(item, cleanFilter)
@@ -134,7 +136,7 @@ export function BacklogView({ view }: { view?: BacklogViewDef }) {
   return (
     <div className="backlog-view">
       <ViewToolbar>
-        <Button variant="primary" size="sm" onClick={() => openCreateItem()}>
+        <Button variant="primary" size="sm" onClick={() => openCreateItem(createPrefill)}>
           New item
         </Button>
         <TextField
@@ -212,7 +214,7 @@ export function BacklogView({ view }: { view?: BacklogViewDef }) {
             title="Backlog is empty"
             description="Add new items with the C shortcut or the New item button."
             actions={
-              <Button variant="primary" onClick={() => openCreateItem()}>
+              <Button variant="primary" onClick={() => openCreateItem(createPrefill)}>
                 New item
               </Button>
             }

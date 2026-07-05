@@ -8,6 +8,7 @@ import { ItemCard } from "./ItemCard";
 import {
   filterIdsFromSelectValue,
   cleanWorkItemFilter,
+  createItemPrefillFromFilter,
   itemMatchesFilter,
   MULTI_FILTER_VALUE,
   nextViewOrder,
@@ -116,6 +117,10 @@ export function BoardView({ view }: BoardViewProps) {
   };
 
   const firstColumnCreateStatusId = view.columns[0]?.defaultDropStatusId;
+  const createPrefill = createItemPrefillFromFilter(
+    cleanFilter,
+    firstColumnCreateStatusId ? { statusId: firstColumnCreateStatusId } : undefined
+  );
   const isDefaultView = bundle.projectSettings.defaultViewId === view.id;
 
   const saveView = () => {
@@ -177,7 +182,7 @@ export function BoardView({ view }: BoardViewProps) {
         <Button
           variant="primary"
           size="sm"
-          onClick={() => openCreateItem(firstColumnCreateStatusId ? { statusId: firstColumnCreateStatusId } : undefined)}
+          onClick={() => openCreateItem(createPrefill)}
         >
           New item
         </Button>

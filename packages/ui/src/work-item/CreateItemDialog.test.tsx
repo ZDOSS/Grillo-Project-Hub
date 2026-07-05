@@ -73,4 +73,23 @@ describe("CreateItemDialog", () => {
       dueDate: "2026-07-12"
     });
   });
+
+  it("creates a work item with a prefilled milestone", async () => {
+    const milestone = useProjectStore.getState().bundle!.core.milestones[0];
+    render(
+      <MemoryRouter>
+        <CreateItemDialog />
+      </MemoryRouter>
+    );
+
+    act(() => openCreateItem({ typeId: "task", milestoneId: milestone.id }));
+
+    expect(screen.getByLabelText("Milestone")).toHaveValue(milestone.id);
+
+    await userEvent.type(screen.getByLabelText("Title"), "Scope milestone work");
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    const created = useProjectStore.getState().bundle?.core.items.find((item) => item.title === "Scope milestone work");
+    expect(created?.milestoneId).toBe(milestone.id);
+  });
 });

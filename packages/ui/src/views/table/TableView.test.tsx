@@ -5,6 +5,8 @@ import { MemoryRouter } from "react-router-dom";
 import { buildProjectFromTemplate } from "@gph/core";
 import { useProjectStore } from "../../store/project-store";
 import { TableView } from "./TableView";
+import { closeCreateItem } from "../../commands/palette-bus";
+import { CreateItemDialog } from "../../work-item";
 
 function rowIndexFor(title: string) {
   const rows = Array.from(document.querySelectorAll("tbody tr"));
@@ -14,6 +16,7 @@ function rowIndexFor(title: string) {
 describe("TableView", () => {
   beforeEach(() => {
     cleanup();
+    closeCreateItem();
     useProjectStore.setState({ bundle: null });
   });
 
@@ -119,6 +122,48 @@ describe("TableView", () => {
     expect(saved.type).toBe("table");
     expect(saved.filter?.query).toBe("Welcome");
     expect(saved.visibleColumns).not.toContain("labels");
+  });
+
+  it("creates table items that match the active planning filters", async () => {
+    const bundle = buildProjectFromTemplate("software-project", "Table");
+    useProjectStore.setState({ bundle });
+    const apply = useProjectStore.getState().applyCommand;
+    const withMember = apply({ type: "member.create", projectId: bundle.project.id, displayName: "Ada" }).bundle;
+    const member = withMember.core.members.find((entry) => entry.displayName === "Ada")!;
+    const milestone = withMember.core.milestones[0];
+
+    render(
+      <MemoryRouter>
+        <TableView />
+        <CreateItemDialog />
+      </MemoryRouter>
+    );
+
+    await userEvent.selectOptions(screen.getByLabelText("Type"), "bug");
+    await userEvent.selectOptions(screen.getByLabelText("Status"), "ready");
+    await userEvent.selectOptions(screen.getByLabelText("Priority"), "urgent");
+    await userEvent.selectOptions(screen.getByLabelText("Assignee"), member.id);
+    await userEvent.selectOptions(screen.getByLabelText("Milestone"), milestone.id);
+    await userEvent.click(screen.getByRole("button", { name: "New item" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Create work item" });
+    expect(within(dialog).getByLabelText("Type")).toHaveValue("bug");
+    expect(within(dialog).getByLabelText("Status")).toHaveValue("ready");
+    expect(within(dialog).getByLabelText("Priority")).toHaveValue("urgent");
+    expect(within(dialog).getByLabelText("Assignee")).toHaveValue(member.id);
+    expect(within(dialog).getByLabelText("Milestone")).toHaveValue(milestone.id);
+
+    await userEvent.type(within(dialog).getByLabelText("Title"), "Filtered table bug");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Create" }));
+
+    const created = useProjectStore.getState().bundle?.core.items.find((entry) => entry.title === "Filtered table bug");
+    expect(created).toMatchObject({
+      typeId: "bug",
+      statusId: "ready",
+      priorityId: "urgent",
+      assigneeId: member.id,
+      milestoneId: milestone.id
+    });
   });
 
   it("preserves multi-value saved table filters and renders saved column order", async () => {
