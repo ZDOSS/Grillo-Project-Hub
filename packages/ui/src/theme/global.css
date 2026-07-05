@@ -1106,6 +1106,41 @@
 .bugs-context-actions .input {
   min-width: 0;
 }
+.duplicate-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: 320px;
+  overflow: auto;
+}
+.duplicate-picker-option {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+.duplicate-picker-option:hover {
+  background: var(--color-bg-row-hover);
+}
+.duplicate-picker-option[data-selected="true"] {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  box-shadow: inset 3px 0 0 var(--color-accent);
+}
+.duplicate-picker-title {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+.duplicate-picker-meta {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
 .bugs-severity {
   display: inline-flex;
   align-items: center;

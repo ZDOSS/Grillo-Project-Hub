@@ -19,7 +19,9 @@ export function BugTriageView() {
   const [filter, setFilter] = useState<BugFilter>("all");
   const [severityFilter, setSeverityFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
-  const [duplicateTargets, setDuplicateTargets] = useState<Record<string, string>>({});
+  const [duplicateSourceId, setDuplicateSourceId] = useState<string | null>(null);
+  const [duplicateSearch, setDuplicateSearch] = useState("");
+  const [selectedDuplicateTargetId, setSelectedDuplicateTargetId] = useState("");
   const [contextDrafts, setContextDrafts] = useState<Record<string, BugContextDraft>>({});
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -40,12 +42,30 @@ export function BugTriageView() {
     applicableTypeIds.includes(item.typeId) && !item.trashedAt && !item.archived
   ), [applicableTypeIds, bundle.core.items]);
 
-  const runAction = (action: () => void) => {
+  const duplicateSource = duplicateSourceId ? allBugs.find((item) => item.id === duplicateSourceId) ?? null : null;
+  const duplicateCandidates = useMemo(() => {
+    const normalizedSearch = duplicateSearch.trim().toLowerCase();
+    return allBugs.filter((candidate) => {
+      if (candidate.id === duplicateSourceId) return false;
+      if (!normalizedSearch) return true;
+      const data = getBugData(candidate);
+      return [
+        candidate.title,
+        candidate.description,
+        data?.source,
+        data?.context
+      ].some((value) => value?.toLowerCase().includes(normalizedSearch));
+    });
+  }, [allBugs, duplicateSearch, duplicateSourceId]);
+
+  const runAction = (action: () => void): boolean => {
     try {
       action();
       setActionError(null);
+      return true;
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "Bug triage action failed.");
+      return false;
     }
   };
 
@@ -97,21 +117,34 @@ export function BugTriageView() {
     });
   };
 
-  const linkDuplicate = (item: WorkItem) => {
-    const targetId = duplicateTargets[item.id];
-    if (!targetId || targetId === item.id) {
+  const openDuplicateDialog = (item: WorkItem) => {
+    setActionError(null);
+    setDuplicateSourceId(item.id);
+    setDuplicateSearch("");
+    setSelectedDuplicateTargetId("");
+  };
+
+  const closeDuplicateDialog = () => {
+    setDuplicateSourceId(null);
+    setDuplicateSearch("");
+    setSelectedDuplicateTargetId("");
+  };
+
+  const linkDuplicate = () => {
+    if (!duplicateSource || !selectedDuplicateTargetId || selectedDuplicateTargetId === duplicateSource.id) {
       setActionError("Choose another bug to link.");
       return;
     }
-    runAction(() => {
+    const linked = runAction(() => {
       applyCommand({
         type: "relationship.create",
         projectId: bundle.project.id,
         relationshipType: "relatesTo",
-        sourceItemId: item.id,
-        targetItemId: targetId
+        sourceItemId: duplicateSource.id,
+        targetItemId: selectedDuplicateTargetId
       });
     });
+    if (linked) closeDuplicateDialog();
   };
 
   return (
@@ -148,7 +181,7 @@ export function BugTriageView() {
             <option key={priority.id} value={priority.id}>{priority.name}</option>
           ))}
         </SelectField>
-        {actionError ? <InlineAlert tone="danger">{actionError}</InlineAlert> : null}
+        {actionError && !duplicateSource ? <InlineAlert tone="danger">{actionError}</InlineAlert> : null}
       </ViewToolbar>
       <div className="bugs">
         {columns.map((col) => {
@@ -295,18 +328,7 @@ export function BugTriageView() {
                           <option key={member.id} value={member.id}>{member.displayName}</option>
                         ))}
                       </select>
-                      <select
-                        aria-label={`Duplicate target for ${item.title}`}
-                        className="select bugs-action-select"
-                        value={duplicateTargets[item.id] ?? ""}
-                        onChange={(event) => setDuplicateTargets((current) => ({ ...current, [item.id]: event.target.value }))}
-                      >
-                        <option value="">Relate duplicate</option>
-                        {allBugs.filter((candidate) => candidate.id !== item.id).map((candidate) => (
-                          <option key={candidate.id} value={candidate.id}>{candidate.title}</option>
-                        ))}
-                      </select>
-                      <Button size="sm" variant="ghost" onClick={() => linkDuplicate(item)}>
+                      <Button size="sm" variant="ghost" onClick={() => openDuplicateDialog(item)}>
                         Link duplicate for {item.title}
                       </Button>
                     </div>
@@ -317,6 +339,75 @@ export function BugTriageView() {
           );
         })}
       </div>
+      {duplicateSource ? (
+        <div className="modal-backdrop">
+          <div className="modal" role="dialog" aria-label="Link duplicate bug" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <div className="col" style={{ gap: 2 }}>
+                <strong>Link duplicate bug</strong>
+                <span className="text-xs text-muted">{duplicateSource.title}</span>
+              </div>
+            </div>
+            <div className="modal-body">
+              <div className="col" style={{ gap: 12 }}>
+                <label className="label">
+                  Search existing bugs
+                  <input
+                    className="input"
+                    aria-label="Search bugs to link"
+                    value={duplicateSearch}
+                    onChange={(event) => setDuplicateSearch(event.target.value)}
+                    placeholder="Search by title, description, source, or context"
+                    autoFocus
+                  />
+                </label>
+                {actionError ? <InlineAlert tone="danger">{actionError}</InlineAlert> : null}
+                {duplicateCandidates.length === 0 ? (
+                  <EmptyState title="No duplicate candidates" description="No other matching bugs are available to link." />
+                ) : (
+                  <div className="duplicate-picker-list" role="listbox" aria-label="Duplicate candidates">
+                    {duplicateCandidates.map((candidate) => {
+                      const data = getBugData(candidate);
+                      const severity = severities.find((entry) => entry.id === data?.severityId);
+                      const priority = priorities.find((entry) => entry.id === candidate.priorityId);
+                      const status = statuses.find((entry) => entry.id === candidate.statusId);
+                      return (
+                        <button
+                          key={candidate.id}
+                          type="button"
+                          className="duplicate-picker-option"
+                          aria-label={candidate.title}
+                          aria-selected={selectedDuplicateTargetId === candidate.id}
+                          data-selected={selectedDuplicateTargetId === candidate.id}
+                          onClick={() => setSelectedDuplicateTargetId(candidate.id)}
+                        >
+                          <span className="duplicate-picker-title">{candidate.title}</span>
+                          <span className="duplicate-picker-meta">
+                            {status?.name ?? "Unknown status"}
+                            {priority ? ` - ${priority.name}` : ""}
+                            {severity ? ` - ${severity.name}` : ""}
+                            {data?.source ? ` - ${data.source}` : ""}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <Button onClick={closeDuplicateDialog}>Cancel</Button>
+              <Button
+                variant="primary"
+                onClick={linkDuplicate}
+                disabled={!selectedDuplicateTargetId}
+              >
+                Link duplicate
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

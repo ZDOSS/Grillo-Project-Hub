@@ -6,7 +6,7 @@ A free, open source, hybrid day-one project management suite for practical softw
 
 The MVP implementation is in place. The current build supports:
 
-- **Workspace** with new/open/demo project flow, recent-project reopen, browser-vs-folder storage guidance, inline delete/remove confirmation, an explicit `/projects` launcher route, and automatic restore of the last active project after reload
+- **Workspace** with new/open/demo project flow, immediate folder-backed project creation when a folder is selected, recent-project reopen, browser-vs-folder storage guidance, inline delete/remove confirmation, an explicit `/projects` launcher route, and automatic restore of the last active project after reload
 - **Shared UI foundation** with reusable buttons, icon buttons, fields, page headers, surfaces, toolbars, empty states, inline alerts, modal/dialog primitives, data tables, and work-item metadata components
 - **Overview** as the default project landing view for created, opened, imported, demo, and restored projects, summarizing active work, milestone progress, blocked items, future upcoming dates/reminders, triage-lane bug intake, recent activity, and the current storage/save state
 - **Board** with drag-and-drop, WIP limits (warn + hard modes), explicit hard-limit feedback, column-based status grouping, context-aware item creation that starts in the first board lane, and whole-card link navigation that keeps visible card metadata available to assistive technology
@@ -15,7 +15,7 @@ The MVP implementation is in place. The current build supports:
 - **Docs** with Markdown editing, sanitized rendering, internal embeds, command-backed sections, reusable document templates, in-surface doc search, linked-work and backlink context panels, router-safe in-app navigation for preview links, stale document-route recovery, correct pane updates when switching documents, draft-preserving editor resets, shared confirmation for document deletion, and safe navigation to the next active document after deleting the open one
 - **Roadmap / timeline** with date drag/resize, milestone lanes, milestone progress and target dates, dependency indicators, explicit date controls that clear each side of a range independently, milestone reassignment, invalid-range feedback, and shared zoom/anchor controls
 - **Calendar** with accessible month navigation controls, month grid, date-based item visibility, and an agenda for upcoming start/due dates and timezone-aware reminders that stay visible around UTC/local day boundaries
-- **Bug triage** with severity, priority, source/context metadata, reproduction steps, expected/actual behavior, environment, affected version, shared work-card metadata, practical triage filters, accept/decline/snooze/assign/duplicate actions, configurable severity-or-priority intake gates, workflow-safe decline handling, and a visible new-bug entry point that defaults to the Intake lane without starving Ready in custom planned workflows
+- **Bug triage** with severity, priority, source/context metadata, reproduction steps, expected/actual behavior, environment, affected version, shared work-card metadata, practical triage filters, accept/decline/snooze/assign actions, a searchable duplicate-link picker, configurable severity-or-priority intake gates, workflow-safe decline handling, and a visible new-bug entry point that defaults to the Intake lane without starving Ready in custom planned workflows
 - **My work** filtered to the locally selected member with a real member select control, shared work rows, and assigned-to-me creation
 - **Search** across items, docs, comments, and labels with shared search controls and grouped results
 - **Settings** split into focused panels for general project identity, appearance, storage, visible views, members, workflow, labels/milestones, custom fields, plugin trust, automation rules, import/export, and a truthful AI bridge readiness panel with keyboard-accessible section tabs that preserve in-progress drafts while switching sections
@@ -62,13 +62,15 @@ Note: This is a static client-side demo only. All data lives in the browser (loc
 ## Storage notes
 
 - In the **PWA/web app**, projects are browser-local by default. On browsers that support the File System Access API, the launcher can also bind the PWA to a real local folder and save `.pm-suite` project files there.
+- Creating a new project after selecting a folder writes the initial `.pm-suite/<project-id>.pms.json` file before the app enters the project, so the folder-backed copy exists immediately.
+- Opening from a selected folder reads the listed `.pms.json` file directly, even if that project has never been recorded in the browser-local recent-project index.
 - Reloading now restores the last active project from browser state instead of dropping you into an empty shell.
 - Older browser-local saves are repaired on load if their saved-project index metadata is missing, so reopening an existing project no longer depends on that index staying intact.
 - Reopening a saved project from the launcher now runs the same bundle validation used by startup restore and direct storage loads, so corrupt saved data is rejected consistently instead of loading halfway into the app.
 - The visible JSON import flows now also perform that same explicit validation right before the project store is replaced, so manual imports and reopen flows follow the same safety pattern.
 - Corrupt saved-session startup state is cleared automatically instead of breaking the app boot path, and canceling the browser folder picker is treated as a normal dismissal rather than a workspace error.
 - The web runtime now uses one shared storage-adapter instance for both auto-save and startup restore, which keeps the PWA's browser-local and folder-backed persistence paths aligned.
-- In the **desktop shell**, you can still work browser-locally, or attach a folder path for `.pm-suite` saves and reopen those folder-backed projects from the launcher.
+- In the **desktop shell**, you can still work browser-locally, or attach a folder path for `.pm-suite` saves and reopen those folder-backed projects from the launcher; new folder-backed projects are saved immediately through the same adapter path.
 - Desktop folder-backed saves, loads, existence checks, and deletes now call the registered Tauri commands (`save_project`, `load_project`, `project_exists`, `delete_project`) instead of unregistered filesystem-plugin command names.
 - Removing a folder-backed recent from the launcher only removes the shortcut; it does not delete the underlying filesystem project.
 - The command layer now hard-fails unknown member edits, validates item, custom-field, document-section, automation-rule, and saved-view references, rejects project-id mismatches, rejects unknown mutation targets, preserves `hiddenViewIds` defaults when opening older bundles, rejects lossy checklist reorders, validates saved-view filter/sort/order configuration, enforces configured bug-intake gates, creates omitted-title blank docs as `Untitled`, and keeps document trash/restore valid by moving document-scoped attachments to trash records while preserving document reminders for restore.
@@ -98,7 +100,7 @@ The UI/UX overhaul planning package lives in `docs/superpowers/specs/2026-07-02-
 | Suite | Count | Notes |
 | --- | --- | --- |
 | `packages/core` | 57 | Domain, storage, dispatcher, document sections/templates, automation rules, export, import |
-| `packages/ui` | 92 | AppShell, ProjectRouter, OverviewView, shared button and surface primitives, WorkItemModal attachment/reminder/custom-field coverage, TrashView, BoardView, saved planning views, BacklogView, BugTriageView, MyWorkView, TableView, RoadmapView, CalendarView, CommandPalette, CreateItemDialog, launcher, docs, settings, automation settings |
+| `packages/ui` | 95 | AppShell, ProjectRouter, OverviewView, shared button and surface primitives, WorkItemModal attachment/reminder/custom-field coverage, TrashView, BoardView, saved planning views, BacklogView, BugTriageView, MyWorkView, TableView, RoadmapView, CalendarView, CommandPalette, CreateItemDialog, launcher, docs, settings, automation settings |
 | `apps/desktop` | 2 | Desktop storage adapter command wiring |
 | `tests/e2e` | 7 | Hybrid parity, project workflow, theme, palette, export, search |
 

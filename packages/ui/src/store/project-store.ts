@@ -5,7 +5,7 @@
  */
 
 import { create } from "zustand";
-import type { ProjectBundle } from "@gph/core";
+import type { ProjectBundle, StorageTrust } from "@gph/core";
 import { dispatchCommand, envelopeFor, importProjectJson, type CommandEnvelope, type CommandPayload, type CommandSource, type DispatchResult, type ProjectStoreAdapter, validateProjectBundle } from "@gph/core";
 import { exportProjectJson } from "@gph/core";
 
@@ -14,8 +14,18 @@ const ACTIVE_PROJECT_KEY = "gph.active.project";
 type SavedProjectSession = {
   storageKey: string;
   storagePath: string | null;
-  storageTrust: "folder" | "browser" | "unsaved";
+  storageTrust: StorageTrust;
 };
+
+function withRuntimeStorageTrust(bundle: ProjectBundle, storageTrust: StorageTrust): ProjectBundle {
+  return {
+    ...bundle,
+    projectSettings: {
+      ...bundle.projectSettings,
+      storageTrust
+    }
+  };
+}
 
 function saveProjectSession(session: SavedProjectSession | null): void {
   if (typeof localStorage === "undefined") return;
@@ -48,13 +58,13 @@ export type ProjectStoreState = {
   bundle: ProjectBundle | null;
   storageKey: string | null;
   storagePath: string | null;
-  storageTrust: "folder" | "browser" | "unsaved";
+  storageTrust: StorageTrust;
   isDirty: boolean;
   /** Last applied source for the most recent command (used by activity view). */
   lastSource: CommandSource | null;
-  setBundle: (bundle: ProjectBundle, opts?: { storageKey?: string | null; storagePath?: string | null; storageTrust?: "folder" | "browser" | "unsaved" }) => void;
+  setBundle: (bundle: ProjectBundle, opts?: { storageKey?: string | null; storagePath?: string | null; storageTrust?: StorageTrust }) => void;
   applyCommand: (payload: CommandPayload, source?: CommandSource, actorId?: string | null) => DispatchResult;
-  markSaved: (storageKey: string, storagePath: string | null, trust: "folder" | "browser" | "unsaved") => void;
+  markSaved: (storageKey: string, storagePath: string | null, trust: StorageTrust) => void;
   markUnsaved: () => void;
   /** Serialize the current bundle (e.g. for export or save). */
   serialize: () => string;
@@ -71,9 +81,9 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
   setBundle: (bundle, opts) => {
     const nextStorageKey = opts?.storageKey ?? get().storageKey ?? bundle.project.id;
     const nextStoragePath = opts?.storagePath ?? get().storagePath;
-    const nextStorageTrust = opts?.storageTrust ?? get().storageTrust;
+    const nextStorageTrust = opts?.storageTrust ?? bundle.projectSettings.storageTrust ?? get().storageTrust;
     set({
-      bundle,
+      bundle: withRuntimeStorageTrust(bundle, nextStorageTrust),
       storageKey: nextStorageKey,
       storagePath: nextStoragePath,
       storageTrust: nextStorageTrust,
@@ -96,7 +106,14 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
     return r;
   },
   markSaved: (storageKey, storagePath, trust) => {
-    set({ storageKey, storagePath, storageTrust: trust, isDirty: false });
+    const current = get().bundle;
+    set({
+      bundle: current ? withRuntimeStorageTrust(current, trust) : current,
+      storageKey,
+      storagePath,
+      storageTrust: trust,
+      isDirty: false
+    });
     saveProjectSession({ storageKey, storagePath, storageTrust: trust });
   },
   markUnsaved: () => set({ isDirty: true }),

@@ -254,8 +254,12 @@ describe("BugTriageView", () => {
     const acceptedCard = screen.getByRole("article", { name: "Action bug" });
     await userEvent.selectOptions(within(acceptedCard).getByLabelText("Assign owner for Action bug"), member.id);
     await userEvent.click(within(acceptedCard).getByRole("button", { name: "Snooze Action bug" }));
-    await userEvent.selectOptions(within(acceptedCard).getByLabelText("Duplicate target for Action bug"), duplicateTarget.id);
     await userEvent.click(within(acceptedCard).getByRole("button", { name: "Link duplicate for Action bug" }));
+    const duplicateDialog = screen.getByRole("dialog", { name: "Link duplicate bug" });
+    expect(within(duplicateDialog).getByText("Duplicate target bug")).toBeInTheDocument();
+    expect(within(acceptedCard).queryByLabelText("Duplicate target for Action bug")).not.toBeInTheDocument();
+    await userEvent.click(within(duplicateDialog).getByRole("button", { name: "Duplicate target bug" }));
+    await userEvent.click(within(duplicateDialog).getByRole("button", { name: "Link duplicate" }));
 
     const declineCard = screen.getByRole("article", { name: "Decline bug" });
     await userEvent.click(within(declineCard).getByRole("button", { name: "Decline Decline bug" }));

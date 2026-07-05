@@ -65,6 +65,9 @@ class DesktopAdapter implements ProjectStoreAdapter {
     if (!raw) return null;
     return { json: raw, metadata: { key, displayPath: null, externalRevision: null, trust: "browser" } };
   }
+  async loadFolderProject(key: string): Promise<{ json: string; metadata: StorageMetadata } | null> {
+    return this.load(key);
+  }
   async save(key: string, json: string, expectedRevision?: number | null): Promise<StorageMetadata> {
     if (expectedRevision != null) {
       const existing = this.listSync().find((m) => m.key === key);

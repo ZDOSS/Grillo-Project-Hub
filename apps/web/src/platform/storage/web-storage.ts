@@ -39,6 +39,10 @@ function writeIndex(meta: StorageMetadata[]): void {
   } catch {}
 }
 
+function upsertIndexEntry(meta: StorageMetadata): void {
+  writeIndex([meta, ...readIndex().filter((entry) => entry.key !== meta.key)]);
+}
+
 function openHandlesDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(FS_DB_NAME, 1);
@@ -200,6 +204,21 @@ class WebLocalStorageAdapter implements ProjectStoreAdapter {
       writeIndex([fallbackMeta, ...readIndex().filter((entry) => entry.key !== key)]);
     }
     return { json: raw, metadata: fallbackMeta };
+  }
+  async loadFolderProject(key: string): Promise<{ json: string; metadata: StorageMetadata } | null> {
+    const folderHandle = await getBoundFolderHandle({ mode: "read", allowPrompt: true });
+    if (!folderHandle) return null;
+    const json = await readFolderProjectJson(folderHandle, key);
+    if (!json) return null;
+    const existing = readIndex().find((m) => m.key === key);
+    const metadata: StorageMetadata = {
+      key,
+      displayPath: folderDisplayPath(folderHandle, key),
+      externalRevision: existing?.externalRevision ?? null,
+      trust: "folder"
+    };
+    upsertIndexEntry(metadata);
+    return { json, metadata };
   }
   async save(key: string, json: string, expectedRevision?: number | null): Promise<StorageMetadata> {
     if (typeof localStorage === "undefined") throw new Error("localStorage unavailable");

@@ -36,6 +36,8 @@ export type ProjectStoreAdapter = {
   list(): Promise<StorageMetadata[]>;
   has(key: string): Promise<boolean>;
   load(key: string): Promise<{ json: string; metadata: StorageMetadata } | null>;
+  /** Optional direct load for a project discovered in the currently selected folder. */
+  loadFolderProject?(key: string): Promise<{ json: string; metadata: StorageMetadata } | null>;
   save(key: string, json: string, expectedRevision?: number | null): Promise<StorageMetadata>;
   delete(key: string): Promise<void>;
   /** Optional folder-picking surface for runtimes that can bind a durable local directory. */
