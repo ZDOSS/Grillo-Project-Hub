@@ -127,6 +127,17 @@
   font-weight: 500;
   color: var(--color-text-primary);
 }
+.form-grid {
+  display: grid;
+  gap: var(--space-2);
+}
+.form-grid-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.form-error {
+  color: var(--color-danger);
+  font-size: var(--font-size-xs);
+}
 
 /* ---- App shell ---- */
 .app-shell {
@@ -900,10 +911,28 @@
 .calendar-day[data-today="true"] {
   background: var(--color-accent-soft);
 }
+.calendar-day-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1);
+  min-height: 22px;
+}
 .calendar-day-num {
   font-weight: 600;
   color: var(--color-text-secondary);
   font-size: var(--font-size-2xs);
+}
+.calendar-day-add {
+  width: 22px;
+  height: 22px;
+  min-height: 22px;
+  padding: 0;
+  opacity: 0.72;
+}
+.calendar-day-add:hover,
+.calendar-day-add:focus-visible {
+  opacity: 1;
 }
 .calendar-day[data-other-month="true"] {
   background: var(--color-bg-muted);
@@ -2326,6 +2355,9 @@
   .settings-inline-form .input,
   .settings-inline-form .select {
     min-width: 0;
+  }
+  .form-grid-2 {
+    grid-template-columns: 1fr;
   }
   .settings-capability-row {
     grid-template-columns: 1fr;

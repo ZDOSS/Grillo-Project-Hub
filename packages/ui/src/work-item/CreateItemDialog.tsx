@@ -17,6 +17,8 @@ export function CreateItemDialog() {
   const [description, setDescription] = useState("");
   const [priorityId, setPriorityId] = useState<string>("");
   const [assigneeId, setAssigneeId] = useState<string>("");
+  const [startDate, setStartDate] = useState<string>("");
+  const [dueDate, setDueDate] = useState<string>("");
   const navigate = useNavigate();
   const itemTypes = bundle?.core.itemTypes;
   const projectDefaultInitialStatusId = bundle?.project.defaultInitialStatusId ?? "";
@@ -53,10 +55,14 @@ export function CreateItemDialog() {
         : defaultPriorityIdForType(nextTypeId)
     );
     setAssigneeId(prefill?.assigneeId ?? "");
+    setStartDate(prefill?.startDate ?? "");
+    setDueDate(prefill?.dueDate ?? "");
   }, [
     open,
     prefill?.assigneeId,
+    prefill?.dueDate,
     prefill?.priorityId,
+    prefill?.startDate,
     prefill?.statusId,
     prefill?.typeId,
     projectDefaultTypeId,
@@ -71,6 +77,7 @@ export function CreateItemDialog() {
   const statuses = bundle.core.statuses;
   const priorities = bundle.core.priorities;
   const members = bundle.core.members.filter((member) => !member.archived);
+  const invalidDateRange = Boolean(startDate && dueDate && startDate > dueDate);
 
   const changeType = (nextTypeId: string) => {
     setTypeId(nextTypeId);
@@ -79,7 +86,7 @@ export function CreateItemDialog() {
   };
 
   const submit = () => {
-    if (!title.trim()) return;
+    if (!title.trim() || invalidDateRange) return;
     const r = applyCommand({
       type: "item.create",
       projectId: bundle.project.id,
@@ -88,7 +95,9 @@ export function CreateItemDialog() {
       description: description.trim(),
       statusId: statusId || undefined,
       priorityId: priorityId || null,
-      assigneeId: assigneeId || null
+      assigneeId: assigneeId || null,
+      startDate: startDate || null,
+      dueDate: dueDate || null
     });
     closeCreateItem();
     const newId = r.bundle.core.items[r.bundle.core.items.length - 1].id;
@@ -145,6 +154,19 @@ export function CreateItemDialog() {
                 ))}
               </select>
             </label>
+            <div className="form-grid form-grid-2">
+              <label className="label">
+                Start date
+                <input className="input" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              </label>
+              <label className="label">
+                Due date
+                <input className="input" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+              </label>
+            </div>
+            {invalidDateRange ? (
+              <div className="form-error">Start date must not be later than due date.</div>
+            ) : null}
             <label className="label label-row">
               Assignee
               <select className="select" value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)}>
@@ -168,7 +190,7 @@ export function CreateItemDialog() {
         </div>
         <div className="modal-footer">
           <button className="btn" onClick={() => closeCreateItem()}>Cancel</button>
-          <button className="btn btn-primary" onClick={submit} disabled={!title.trim()}>Create</button>
+          <button className="btn btn-primary" onClick={submit} disabled={!title.trim() || invalidDateRange}>Create</button>
         </div>
       </div>
     </div>

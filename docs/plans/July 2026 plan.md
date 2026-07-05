@@ -418,7 +418,7 @@ This combines the original saved-views slice and backlog/table parity slice into
 
 **Intent:** Make planning across dates and milestones useful without becoming heavyweight scheduling software.
 
-**Delivery note:** This scope was bundled into the July Planning Workflow milestone PR alongside table bulk actions, bug triage actions, calendar agenda, and the project overview route.
+**Delivery note:** This scope was bundled into the July Planning Workflow milestone PR alongside table bulk actions, bug triage actions, calendar agenda, and the project overview route. A follow-up added calendar day-cell creation for dated work items through the shared create dialog instead of adding a separate calendar-event entity.
 
 **Files:**
 
@@ -434,6 +434,7 @@ This combines the original saved-views slice and backlog/table parity slice into
 - [x] Show explicit invalid-range feedback.
 - [x] Support moving items between milestone lanes.
 - [x] Add an agenda-style calendar list for upcoming start/due dates and reminders.
+- [x] Add day-level scheduled-work creation from the calendar using normal work items with editable type/status/priority/assignee/start/due fields.
 - [x] Keep date-only semantics unchanged.
 
 ### PR 6: Bug Intake And Triage Workflow
