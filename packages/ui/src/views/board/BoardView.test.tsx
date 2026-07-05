@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
@@ -203,6 +203,45 @@ describe("BoardView", () => {
 
     const created = useProjectStore.getState().bundle?.core.items.find((entry) => entry.title === "Board-created task");
     expect(created?.statusId).toBe("ready");
+  });
+
+  it("creates board items that match the active type and status filters", async () => {
+    const bundle = buildProjectFromTemplate("simple-kanban", "Test");
+    useProjectStore.setState({ bundle });
+    const kanbanModule = bundle.modules["builtin.kanban"];
+    const views = (kanbanModule.data as { views?: Record<string, Parameters<typeof BoardView>[0]["view"]> }).views ?? {};
+    const view = Object.values(views).find((entry) => entry.type === "board")!;
+
+    render(
+      <MemoryRouter initialEntries={["/board"]}>
+        <Routes>
+          <Route
+            path="/board"
+            element={
+              <>
+                <BoardView view={view} />
+                <CreateItemDialog />
+              </>
+            }
+          />
+          <Route path="/item/:id" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await userEvent.selectOptions(screen.getByLabelText("Board type"), "bug");
+    await userEvent.selectOptions(screen.getByLabelText("Board status"), "done");
+    await userEvent.click(screen.getByRole("button", { name: "New item" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Create work item" });
+    expect(within(dialog).getByLabelText("Type")).toHaveValue("bug");
+    expect(within(dialog).getByLabelText("Status")).toHaveValue("done");
+
+    await userEvent.type(within(dialog).getByLabelText("Title"), "Filtered board bug");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Create" }));
+
+    const created = useProjectStore.getState().bundle?.core.items.find((entry) => entry.title === "Filtered board bug");
+    expect(created).toMatchObject({ typeId: "bug", statusId: "done" });
   });
 
   it("filters board cards by text and saves the filter as a named board view", async () => {

@@ -23,6 +23,7 @@ import {
   ViewToolbar,
   type DataTableColumn
 } from "../../components";
+import { openCreateItem } from "../../commands/palette-bus";
 import { useProjectStore } from "../../store/project-store";
 import {
   activeCustomFields,
@@ -32,6 +33,7 @@ import {
   BASE_TABLE_COLUMNS,
   cleanWorkItemFilter,
   compareItemsBySort,
+  createItemPrefillFromFilter,
   filterIdsFromSelectValue,
   itemMatchesFilter,
   MULTI_FILTER_VALUE,
@@ -159,6 +161,7 @@ export function TableView({ view }: { view?: TableViewDef }) {
   if (!bundle) return null;
 
   const cleanFilter = cleanWorkItemFilter(activeFilter);
+  const createPrefill = createItemPrefillFromFilter(cleanFilter);
   const visibleRowIds = rows.map((row) => row.item.id);
   const visibleRowIdSet = new Set(visibleRowIds);
   const selectedVisibleIds = selectedIds.filter((id) => visibleRowIdSet.has(id));
@@ -475,6 +478,9 @@ export function TableView({ view }: { view?: TableViewDef }) {
   return (
     <div className="table-view">
       <ViewToolbar>
+        <Button variant="primary" size="sm" onClick={() => openCreateItem(createPrefill)}>
+          New item
+        </Button>
         <TextField
           label="Filter"
           placeholder="Filter items"

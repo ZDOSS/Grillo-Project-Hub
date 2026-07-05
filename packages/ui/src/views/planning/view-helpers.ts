@@ -5,6 +5,7 @@ import type {
   WorkItem,
   WorkItemFilter
 } from "@gph/core";
+import type { CreateItemPrefill } from "../../commands/palette-bus";
 
 export const BASE_TABLE_COLUMNS = ["title", "type", "status", "priority", "assignee", "milestone", "labels", "dueDate", "updatedAt"] as const;
 export const MULTI_FILTER_VALUE = "__gph_multi_filter__";
@@ -43,6 +44,16 @@ export function cleanWorkItemFilter(filter: WorkItemFilter): WorkItemFilter | un
   if (filter.assigneeIds?.length) next.assigneeIds = [...filter.assigneeIds];
   if (filter.labelIds?.length) next.labelIds = [...filter.labelIds];
   if (filter.milestoneIds?.length) next.milestoneIds = [...filter.milestoneIds];
+  return Object.keys(next).length > 0 ? next : undefined;
+}
+
+export function createItemPrefillFromFilter(filter: WorkItemFilter | undefined, fallback?: CreateItemPrefill): CreateItemPrefill | undefined {
+  const next: CreateItemPrefill = { ...(fallback ?? {}) };
+  if (filter?.typeIds?.length) next.typeId = filter.typeIds[0];
+  if (filter?.statusIds?.length) next.statusId = filter.statusIds[0];
+  if (filter?.priorityIds?.length) next.priorityId = filter.priorityIds[0];
+  if (filter?.assigneeIds?.length) next.assigneeId = filter.assigneeIds[0];
+  if (filter?.milestoneIds?.length) next.milestoneId = filter.milestoneIds[0];
   return Object.keys(next).length > 0 ? next : undefined;
 }
 

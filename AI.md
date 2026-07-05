@@ -89,6 +89,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - the browser adapter now repairs older browser-local saves whose metadata index is missing by falling back to the raw `localStorage` project blob and reconstructing the saved-project index entry on load
 - the active project session is now persisted in `localStorage` (`gph.active.project`) and restored on startup through `restoreLastProjectSession()`, so reloads in both web and desktop shells reopen the last project instead of dropping the user into an empty shell
 - session restore now treats corrupt or invalid persisted bundles as stale state: failed import/validation clears `gph.active.project` instead of bubbling an unhandled rejection through the startup hook
+- session restore treats folder-backed active sessions as folder-backed only when the adapter exposes `loadFolderProject()`: if that folder project cannot be read, it clears the active session and returns to the launcher/recent-project reconnect path instead of silently opening the browser-local recovery copy as browser mode
 - the web runtime now installs the same `WebLocalStorageAdapter` instance into both `window.__gph_store` and `WebStorageAdapter.adapter`, preventing auto-save and startup restore from drifting onto different adapter instances if adapter-local state is added later
 - the desktop runtime now installs the same `DesktopStorageAdapter.adapter` instance into `window.__gph_store`; folder-backed desktop saves/loads/existence checks/deletes call `save_project`, `load_project`, `project_exists`, and `delete_project`
 - `useProjectStore.setBundle()` and `markSaved()` normalize `bundle.projectSettings.storageTrust` to the runtime storage trust, so overview/settings/header storage surfaces do not keep showing browser-local after a folder save or open
@@ -183,7 +184,8 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - `/overview` is now the default in-project landing route; `OverviewView` derives health summaries from the active bundle, including active work, milestone progress, blocking relationships, future-only upcoming dates/reminders, triage-lane bug intake, recent activity, and the current storage trust/save state without adding new persisted overview state
 - `ProjectRouter` keeps `/board` pinned to `projectSettings.defaultViewId` when that view is a board, even if saved board views have earlier ordering, and only mounts the work-item modal overlay route while the current path is `/item/:itemId`
 - saved board/backlog/table views keep multi-value filter arrays intact when hydrated into the current single-select toolbar controls; selecting a concrete value intentionally narrows that one dimension, while untouched imported/command-created multi-value filters remain multi-value on update
-- create-item entry points now carry view context through `CreateItemPrefill` in `palette-bus.ts`; the shared dialog can receive and expose `typeId`, `statusId`, `priorityId`, and `assigneeId`, so board, bug triage, and my-work creates no longer drop the context that made the user click that surface's action in the first place
+- create-item entry points now carry view context through `CreateItemPrefill` in `palette-bus.ts`; the shared dialog can receive and expose `typeId`, `statusId`, `priorityId`, `assigneeId`, `milestoneId`, `startDate`, and `dueDate`, so board, bug triage, my-work, backlog, table, and calendar creates no longer drop the context that made the user click that surface's action in the first place
+- `createItemPrefillFromFilter()` in `views/planning/view-helpers.ts` is the shared adapter from active single-value planning filters into create-dialog defaults; board creation uses first-column status as a fallback, then lets active type/status filters override it, while backlog and table creation inherit active type/status/priority/assignee/milestone filters
 - the create-item dialog derives type defaults from dependency-tracked type-registry inputs while open, and its form-opening reset is split from derived default refreshes so a settings-level type default change can update selects without clearing a user's typed title or description
 - modal-style work item detail at `/item/:id` with full edit, checklist conversion, inline comment editing, subtasks, relationships, attachments, reminders, custom fields, readable activity, and pinned action footer; `WorkItemModal.tsx` is now the owning implementation and routes through the shared `Modal` primitive with `size="work-item"`, while `WorkItemDrawer.tsx` is only a compatibility wrapper that renders `WorkItemModal`
 - work item detail interactions avoid browser-native modal APIs for persisted edits/destructive work: comment edits use inline local state and `comment.edit`, permanent deletion uses shared `ConfirmDialog`, and relationship add/remove controls route through `relationship.create` / `relationship.delete` so duplicate/cycle validation remains in `@gph/core`
@@ -563,6 +565,13 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - refusing to silently open stale browser recovery when a selected folder does not contain the recorded `.pms.json`
   - replacing the misleading "could not be found in local storage" error with a reconnect message that names the recorded `.pm-suite` file
   - adding focused ProjectsListView regressions for reconnect-and-open, rejected/null folder-load recovery, and missing-folder-file behavior
+- fixed the post-July flow-correctness gaps by:
+  - preventing folder-backed startup restore from silently downgrading to browser recovery when `loadFolderProject()` cannot read the project
+  - extending the create dialog with milestone prefill and `item.create` submission support
+  - making board, backlog, and table New item actions inherit active planning filters through `createItemPrefillFromFilter()`
+  - adding the missing table-level New item action so table users do not have to leave the surface to create matching work
+  - hardening the command-palette keyboard regression to wait for the palette focus effect before asserting `aria-activedescendant` movement in the full parallel UI suite
+  - adding focused regressions for folder-session restore, create-dialog milestone defaults, and board/backlog/table filter-aware creation
 
 ## Open follow-on planning
 
