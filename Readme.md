@@ -52,7 +52,7 @@ The hosted web/PWA version deploys automatically to GitHub Pages on pushes to `m
 - Workflow file: [.github/workflows/deploy-web.yml](.github/workflows/deploy-web.yml)
 - It builds via `npm run build:web` (the monorepo web workspace target), configures the Vite `base` for the `/Grillo-Project-Hub/` subpath, and adds a `404.html` copy of `index.html` so React Router client-side routes work on GitHub Pages.
 - The PWA (service worker, manifest, offline support) is included in the static build.
-- The Pages deploy step allows a 30-minute queue window, so a temporary GitHub Pages backlog does not fail the run after the default deploy-pages timeout when the artifact is already uploaded.
+- CI and Pages builds run on Node 24, and the Pages deployment uses the Node 24-compatible GitHub Pages action chain (`configure-pages@v6`, `upload-pages-artifact@v5`, `deploy-pages@v5`).
 - **One-time repo setup required**: In GitHub -> Settings -> Pages -> "Build and deployment" -> Source = "GitHub Actions".
 
 Live demo (once enabled): https://ZDOSS.github.io/Grillo-Project-Hub/
