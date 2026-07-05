@@ -238,6 +238,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - `DocEditor` now keeps that selection-sync effect above its null guard so hook ordering stays valid even if future refactors ever allow the component to see a transient `bundle === null`
 - roadmap lanes now show milestone target dates, completed/total/percent progress, dependency indicators from `relationshipsForItem()`, explicit date inputs, milestone reassignment controls, and inline invalid-range feedback while preserving date-only semantics through `item.update`; clearing Start or Due clears only that side of the range
 - calendar now keeps the month grid and adds a derived agenda for upcoming item start/due dates plus active reminders; reminder agenda rows use the reminder's IANA timezone to decide the visible date, boundary filtering keeps reminders visible when their local display date and UTC date straddle the agenda start, agenda links use existing work-item routes, and the feature does not introduce a calendar-specific storage model
+- calendar scheduled-work creation intentionally creates ordinary work items through the shared `CreateItemDialog` and `item.create` command, not a separate calendar-event entity; day-cell add buttons prefill the explicit cell `dueDate`, the toolbar opens the same dialog without carrying the hidden month `anchor` date, and the dialog exposes editable Start/Due date fields plus the existing type/status/priority/assignee controls
 - bug triage now exposes a visible `New bug` action in the intake column, maps software-project `inbox` bugs into Intake, opens the shared create dialog with the correct intake status preselected, and limits Intake's planned-status fallback so custom workflows can still populate Ready; `buildBugTriageColumns()` is shared with overview so accepted Ready bugs do not reappear as intake pressure
 - bug triage cards are now `<article>` surfaces with an internal item link and real form controls, not whole-card links, so triage buttons/selects are valid and testable; accept/decline/assign dispatch `item.update`, decline resolves to an existing canceled status or completed fallback before dispatching, snooze dispatches `reminder.create`, and duplicate linking opens a picker modal before dispatching `relationship.create` with `relatesTo`
 - bug triage toolbar now includes severity and priority filters, cards can edit severity/priority plus plugin-owned source/context data stored under `moduleData.bug`, and the optional Workflow setting blocks Accept/Decline out of intake until a bug has either severity or priority
@@ -302,7 +303,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - table bulk status/priority/assignee editing across selected rows, including selections hidden by a local filter
   - overview route summaries, default root-to-overview routing for open projects, project create/open/demo/import landing on overview, future-only reminders, and triage-lane bug intake matching the bug board
   - roadmap milestone progress, dependency indicators, date inputs, independent date clearing, and milestone reassignment controls
-  - calendar agenda rendering from item dates and timezone-local reminder dates
+  - calendar agenda rendering from item dates and timezone-local reminder dates, plus dated work-item creation from calendar day cells
   - trash restore and confirmed permanent deletion for work items, documents, and attachments
   - document soft-delete cleanup for document-scoped reminders and attachments, including reminder restoration from the document trash payload
   - document permanent-delete cleanup for document-scoped reminders and attachments
@@ -477,6 +478,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - adding table visible-row selection and bulk status/priority/assignee updates through existing `item.update` commands
   - expanding roadmap lanes with target dates, progress, relationship-based blocked indicators, date controls, invalid-range feedback, and milestone reassignment
   - adding a calendar agenda derived from item start/due dates and reminders
+  - adding calendar day-cell creation for dated work items through the shared create dialog
   - turning bug triage into an actionable workflow with filters plus accept, decline, snooze, owner assignment, and duplicate-link actions
   - adding backlog shared filters and table column visibility plus command-backed inline status, priority, assignee, milestone, and due-date edits
   - adding focused core and UI regression coverage for saved-view filters, viewbar rendering, default board routing, backlog saved views, board saved views, and table inline/editable saved views

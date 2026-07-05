@@ -49,4 +49,28 @@ describe("CreateItemDialog", () => {
     expect(screen.getByLabelText("Title")).toHaveValue("Keep my draft");
     expect(screen.getByLabelText("Description")).toHaveValue("Do not clear this");
   });
+
+  it("creates a work item with prefilled planning dates", async () => {
+    render(
+      <MemoryRouter>
+        <CreateItemDialog />
+      </MemoryRouter>
+    );
+
+    act(() => openCreateItem({ typeId: "bug", startDate: "2026-07-09", dueDate: "2026-07-12" }));
+
+    expect(screen.getByLabelText("Type")).toHaveValue("bug");
+    expect(screen.getByLabelText("Start date")).toHaveValue("2026-07-09");
+    expect(screen.getByLabelText("Due date")).toHaveValue("2026-07-12");
+
+    await userEvent.type(screen.getByLabelText("Title"), "Fix scheduled regression");
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    const created = useProjectStore.getState().bundle?.core.items.find((item) => item.title === "Fix scheduled regression");
+    expect(created).toMatchObject({
+      typeId: "bug",
+      startDate: "2026-07-09",
+      dueDate: "2026-07-12"
+    });
+  });
 });

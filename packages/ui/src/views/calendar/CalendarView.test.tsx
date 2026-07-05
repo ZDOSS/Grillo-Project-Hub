@@ -1,8 +1,11 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { buildProjectFromTemplate } from "@gph/core";
+import { closeCreateItem } from "../../commands/palette-bus";
 import { useProjectStore } from "../../store/project-store";
+import { CreateItemDialog } from "../../work-item";
 import { CalendarView } from "./CalendarView";
 
 function datePlus(days: number): string {
@@ -20,10 +23,12 @@ function timestampPlus(days: number): string {
 describe("CalendarView", () => {
   beforeEach(() => {
     cleanup();
+    closeCreateItem();
     useProjectStore.setState({ bundle: null });
   });
 
   afterEach(() => {
+    closeCreateItem();
     vi.useRealTimers();
   });
 
@@ -124,5 +129,50 @@ describe("CalendarView", () => {
     const row = screen.getByText("New York local reminder").closest(".calendar-agenda-row");
     expect(row).toBeTruthy();
     expect(within(row as HTMLElement).getByText("2026-07-04")).toBeInTheDocument();
+  });
+
+  it("opens a dated work item dialog from a calendar day", async () => {
+    const today = datePlus(0);
+    const bundle = buildProjectFromTemplate("software-project", "Calendar");
+    useProjectStore.setState({ bundle });
+
+    render(
+      <MemoryRouter>
+        <CalendarView />
+        <CreateItemDialog />
+      </MemoryRouter>
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: `Add work on ${today}` }));
+
+    expect(screen.getByRole("dialog", { name: "Create work item" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Due date")).toHaveValue(today);
+
+    await userEvent.selectOptions(screen.getByLabelText("Type"), "bug");
+    await userEvent.type(screen.getByLabelText("Title"), "Investigate launch blocker");
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    const created = useProjectStore.getState().bundle?.core.items.find((item) => item.title === "Investigate launch blocker");
+    expect(created).toMatchObject({
+      typeId: "bug",
+      dueDate: today
+    });
+  });
+
+  it("opens the toolbar create dialog without carrying a hidden calendar date", async () => {
+    const bundle = buildProjectFromTemplate("software-project", "Calendar");
+    useProjectStore.setState({ bundle });
+
+    render(
+      <MemoryRouter>
+        <CalendarView />
+        <CreateItemDialog />
+      </MemoryRouter>
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "New scheduled item" }));
+
+    expect(screen.getByRole("dialog", { name: "Create work item" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Due date")).toHaveValue("");
   });
 });

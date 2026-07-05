@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
 import { dateOnlyFromTimestamp, todayDateOnly, type Reminder, type WorkItem } from "@gph/core";
 import { Button, IconButton, MetadataBadge, ViewToolbar } from "../../components";
+import { openCreateItem } from "../../commands/palette-bus";
 import { useProjectStore } from "../../store/project-store";
 
 /**
@@ -86,6 +87,14 @@ export function CalendarView() {
         <Button size="sm" onClick={() => setAnchor(todayDateOnly())}>
           Today
         </Button>
+        <Button
+          size="sm"
+          variant="primary"
+          icon={<Plus />}
+          onClick={() => openCreateItem()}
+        >
+          New scheduled item
+        </Button>
       </ViewToolbar>
       <div className="calendar-layout">
         <div className="calendar-grid" role="grid" aria-label="Calendar">
@@ -101,7 +110,16 @@ export function CalendarView() {
               data-other-month={day.other}
               data-today={day.today}
             >
-              <div className="calendar-day-num">{Number(day.date.slice(-2))}</div>
+              <div className="calendar-day-head">
+                <div className="calendar-day-num">{Number(day.date.slice(-2))}</div>
+                <IconButton
+                  aria-label={`Add work on ${day.date}`}
+                  className="calendar-day-add"
+                  onClick={() => openCreateItem({ dueDate: day.date })}
+                >
+                  <Plus aria-hidden="true" />
+                </IconButton>
+              </div>
               {(itemsByDate.get(day.date) ?? []).map((item) => (
                 <Link key={item.id} to={`/item/${item.id}`} className="calendar-pill">
                   {item.title}
