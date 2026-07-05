@@ -91,7 +91,7 @@ export function CalendarView() {
           size="sm"
           variant="primary"
           icon={<Plus />}
-          onClick={() => openCreateItem({ dueDate: anchor })}
+          onClick={() => openCreateItem()}
         >
           New scheduled item
         </Button>

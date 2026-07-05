@@ -158,4 +158,21 @@ describe("CalendarView", () => {
       dueDate: today
     });
   });
+
+  it("opens the toolbar create dialog without carrying a hidden calendar date", async () => {
+    const bundle = buildProjectFromTemplate("software-project", "Calendar");
+    useProjectStore.setState({ bundle });
+
+    render(
+      <MemoryRouter>
+        <CalendarView />
+        <CreateItemDialog />
+      </MemoryRouter>
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "New scheduled item" }));
+
+    expect(screen.getByRole("dialog", { name: "Create work item" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Due date")).toHaveValue("");
+  });
 });
