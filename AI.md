@@ -94,7 +94,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - `useProjectStore.setBundle()` and `markSaved()` normalize `bundle.projectSettings.storageTrust` to the runtime storage trust, so overview/settings/header storage surfaces do not keep showing browser-local after a folder save or open
 - folder/open/session paths treat adapter metadata as the source of truth for storage trust; this intentionally overrides stale `projectSettings.storageTrust` values inside older `.pms.json` files so folder-backed projects do not continue to display as browser-local after a direct folder open
 - PWA folder-backed saves write the `.pms.json` file and keep a browser-local recovery copy; after reload without an active folder handle or permission, plain `load()` returns that recovery copy as browser-local until the user reselects the folder
-- PWA folder-backed recent reopen is intentionally different from plain `load()`: `ProjectsListView` prompts/reconnects the browser folder picker, then uses `loadFolderProject()` before falling back to browser recovery, and folder-missing failures must mention the recorded `.pm-suite` path rather than claiming a missing browser-local project
+- PWA folder-backed recent reopen is intentionally different from plain `load()`: `ProjectsListView` prompts/reconnects the browser folder picker, then uses `loadFolderProject()`; browser recovery fallback is only allowed when folder access is cancelled/rejected/unavailable, while a selected folder that lacks the recorded `.pms.json` must show the reconnect message for that `.pm-suite` path instead of silently opening stale browser recovery
 - when a user reselects a folder after editing the browser-local recovery copy, `loadFolderProject()` promotes the newer recovery JSON back into the selected `.pm-suite` file before returning folder-backed metadata, preventing stale folder files from overwriting recovered edits
 - recovery promotion is guarded by a last-known folder snapshot in `gph.project.folderBase.<project-id>`; if the current folder file changed externally since that snapshot, the adapter loads the folder file and mirrors it into browser recovery instead of overwriting it with stale browser state
 
@@ -174,7 +174,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - desktop folder-path attach flow for new projects, with the first project file written before entering the app
   - desktop folder scan/open flow for existing `.pm-suite` saves
   - PWA/browser folder picker for creating and reopening local-folder projects when File System Access is available
-  - PWA/browser folder-backed recents reconnect the selected folder before loading and show a folder-specific reconnect message if the `.pms.json` cannot be found
+  - PWA/browser folder-backed recents reconnect the selected folder before loading, open browser recovery after cancelled/rejected folder access, and show a folder-specific reconnect message if the selected folder lacks the recorded `.pms.json`
   - direct folder-file open through `loadFolderProject()` when a selected folder lists a project that has no local index metadata
   - automatic last-project restore after reload via persisted active-session metadata
   - new-project modal dismissal is explicit through Cancel/Create, not backdrop or header-close clicks
@@ -278,7 +278,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - board-card keyboard activation with link semantics
   - silent handling of cancelled browser folder picks
   - immediate adapter save for new folder-backed PWA projects
-  - folder-backed PWA recent reconnect before launcher open, including the error copy when the recorded `.pm-suite` file cannot be found
+  - folder-backed PWA recent reconnect before launcher open, including rejected folder-load browser recovery and the stale-recovery guard when the selected folder lacks the recorded `.pm-suite` file
   - local-folder project open without requiring browser-local index metadata
   - explicit Cancel/Create dismissal for the new-project modal
   - settings-row draft reset when upstream bundle data changes
@@ -545,9 +545,10 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - adding a web adapter regression for folder-side changes that happen while the PWA is operating from a browser recovery copy
 - fixed the launcher folder-backed recent reopen regression by:
   - routing PWA folder recents through folder-picker reconnect plus `loadFolderProject()` instead of treating them as browser-local loads
-  - falling back to browser recovery only after the folder project path fails to load
+  - falling back to browser recovery when folder access is cancelled or rejected before the selected project file can be read
+  - refusing to silently open stale browser recovery when a selected folder does not contain the recorded `.pms.json`
   - replacing the misleading "could not be found in local storage" error with a reconnect message that names the recorded `.pm-suite` file
-  - adding focused ProjectsListView regressions for reconnect-and-open and missing-folder-file behavior
+  - adding focused ProjectsListView regressions for reconnect-and-open, rejected folder-load recovery, and missing-folder-file behavior
 
 ## Open follow-on planning
 

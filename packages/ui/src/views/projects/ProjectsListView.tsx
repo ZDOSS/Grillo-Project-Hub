@@ -77,7 +77,8 @@ function isAbortError(error: unknown): boolean {
 async function openSavedProject(
   recent: RecentProject,
   setBundle: ReturnType<typeof useProjectStore.getState>["setBundle"],
-  recordRecent: ReturnType<typeof useWorkspaceStore.getState>["recordRecent"]
+  recordRecent: ReturnType<typeof useWorkspaceStore.getState>["recordRecent"],
+  options: { allowBrowserRecoveryWhenFolderAccessUnavailable?: boolean } = {}
 ): Promise<void> {
   const adapter = getActiveAdapter();
   if (!adapter) {
@@ -93,8 +94,13 @@ async function openSavedProject(
       setDesktopFolderPath(folder);
       loaded = await adapter.load(recent.key);
     } else if (!isDesktopRuntime() && adapter.loadFolderProject) {
-      loaded = await adapter.loadFolderProject(recent.key);
-      if (!loaded) {
+      let folderLoadRejected = false;
+      try {
+        loaded = await adapter.loadFolderProject(recent.key);
+      } catch {
+        folderLoadRejected = true;
+      }
+      if (!loaded && (folderLoadRejected || options.allowBrowserRecoveryWhenFolderAccessUnavailable)) {
         loaded = await adapter.load(recent.key);
       }
       if (!loaded) {
@@ -236,6 +242,7 @@ export function ProjectsListView() {
     setWorkspaceError(null);
     setBusyRecentKey(recent.key);
     try {
+      let allowBrowserRecoveryWhenFolderAccessUnavailable = false;
       if (
         recent.trust === "folder" &&
         !desktopRuntime &&
@@ -247,12 +254,15 @@ export function ProjectsListView() {
           const label = await adapter.chooseFolder();
           if (label) {
             setBrowserFolderLabel(label);
+          } else {
+            allowBrowserRecoveryWhenFolderAccessUnavailable = true;
           }
         } catch (error) {
           if (!isAbortError(error)) throw error;
+          allowBrowserRecoveryWhenFolderAccessUnavailable = true;
         }
       }
-      await openSavedProject(recent, setBundle, recordRecent);
+      await openSavedProject(recent, setBundle, recordRecent, { allowBrowserRecoveryWhenFolderAccessUnavailable });
       navigate("/overview");
     } catch (error) {
       setWorkspaceError(isAbortError(error) && recent.trust === "folder" ? folderReconnectMessage(recent) : (error as Error).message);
