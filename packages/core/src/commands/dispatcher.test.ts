@@ -418,6 +418,79 @@ describe("command dispatcher", () => {
     expect(() => validateProjectBundle(permanentlyDeleted)).not.toThrow();
   });
 
+  it("creates document sections and moves documents into them through commands", () => {
+    let bundle = createProjectBundle({ name: "P" });
+    bundle = dispatchCommand(
+      bundle,
+      envelopeFor({ type: "docFolder.create", projectId: bundle.project.id, name: "Decisions" } as never, "ui", null)
+    ).bundle;
+    const folder = bundle.core.folders.find((entry) => entry.name === "Decisions")!;
+    bundle = dispatchCommand(
+      bundle,
+      envelopeFor({ type: "doc.create", projectId: bundle.project.id, title: "Architecture decision", folderId: folder.id }, "ui", null)
+    ).bundle;
+    const doc = bundle.core.documents.find((entry) => entry.title === "Architecture decision")!;
+
+    expect(doc.folderId).toBe(folder.id);
+    expect(() => validateProjectBundle(bundle)).not.toThrow();
+
+    const renamed = dispatchCommand(
+      bundle,
+      envelopeFor({ type: "docFolder.update", projectId: bundle.project.id, folderId: folder.id, patch: { name: "Decision records" } } as never, "ui", null)
+    ).bundle;
+    expect(renamed.core.folders.find((entry) => entry.id === folder.id)?.name).toBe("Decision records");
+
+    expect(() =>
+      dispatchCommand(
+        renamed,
+        envelopeFor({ type: "doc.move", projectId: renamed.project.id, docId: doc.id, toFolderId: "folder_missing" }, "ui", null)
+      )
+    ).toThrow(/Folder not found/);
+  });
+
+  it("rejects document section parent cycles", () => {
+    let bundle = createProjectBundle({ name: "P" });
+    bundle = dispatchCommand(
+      bundle,
+      envelopeFor({ type: "docFolder.create", projectId: bundle.project.id, name: "Parent" } as never, "ui", null)
+    ).bundle;
+    const parent = bundle.core.folders.find((entry) => entry.name === "Parent")!;
+    bundle = dispatchCommand(
+      bundle,
+      envelopeFor({ type: "docFolder.create", projectId: bundle.project.id, name: "Child", parentFolderId: parent.id } as never, "ui", null)
+    ).bundle;
+    const child = bundle.core.folders.find((entry) => entry.name === "Child")!;
+
+    expect(() =>
+      dispatchCommand(
+        bundle,
+        envelopeFor({ type: "docFolder.update", projectId: bundle.project.id, folderId: parent.id, patch: { parentFolderId: child.id } } as never, "ui", null)
+      )
+    ).toThrow(/cycle/i);
+  });
+
+  it("creates documents from knowledge templates with useful default content", () => {
+    const bundle = createProjectBundle({ name: "P" });
+
+    const created = dispatchCommand(
+      bundle,
+      envelopeFor({ type: "doc.create", projectId: bundle.project.id, templateId: "decision" } as never, "ui", null)
+    ).bundle;
+    const doc = created.core.documents.at(-1)!;
+
+    expect(doc.title).toBe("Decision Record");
+    expect(doc.body).toContain("## Decision");
+    expect(doc.body).toContain("## Consequences");
+    expect(() => validateProjectBundle(created)).not.toThrow();
+
+    expect(() =>
+      dispatchCommand(
+        created,
+        envelopeFor({ type: "doc.create", projectId: created.project.id, templateId: "unknown-template" } as never, "ui", null)
+      )
+    ).toThrow(/Document template not found/);
+  });
+
   it("restores and permanently removes trashed attachments through the command surface", () => {
     const bundle = createProjectBundle({ name: "P" });
     const withItem = dispatchCommand(

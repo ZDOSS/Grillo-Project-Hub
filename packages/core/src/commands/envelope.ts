@@ -1,5 +1,6 @@
 import type { ProjectBundle } from "../domain/project";
 import type { ProjectId, ItemId, MemberId } from "../domain/ids";
+import type { DocTemplateId } from "../domain/document";
 import type { AutomationAction, AutomationCondition, AutomationRule, AutomationTrigger } from "../automation/rules";
 
 /**
@@ -67,6 +68,8 @@ export type CommandPayload =
   | DocRestorePayload
   | DocPermanentlyDeletePayload
   | DocMovePayload
+  | DocFolderCreatePayload
+  | DocFolderUpdatePayload
   | CustomFieldDefinePayload
   | ReminderCreatePayload
   | ReminderUpdatePayload
@@ -340,9 +343,10 @@ export type TypeUpdatePayload = {
 export type DocCreatePayload = {
   type: "doc.create";
   projectId: ProjectId;
-  title: string;
+  title?: string;
   body?: string;
   folderId?: string | null;
+  templateId?: DocTemplateId;
 };
 export type DocUpdatePayload = {
   type: "doc.update";
@@ -370,6 +374,22 @@ export type DocMovePayload = {
   projectId: ProjectId;
   docId: string;
   toFolderId: string | null;
+};
+export type DocFolderCreatePayload = {
+  type: "docFolder.create";
+  projectId: ProjectId;
+  name: string;
+  parentFolderId?: string | null;
+};
+export type DocFolderUpdatePayload = {
+  type: "docFolder.update";
+  projectId: ProjectId;
+  folderId: string;
+  patch: {
+    name?: string;
+    parentFolderId?: string | null;
+    archived?: boolean;
+  };
 };
 
 /* Custom fields */

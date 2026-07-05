@@ -34,8 +34,24 @@ export function exportProjectMarkdown(bundle: ProjectBundle): string {
   }
   if (bundle.core.documents.length) {
     lines.push("## Docs");
-    for (const d of bundle.core.documents) {
-      lines.push(`- [${d.title}](doc:${d.id})`);
+    const activeFolders = bundle.core.folders.filter((folder) => !folder.archived);
+    const activeFolderIds = new Set(activeFolders.map((folder) => folder.id));
+    const activeDocs = bundle.core.documents.filter((doc) => !doc.archived);
+    for (const folder of activeFolders) {
+      const docs = activeDocs.filter((doc) => doc.folderId === folder.id);
+      if (!docs.length) continue;
+      lines.push(`### ${folder.name}`);
+      for (const d of docs) {
+        lines.push(`- [${d.title}](doc:${d.id})`);
+      }
+      lines.push("");
+    }
+    const unfiledDocs = activeDocs.filter((doc) => doc.folderId == null || !activeFolderIds.has(doc.folderId));
+    if (unfiledDocs.length) {
+      if (activeFolders.length) lines.push("### Unfiled");
+      for (const d of unfiledDocs) {
+        lines.push(`- [${d.title}](doc:${d.id})`);
+      }
     }
     lines.push("");
   }
