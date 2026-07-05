@@ -285,7 +285,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - work-item next-reminder summary behavior that ignores past reminders instead of promoting stale reminders as upcoming follow-up
   - bug triage intake visibility for software-workflow `inbox` bugs and intake-status prefill for `New bug`
   - bug triage fallback mapping that keeps a non-standard planned Ready status visible
-  - bug triage filters for needs-repro and command-backed accept/decline/snooze/assign/duplicate actions, including the duplicate picker modal
+  - bug triage filters for needs-repro and command-backed accept/decline/snooze/assign/duplicate actions, including the duplicate picker modal and stale duplicate-error cleanup on cancel
   - bug triage severity/priority filtering, plugin-owned source/context editing, and the configured severity-or-priority intake exit gate
   - automation rule create/update/delete/enable/disable/dry-run commands, dispatcher execution through automation source commands, and Settings automation rule preview/save/toggle/delete flows
   - settings section decomposition, keyboard tab navigation, draft preservation across panel switches, and AI bridge future-capability copy that avoids placeholder install instructions
@@ -519,7 +519,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - adding adapter-level `loadFolderProject()` support so folder scans can open selected `.pms.json` files even without browser-local index metadata
   - synchronizing runtime storage trust into `projectSettings.storageTrust` during `setBundle()` and `markSaved()`
   - requiring explicit Cancel/Create dismissal for the new-project modal
-  - replacing the bug-triage duplicate target select with a searchable picker modal that confirms an existing bug before dispatching `relationship.create`
+  - replacing the bug-triage duplicate target select with a searchable picker modal that confirms an existing bug before dispatching `relationship.create`; canceling the picker clears duplicate-scoped errors so stale relationship failures do not leak back into the toolbar
   - adding focused launcher and bug-triage regression coverage for those flows
 
 ## Open follow-on planning

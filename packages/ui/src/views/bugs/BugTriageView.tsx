@@ -125,6 +125,7 @@ export function BugTriageView() {
   };
 
   const closeDuplicateDialog = () => {
+    setActionError(null);
     setDuplicateSourceId(null);
     setDuplicateSearch("");
     setSelectedDuplicateTargetId("");

@@ -278,6 +278,51 @@ describe("BugTriageView", () => {
     expect(declined.statusId).toBe("wont-fix");
   });
 
+  it("clears duplicate modal errors when the duplicate picker is canceled", async () => {
+    const bundle = buildProjectFromTemplate("software-project", "Software");
+    useProjectStore.setState({ bundle });
+    const apply = useProjectStore.getState().applyCommand;
+    apply({
+      type: "item.create",
+      projectId: bundle.project.id,
+      typeId: "bug",
+      title: "Original bug",
+      statusId: "inbox"
+    });
+    apply({
+      type: "item.create",
+      projectId: bundle.project.id,
+      typeId: "bug",
+      title: "Existing duplicate",
+      statusId: "inbox"
+    });
+    const current = useProjectStore.getState().bundle!;
+    const original = current.core.items.find((item) => item.title === "Original bug")!;
+    const duplicate = current.core.items.find((item) => item.title === "Existing duplicate")!;
+    apply({
+      type: "relationship.create",
+      projectId: current.project.id,
+      relationshipType: "relatesTo",
+      sourceItemId: original.id,
+      targetItemId: duplicate.id
+    });
+
+    renderBugTriage();
+
+    const card = screen.getByRole("article", { name: "Original bug" });
+    await userEvent.click(within(card).getByRole("button", { name: "Link duplicate for Original bug" }));
+    const duplicateDialog = screen.getByRole("dialog", { name: "Link duplicate bug" });
+    await userEvent.click(within(duplicateDialog).getByRole("button", { name: "Existing duplicate" }));
+    await userEvent.click(within(duplicateDialog).getByRole("button", { name: "Link duplicate" }));
+
+    expect(within(duplicateDialog).getByText(/duplicate relatesTo relationship/i)).toBeInTheDocument();
+
+    await userEvent.click(within(duplicateDialog).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog", { name: "Link duplicate bug" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/duplicate relatesTo relationship/i)).not.toBeInTheDocument();
+  });
+
   it("filters bugs by severity and priority", async () => {
     const bundle = buildProjectFromTemplate("software-project", "Software");
     useProjectStore.setState({ bundle });

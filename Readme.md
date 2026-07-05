@@ -100,7 +100,7 @@ The UI/UX overhaul planning package lives in `docs/superpowers/specs/2026-07-02-
 | Suite | Count | Notes |
 | --- | --- | --- |
 | `packages/core` | 57 | Domain, storage, dispatcher, document sections/templates, automation rules, export, import |
-| `packages/ui` | 95 | AppShell, ProjectRouter, OverviewView, shared button and surface primitives, WorkItemModal attachment/reminder/custom-field coverage, TrashView, BoardView, saved planning views, BacklogView, BugTriageView, MyWorkView, TableView, RoadmapView, CalendarView, CommandPalette, CreateItemDialog, launcher, docs, settings, automation settings |
+| `packages/ui` | 96 | AppShell, ProjectRouter, OverviewView, shared button and surface primitives, WorkItemModal attachment/reminder/custom-field coverage, TrashView, BoardView, saved planning views, BacklogView, BugTriageView, MyWorkView, TableView, RoadmapView, CalendarView, CommandPalette, CreateItemDialog, launcher, docs, settings, automation settings |
 | `apps/desktop` | 2 | Desktop storage adapter command wiring |
 | `tests/e2e` | 7 | Hybrid parity, project workflow, theme, palette, export, search |
 
