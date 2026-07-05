@@ -74,11 +74,16 @@ function isAbortError(error: unknown): boolean {
   return typeof error === "object" && error !== null && "name" in error && (error as { name?: string }).name === "AbortError";
 }
 
+type FolderReconnectResult = "selected" | "unavailable";
+
 async function openSavedProject(
   recent: RecentProject,
   setBundle: ReturnType<typeof useProjectStore.getState>["setBundle"],
   recordRecent: ReturnType<typeof useWorkspaceStore.getState>["recordRecent"],
-  options: { allowBrowserRecoveryWhenFolderAccessUnavailable?: boolean } = {}
+  options: {
+    allowBrowserRecoveryWhenFolderAccessUnavailable?: boolean;
+    reconnectFolderAfterMissingProject?: () => Promise<FolderReconnectResult>;
+  } = {}
 ): Promise<void> {
   const adapter = getActiveAdapter();
   if (!adapter) {
@@ -86,6 +91,7 @@ async function openSavedProject(
   }
 
   let loaded: Awaited<ReturnType<ProjectStoreAdapter["load"]>> = null;
+  let allowBrowserRecovery = options.allowBrowserRecoveryWhenFolderAccessUnavailable ?? false;
   const folder = deriveFolderFromStoragePath(recent.storagePath);
   if (recent.trust === "folder") {
     if (isDesktopRuntime() && folder) {
@@ -100,7 +106,19 @@ async function openSavedProject(
       } catch {
         folderLoadRejected = true;
       }
-      if (!loaded && (folderLoadRejected || options.allowBrowserRecoveryWhenFolderAccessUnavailable)) {
+      if (!loaded && !folderLoadRejected && !allowBrowserRecovery && options.reconnectFolderAfterMissingProject) {
+        const reconnectResult = await options.reconnectFolderAfterMissingProject();
+        if (reconnectResult === "selected") {
+          try {
+            loaded = await adapter.loadFolderProject(recent.key);
+          } catch {
+            folderLoadRejected = true;
+          }
+        } else {
+          allowBrowserRecovery = true;
+        }
+      }
+      if (!loaded && (folderLoadRejected || allowBrowserRecovery)) {
         loaded = await adapter.load(recent.key);
       }
       if (!loaded) {
@@ -243,6 +261,20 @@ export function ProjectsListView() {
     setBusyRecentKey(recent.key);
     try {
       let allowBrowserRecoveryWhenFolderAccessUnavailable = false;
+      const reconnectBrowserFolder = async (): Promise<FolderReconnectResult> => {
+        if (!adapter?.chooseFolder) return "unavailable";
+        try {
+          const label = await adapter.chooseFolder();
+          if (label) {
+            setBrowserFolderLabel(label);
+            return "selected";
+          }
+          return "unavailable";
+        } catch (error) {
+          if (!isAbortError(error)) throw error;
+          return "unavailable";
+        }
+      };
       if (
         recent.trust === "folder" &&
         !desktopRuntime &&
@@ -250,19 +282,20 @@ export function ProjectsListView() {
         adapter?.chooseFolder &&
         adapter?.loadFolderProject
       ) {
-        try {
-          const label = await adapter.chooseFolder();
-          if (label) {
-            setBrowserFolderLabel(label);
-          } else {
-            allowBrowserRecoveryWhenFolderAccessUnavailable = true;
-          }
-        } catch (error) {
-          if (!isAbortError(error)) throw error;
+        const reconnectResult = await reconnectBrowserFolder();
+        if (reconnectResult === "unavailable") {
           allowBrowserRecoveryWhenFolderAccessUnavailable = true;
         }
       }
-      await openSavedProject(recent, setBundle, recordRecent, { allowBrowserRecoveryWhenFolderAccessUnavailable });
+      const shouldRetryRestoredFolder =
+        recent.trust === "folder" &&
+        !desktopRuntime &&
+        Boolean(browserFolderLabel.trim()) &&
+        Boolean(adapter?.chooseFolder && adapter?.loadFolderProject);
+      await openSavedProject(recent, setBundle, recordRecent, {
+        allowBrowserRecoveryWhenFolderAccessUnavailable,
+        reconnectFolderAfterMissingProject: shouldRetryRestoredFolder ? reconnectBrowserFolder : undefined
+      });
       navigate("/overview");
     } catch (error) {
       setWorkspaceError(isAbortError(error) && recent.trust === "folder" ? folderReconnectMessage(recent) : (error as Error).message);

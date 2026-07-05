@@ -372,6 +372,69 @@ describe("ProjectsListView", () => {
     expect(useProjectStore.getState().storageTrust).toBe("browser");
   });
 
+  it("falls back to browser recovery when restored folder access cannot be reconnected", async () => {
+    const bundle = buildProjectFromTemplate("software-project", "Recovered From Restored Handle");
+    const load = vi.fn(async (key: string) => ({
+      json: exportProjectJson({
+        ...bundle,
+        projectSettings: { ...bundle.projectSettings, storageTrust: "browser" }
+      }),
+      metadata: {
+        key,
+        displayPath: null,
+        externalRevision: 6,
+        trust: "browser" as const
+      }
+    }));
+    const chooseFolder = vi.fn(async () => null);
+    const loadFolderProject = vi.fn(async () => null);
+    const adapter: ProjectStoreAdapter = {
+      capabilities: { folderBacked: true, fileWatch: false, attachments: true },
+      list: async () => [],
+      has: async () => true,
+      load,
+      save: async (key) => ({ key, displayPath: null, externalRevision: 1, trust: "browser" }),
+      delete: async () => {},
+      chooseFolder,
+      getCurrentFolderDisplay: async () => "Bridge test",
+      loadFolderProject
+    };
+    (window as typeof window & { __gph_store?: unknown }).__gph_store = adapter;
+
+    useWorkspaceStore.setState({
+      ...useWorkspaceStore.getState(),
+      recents: [
+        {
+          key: bundle.project.id,
+          name: bundle.project.name,
+          storagePath: `Bridge test/.pm-suite/${bundle.project.id}.pms.json`,
+          trust: "folder",
+          lastOpenedAt: new Date("2026-07-03T15:20:04.000Z").toISOString()
+        }
+      ]
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route path="/" element={<ProjectsListView />} />
+          <Route path="/overview" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Open" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/overview");
+    });
+    expect(chooseFolder).toHaveBeenCalledOnce();
+    expect(loadFolderProject).toHaveBeenCalledWith(bundle.project.id);
+    expect(load).toHaveBeenCalledWith(bundle.project.id);
+    expect(useProjectStore.getState().bundle?.project.name).toBe("Recovered From Restored Handle");
+    expect(useProjectStore.getState().storageTrust).toBe("browser");
+  });
+
   it("does not silently open browser recovery when the selected folder is missing the project file", async () => {
     const key = "project_missing_folder_file";
     const bundle = buildProjectFromTemplate("software-project", "Stale Recovery");
