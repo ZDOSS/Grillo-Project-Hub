@@ -350,6 +350,8 @@ export type BugItemData = {
   actualBehavior: string;
   environment: string;
   affectedVersion: string | null;
+  source?: string;
+  context?: string;
 };
 
 export function getBugData(item: WorkItem): BugItemData | null {

@@ -273,4 +273,101 @@ describe("BugTriageView", () => {
     )).toBe(true);
     expect(declined.statusId).toBe("wont-fix");
   });
+
+  it("filters bugs by severity and priority", async () => {
+    const bundle = buildProjectFromTemplate("software-project", "Software");
+    useProjectStore.setState({ bundle });
+    const apply = useProjectStore.getState().applyCommand;
+    apply({
+      type: "item.create",
+      projectId: bundle.project.id,
+      typeId: "bug",
+      title: "Critical urgent bug",
+      statusId: "inbox",
+      priorityId: "urgent"
+    });
+    apply({
+      type: "item.create",
+      projectId: bundle.project.id,
+      typeId: "bug",
+      title: "Minor normal bug",
+      statusId: "inbox",
+      priorityId: "medium"
+    });
+    const current = useProjectStore.getState().bundle!;
+    const critical = current.core.items.find((item) => item.title === "Critical urgent bug")!;
+    const minor = current.core.items.find((item) => item.title === "Minor normal bug")!;
+    apply({
+      type: "item.update",
+      projectId: current.project.id,
+      itemId: critical.id,
+      patch: { moduleData: { bug: { ...NO_REPRO_BUG_DATA, severityId: "critical" } } }
+    });
+    apply({
+      type: "item.update",
+      projectId: current.project.id,
+      itemId: minor.id,
+      patch: { moduleData: { bug: { ...NO_REPRO_BUG_DATA, severityId: "minor" } } }
+    });
+
+    renderBugTriage();
+
+    await userEvent.selectOptions(screen.getByLabelText("Severity filter"), "critical");
+    await userEvent.selectOptions(screen.getByLabelText("Priority filter"), "urgent");
+
+    expect(screen.getByRole("article", { name: "Critical urgent bug" })).toBeInTheDocument();
+    expect(screen.queryByRole("article", { name: "Minor normal bug" })).not.toBeInTheDocument();
+  });
+
+  it("requires severity or priority before leaving intake when configured", async () => {
+    const bundle = buildProjectFromTemplate("software-project", "Software");
+    useProjectStore.setState({ bundle });
+    const apply = useProjectStore.getState().applyCommand;
+    apply({
+      type: "bugTriage.updateConfig",
+      projectId: bundle.project.id,
+      patch: { requireSeverityOrPriority: true }
+    } as never);
+    apply({
+      type: "item.create",
+      projectId: bundle.project.id,
+      typeId: "bug",
+      title: "Ungraded intake bug",
+      statusId: "inbox"
+    });
+
+    renderBugTriage();
+
+    const card = screen.getByRole("article", { name: "Ungraded intake bug" });
+    await userEvent.click(within(card).getByRole("button", { name: "Accept Ungraded intake bug" }));
+
+    expect(screen.getByText(/choose a severity or priority before moving this bug out of intake/i)).toBeInTheDocument();
+    expect(useProjectStore.getState().bundle!.core.items.find((item) => item.title === "Ungraded intake bug")?.statusId).toBe("inbox");
+  });
+
+  it("edits plugin-owned bug source and context from triage cards", async () => {
+    const bundle = buildProjectFromTemplate("software-project", "Software");
+    useProjectStore.setState({ bundle });
+    const apply = useProjectStore.getState().applyCommand;
+    apply({
+      type: "item.create",
+      projectId: bundle.project.id,
+      typeId: "bug",
+      title: "Imported bug",
+      statusId: "inbox"
+    });
+
+    renderBugTriage();
+
+    const card = screen.getByRole("article", { name: "Imported bug" });
+    await userEvent.type(within(card).getByLabelText("Bug source for Imported bug"), "GitHub issue");
+    await userEvent.type(within(card).getByLabelText("Bug context for Imported bug"), "Reported from crash logs");
+    await userEvent.click(within(card).getByRole("button", { name: "Save bug context for Imported bug" }));
+
+    const updated = useProjectStore.getState().bundle!.core.items.find((item) => item.title === "Imported bug")!;
+    expect(updated.moduleData?.bug).toMatchObject({
+      source: "GitHub issue",
+      context: "Reported from crash logs"
+    });
+  });
 });

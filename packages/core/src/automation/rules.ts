@@ -51,6 +51,7 @@ export function createAutomationRule(input: {
   conditions?: AutomationCondition[];
   actions: AutomationAction[];
   description?: string;
+  enabled?: boolean;
   id?: string;
 }): AutomationRule {
   const now = nowTimestamp();
@@ -58,7 +59,7 @@ export function createAutomationRule(input: {
     id: input.id ?? generateId("rule"),
     name: input.name,
     description: input.description ?? "",
-    enabled: true,
+    enabled: input.enabled ?? true,
     trigger: input.trigger,
     conditions: input.conditions ?? [],
     actions: input.actions,

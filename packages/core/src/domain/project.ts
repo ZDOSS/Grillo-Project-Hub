@@ -209,6 +209,12 @@ export function createProjectBundle(input: { name: string; description?: string;
         enabled: true,
         config: {},
         data: {}
+      },
+      "builtin.automation": {
+        schemaVersion: 1,
+        enabled: true,
+        config: {},
+        data: { rules: [] }
       }
     },
     projectSettings: {
@@ -221,7 +227,8 @@ export function createProjectBundle(input: { name: string; description?: string;
         "builtin.reminders",
         "builtin.roadmap",
         "builtin.calendar",
-        "builtin.attachments"
+        "builtin.attachments",
+        "builtin.automation"
       ],
       hiddenViewIds: [],
       storageTrust: "browser",

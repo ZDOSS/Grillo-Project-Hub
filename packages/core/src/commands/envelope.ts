@@ -1,5 +1,6 @@
 import type { ProjectBundle } from "../domain/project";
 import type { ProjectId, ItemId, MemberId } from "../domain/ids";
+import type { AutomationAction, AutomationCondition, AutomationRule, AutomationTrigger } from "../automation/rules";
 
 /**
  * Validated command surface.
@@ -74,6 +75,12 @@ export type CommandPayload =
   | AttachmentDeletePayload
   | AttachmentRestorePayload
   | AttachmentPermanentlyDeletePayload
+  | AutomationRuleCreatePayload
+  | AutomationRuleUpdatePayload
+  | AutomationRuleDeletePayload
+  | AutomationRuleSetEnabledPayload
+  | AutomationRuleDryRunPayload
+  | BugTriageUpdateConfigPayload
   | ViewCreatePayload
   | ViewUpdatePayload
   | ViewDeletePayload
@@ -426,6 +433,53 @@ export type AttachmentPermanentlyDeletePayload = {
   type: "attachment.permanentlyDelete";
   projectId: ProjectId;
   attachmentId: string;
+};
+
+/* Automation */
+export type AutomationRuleCreatePayload = {
+  type: "automationRule.create";
+  projectId: ProjectId;
+  rule: {
+    name: string;
+    description?: string;
+    enabled?: boolean;
+    trigger: AutomationTrigger;
+    conditions?: AutomationCondition[];
+    actions: AutomationAction[];
+  };
+};
+export type AutomationRuleUpdatePayload = {
+  type: "automationRule.update";
+  projectId: ProjectId;
+  ruleId: string;
+  patch: Partial<Omit<AutomationRule, "id" | "createdAt" | "updatedAt">>;
+};
+export type AutomationRuleDeletePayload = {
+  type: "automationRule.delete";
+  projectId: ProjectId;
+  ruleId: string;
+};
+export type AutomationRuleSetEnabledPayload = {
+  type: "automationRule.setEnabled";
+  projectId: ProjectId;
+  ruleId: string;
+  enabled: boolean;
+};
+export type AutomationRuleDryRunPayload = {
+  type: "automationRule.dryRun";
+  projectId: ProjectId;
+  ruleId?: string;
+  rule?: AutomationRuleCreatePayload["rule"];
+  itemId?: string;
+};
+
+/* Bug triage */
+export type BugTriageUpdateConfigPayload = {
+  type: "bugTriage.updateConfig";
+  projectId: ProjectId;
+  patch: {
+    requireSeverityOrPriority?: boolean;
+  };
 };
 
 /* Views */

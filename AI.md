@@ -94,13 +94,15 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 ## Command surface
 
 - one validated `CommandEnvelope<CommandPayload>` shared by UI, automation, import, and MCP
-- command families include `project.*`, `item.*`, `relationship.*`, `comment.*`, `milestone.*`, `label.*`, `member.*`, `status.*`, `priority.*`, `type.*`, `doc.*`, `customField.*`, `reminder.*`, `attachment.*`, `view.*`, `search`
+- command families include `project.*`, `item.*`, `relationship.*`, `comment.*`, `milestone.*`, `label.*`, `member.*`, `status.*`, `priority.*`, `type.*`, `doc.*`, `customField.*`, `reminder.*`, `attachment.*`, `automationRule.*`, `bugTriage.*`, `view.*`, `search`
 - the dispatcher in `packages/core/src/commands/dispatcher.ts` applies the change, records `EventRecord`s, and returns the new bundle
 - hierarchy rules, archive/trash, severity independence, and date-only vs UTC timestamp validation are enforced in dispatcher paths
 - newly added commands in this pass:
   - `project.updateSettings` for plugin trust mode and left-panel visibility (`hiddenViewIds`)
   - `member.update` for inline member edits
   - `member.delete` for archiving a member and unassigning any items still assigned to them
+  - `automationRule.create`, `automationRule.update`, `automationRule.delete`, `automationRule.setEnabled`, and `automationRule.dryRun` for the first command-backed automation builder
+  - `bugTriage.updateConfig` for bug-workflow guardrails such as requiring severity or priority before bugs leave intake
 - dispatcher hardening added after review:
   - `member.update` now throws `Error("Member not found")` for unknown IDs instead of silently succeeding
   - `project.updateSettings` now preserves `hiddenViewIds: []` for legacy bundles that predate that field instead of reintroducing `undefined`
@@ -116,6 +118,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - `doc.delete` removes document-scoped reminders from the active reminder array, moves document-scoped attachments into attachment trash records, and stores removed document reminders with the document trash payload so restore can rehydrate them without leaving invalid active references
   - `doc.permanentlyDelete` removes document-scoped reminders plus active and trashed document-scoped attachments so hard-deleting a trashed document cannot leave dangling document references behind
   - `item.update` validates supplied custom field values against the field registry, type, applicability, options, and required rules when the patch includes `customFields`; unrelated item updates intentionally do not revalidate hidden legacy values so type changes preserve existing custom field data
+  - `item.update` and `item.moveStatus` enforce the configured bug intake gate for bug-module item types, so the "severity or priority before leaving intake" rule is not only a React-view convention
 
 ## Platform differences between web and desktop
 
@@ -131,11 +134,12 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 
 ## Module/plugin rules
 
-- built-in module IDs follow the `builtin.*` convention (e.g. `builtin.kanban`, `builtin.bugs`)
+- built-in module IDs follow the `builtin.*` convention (e.g. `builtin.kanban`, `builtin.bugs`, `builtin.automation`)
 - modules own only their configuration and specialized data
 - core items survive module disable/remove
 - unknown module sections are preserved unchanged when saving
 - bug severities are stored in the `builtin.bugs` section and only apply to type IDs configured by the bug module
+- automation rules are stored as an array under `modules["builtin.automation"].data.rules`; legacy bundles without that module are tolerated by the dispatcher and receive the module when the first automation command writes rules
 - plugin trust posture is surfaced in Settings and now writes back into `projectSettings.pluginTrustMode`; runtime enforcement is still MVP-first-party-only, but the setting is no longer dead UI
 
 ## Key implementation invariants
@@ -151,6 +155,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - custom-field values are stored on `WorkItem.customFields` as typed values keyed by custom field ID; inapplicable values must be hidden in UI surfaces, not deleted, so type changes do not lose data
 - WIP limits warn by default and may hard-block on the board when configured
 - status transitions route through `item.moveStatus` so backend automation and UI share the same validation
+- automation-triggered commands are dispatched with source `automation` and deliberately do not trigger another automation pass, preventing rule loops while keeping rule actions on the validated command path
 
 ## Current major workflows
 
@@ -189,7 +194,8 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - work-item modal relationship selectors now memoize item and relationship derivations, so transient local-state changes such as typing in comments do not rebuild every relationship group on large projects
 - comment editing disables `Save comment` until the body is non-empty and actually changed; the new-comment composer has a stable `aria-label="New comment"` instead of depending on placeholder text for its accessible name
 - shared `Modal` supports `closeOnEscape={false}` for stacked modal cases; `WorkItemModal` disables its Escape handler while the permanent-delete `ConfirmDialog` is open so Escape only cancels the top confirmation and preserves item-detail drafts
-- settings view with theme, left-panel visibility, editable members, editable statuses, editable priorities, editable types, labels, milestones, custom fields, plugins, export/import, AI bridge
+- settings view with theme, left-panel visibility, editable members, editable statuses, editable priorities, editable types, labels, milestones, custom fields, workflow guardrails, automation rules, plugins, export/import, AI bridge
+- settings workflow and automation sections now live in focused `WorkflowSettings.tsx` and `AutomationSettings.tsx` files instead of expanding the main `SettingsView.tsx` switch further
 - settings sections now expose tab semantics, the edit icon comes from `lucide-react`, and import failures render as inline alerts instead of browser-native `alert()`
 - settings registry tables now follow a consistent edit flow for members/statuses/priorities/types:
   - read-only rows by default
@@ -217,6 +223,9 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - calendar now keeps the month grid and adds a derived agenda for upcoming item start/due dates plus active reminders; reminder agenda rows use the reminder's IANA timezone to decide the visible date, boundary filtering keeps reminders visible when their local display date and UTC date straddle the agenda start, agenda links use existing work-item routes, and the feature does not introduce a calendar-specific storage model
 - bug triage now exposes a visible `New bug` action in the intake column, maps software-project `inbox` bugs into Intake, opens the shared create dialog with the correct intake status preselected, and limits Intake's planned-status fallback so custom workflows can still populate Ready; `buildBugTriageColumns()` is shared with overview so accepted Ready bugs do not reappear as intake pressure
 - bug triage cards are now `<article>` surfaces with an internal item link and real form controls, not whole-card links, so triage buttons/selects are valid and testable; accept/decline/assign dispatch `item.update`, decline resolves to an existing canceled status or completed fallback before dispatching, snooze dispatches `reminder.create`, and duplicate linking dispatches `relationship.create` with `relatesTo`
+- bug triage toolbar now includes severity and priority filters, cards can edit severity/priority plus plugin-owned source/context data stored under `moduleData.bug`, and the optional Workflow setting blocks Accept/Decline out of intake until a bug has either severity or priority
+- automation settings can create, dry-run preview, enable/disable, and delete rules; the first builder supports item-created/updated/status/due-date/milestone triggers plus set-field, add/remove-label, move-status, assign-milestone, create-subtask, and generate-doc actions
+- automation rule execution is a side-effect layer after the originating item command succeeds: each action still dispatches through the validated command surface with source `automation`, but action validation failures are captured on `automation.executed.data.failedActionCount` / `failures` instead of throwing back through the user's item command
 - My Work now has a `New assigned item` action that preselects the current local member as assignee, so work created from that filtered view remains visible in the same workflow after creation
 - board-level `New item` now preselects the first board column's default drop status, which keeps newly created cards visible on boards whose first lane does not use the project/type default status
 - table sorting now uses neutral ascending comparators plus explicit default directions, so `Priority (desc)` puts urgent work first and selecting `Updated` defaults to newest-first order
@@ -263,6 +272,8 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - bug triage intake visibility for software-workflow `inbox` bugs and intake-status prefill for `New bug`
   - bug triage fallback mapping that keeps a non-standard planned Ready status visible
   - bug triage filters for needs-repro and command-backed accept/decline/snooze/assign/duplicate actions
+  - bug triage severity/priority filtering, plugin-owned source/context editing, and the configured severity-or-priority intake exit gate
+  - automation rule create/update/delete/enable/disable/dry-run commands, dispatcher execution through automation source commands, and Settings automation rule preview/save/toggle/delete flows
   - board-context item creation that uses the first board column default status
   - my-work item creation that preselects the active local member as assignee
   - table priority and updated-date sort direction behavior
@@ -464,6 +475,14 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - routing create/open/import/demo project entry points to `/overview` instead of `/board`
   - adding `/projects` as the explicit workspace launcher route and redirecting `/` to `/overview` when a project is already open
   - updating e2e expectations for overview-first project entry while still navigating to Board in board-specific workflow checks
+- continued the July 2026 workflow-intelligence pass with the Workflow Control milestone by:
+  - adding persistent automation rules under `builtin.automation`, rule CRUD/enable/disable/dry-run commands, and item-event execution through the validated dispatcher
+  - finishing bug triage gates with severity/priority filters, source/context fields, per-card severity/priority controls, and a command-level severity-or-priority requirement for configured intake exits
+  - splitting focused Workflow and Automation settings components out of the main Settings view and adding regression coverage for the new controls
+- applied the PR #17 Greptile follow-up by:
+  - isolating automation action failures from the originating item command so a saved rule cannot reject a valid user create/update/move when a side-effect fails validation
+  - recording failed automation actions on the `automation.executed` activity event with action type and error message details
+  - adding a dispatcher regression for the bug-intake gate case where an enabled automation tries to move an ungraded intake bug to Ready
 
 ## Open follow-on planning
 

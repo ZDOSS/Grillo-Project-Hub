@@ -5,6 +5,8 @@ import { useProjectStore } from "../../store/project-store";
 import { useTheme } from "../../theme/theme-provider";
 import { PROJECT_NAV_ITEMS } from "../../nav-config";
 import { InlineAlert } from "../../components";
+import { AutomationSettings } from "./AutomationSettings";
+import { WorkflowSettings } from "./WorkflowSettings";
 
 const SIDEBAR_OPTIONS = PROJECT_NAV_ITEMS.map(({ id, label }) => ({ id, label }));
 const COLOR_OPTIONS = [
@@ -27,6 +29,8 @@ type SettingsTab =
   | "labels"
   | "milestones"
   | "fields"
+  | "workflow"
+  | "automation"
   | "plugins"
   | "export"
   | "bridge";
@@ -95,6 +99,8 @@ export function SettingsView() {
           ["labels", "Labels"],
           ["milestones", "Milestones"],
           ["fields", "Custom fields"],
+          ["workflow", "Workflow"],
+          ["automation", "Automation"],
           ["plugins", "Plugins & trust"],
           ["export", "Export & import"],
           ["bridge", "AI bridge"]
@@ -327,6 +333,8 @@ export function SettingsView() {
       )}
 
       {tab === "fields" && <CustomFieldsTab />}
+      {tab === "workflow" && <WorkflowSettings />}
+      {tab === "automation" && <AutomationSettings />}
       {tab === "plugins" && <PluginsTab />}
       {tab === "export" && <ExportPanel />}
       {tab === "bridge" && <BridgePanel />}

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createProjectBundle, validateProjectBundle } from "../domain/project";
+import { buildProjectFromTemplate } from "../templates/starter-templates";
 import { dispatchCommand, envelopeFor } from "./dispatcher";
 
 describe("command dispatcher", () => {
@@ -894,5 +895,188 @@ describe("command dispatcher", () => {
         )
       )
     ).toThrow(/Project mismatch/);
+  });
+
+  it("stores edits previews disables and deletes automation rules", () => {
+    let bundle = buildProjectFromTemplate("software-project", "Automation");
+    const label = bundle.core.labels.find((entry) => entry.name === "frontend")!;
+    bundle = dispatchCommand(
+      bundle,
+      envelopeFor({ type: "item.create", projectId: bundle.project.id, typeId: "task", title: "Preview target" }, "ui", null)
+    ).bundle;
+    const item = bundle.core.items.find((entry) => entry.title === "Preview target")!;
+
+    const created = dispatchCommand(
+      bundle,
+      envelopeFor(
+        {
+          type: "automationRule.create",
+          projectId: bundle.project.id,
+          rule: {
+            name: "Label new tasks",
+            trigger: { type: "item.created" },
+            conditions: [{ type: "type.isOneOf", typeIds: ["task"] }],
+            actions: [{ type: "addLabel", labelId: label.id }]
+          }
+        } as never,
+        "ui",
+        null
+      )
+    ).bundle;
+    const rules = ((created.modules["builtin.automation"].data as { rules?: Array<{ id: string; name: string; enabled: boolean }> }).rules) ?? [];
+    const rule = rules.find((entry) => entry.name === "Label new tasks")!;
+    expect(rule.enabled).toBe(true);
+
+    const preview = dispatchCommand(
+      created,
+      envelopeFor(
+        {
+          type: "automationRule.dryRun",
+          projectId: created.project.id,
+          ruleId: rule.id,
+          itemId: item.id
+        } as never,
+        "ui",
+        null
+      )
+    );
+    expect(preview.bundle.project.revision).toBe(created.project.revision);
+    expect(preview.output).toMatchObject({
+      matched: true,
+      actions: [{ type: "addLabel", summary: expect.stringContaining("frontend") }]
+    });
+
+    const disabled = dispatchCommand(
+      created,
+      envelopeFor({ type: "automationRule.setEnabled", projectId: created.project.id, ruleId: rule.id, enabled: false } as never, "ui", null)
+    ).bundle;
+    const disabledRule = ((disabled.modules["builtin.automation"].data as { rules?: Array<{ id: string; enabled: boolean }> }).rules)![0];
+    expect(disabledRule.enabled).toBe(false);
+
+    const renamed = dispatchCommand(
+      disabled,
+      envelopeFor({ type: "automationRule.update", projectId: disabled.project.id, ruleId: rule.id, patch: { name: "Label created tasks" } } as never, "ui", null)
+    ).bundle;
+    expect(((renamed.modules["builtin.automation"].data as { rules?: Array<{ name: string }> }).rules)![0].name).toBe("Label created tasks");
+
+    const deleted = dispatchCommand(
+      renamed,
+      envelopeFor({ type: "automationRule.delete", projectId: renamed.project.id, ruleId: rule.id } as never, "ui", null)
+    ).bundle;
+    expect(((deleted.modules["builtin.automation"].data as { rules?: unknown[] }).rules) ?? []).toEqual([]);
+  });
+
+  it("executes enabled automation rules through validated commands", () => {
+    let bundle = buildProjectFromTemplate("software-project", "Automation");
+    const label = bundle.core.labels.find((entry) => entry.name === "frontend")!;
+    bundle = dispatchCommand(
+      bundle,
+      envelopeFor(
+        {
+          type: "automationRule.create",
+          projectId: bundle.project.id,
+          rule: {
+            name: "Label bugs",
+            trigger: { type: "item.created" },
+            conditions: [{ type: "type.isOneOf", typeIds: ["bug"] }],
+            actions: [
+              { type: "addLabel", labelId: label.id },
+              { type: "createSubtask", title: "Verify fix" },
+              { type: "generateDoc", title: "Bug note" }
+            ]
+          }
+        } as never,
+        "ui",
+        null
+      )
+    ).bundle;
+
+    const created = dispatchCommand(
+      bundle,
+      envelopeFor({ type: "item.create", projectId: bundle.project.id, typeId: "bug", title: "Automated bug", statusId: "inbox" }, "ui", null)
+    ).bundle;
+
+    const bug = created.core.items.find((entry) => entry.title === "Automated bug")!;
+    expect(bug.labelIds).toContain(label.id);
+    expect(created.core.items.some((entry) => entry.parentId === bug.id && entry.title === "Verify fix")).toBe(true);
+    expect(created.core.documents.some((entry) => entry.title === "Bug note" && entry.body.includes(`[[item:${bug.id}]]`))).toBe(true);
+    expect(created.core.events.some((event) => event.type === "item.updated" && event.itemId === bug.id && event.source === "automation")).toBe(true);
+    expect(created.core.events.some((event) => event.type === "automation.executed" && event.source === "automation")).toBe(true);
+  });
+
+  it("keeps the originating item command when an automation action fails validation", () => {
+    let bundle = buildProjectFromTemplate("software-project", "Automation");
+    bundle = dispatchCommand(
+      bundle,
+      envelopeFor({ type: "bugTriage.updateConfig", projectId: bundle.project.id, patch: { requireSeverityOrPriority: true } } as never, "ui", null)
+    ).bundle;
+    bundle = dispatchCommand(
+      bundle,
+      envelopeFor(
+        {
+          type: "automationRule.create",
+          projectId: bundle.project.id,
+          rule: {
+            name: "Move new bugs to ready",
+            trigger: { type: "item.created" },
+            conditions: [{ type: "type.isOneOf", typeIds: ["bug"] }],
+            actions: [{ type: "moveToStatus", statusId: "ready" }]
+          }
+        } as never,
+        "ui",
+        null
+      )
+    ).bundle;
+
+    const created = dispatchCommand(
+      bundle,
+      envelopeFor({ type: "item.create", projectId: bundle.project.id, typeId: "bug", title: "Ungraded automation bug", statusId: "inbox" }, "ui", null)
+    ).bundle;
+
+    const bug = created.core.items.find((entry) => entry.title === "Ungraded automation bug")!;
+    expect(bug.statusId).toBe("inbox");
+    expect(created.core.events.some((event) => event.type === "item.created" && event.itemId === bug.id)).toBe(true);
+    expect(created.core.events).toContainEqual(
+      expect.objectContaining({
+        type: "automation.executed",
+        itemId: bug.id,
+        source: "automation",
+        data: expect.objectContaining({
+          ruleName: "Move new bugs to ready",
+          actionCount: 0,
+          failedActionCount: 1
+        })
+      })
+    );
+  });
+
+  it("enforces configured bug intake severity or priority gates in the dispatcher", () => {
+    let bundle = buildProjectFromTemplate("software-project", "Bugs");
+    bundle = dispatchCommand(
+      bundle,
+      envelopeFor({ type: "bugTriage.updateConfig", projectId: bundle.project.id, patch: { requireSeverityOrPriority: true } } as never, "ui", null)
+    ).bundle;
+    bundle = dispatchCommand(
+      bundle,
+      envelopeFor({ type: "item.create", projectId: bundle.project.id, typeId: "bug", title: "Ungraded bug", statusId: "inbox" }, "ui", null)
+    ).bundle;
+    const item = bundle.core.items.find((entry) => entry.title === "Ungraded bug")!;
+
+    expect(() =>
+      dispatchCommand(
+        bundle,
+        envelopeFor({ type: "item.update", projectId: bundle.project.id, itemId: item.id, patch: { statusId: "ready" } }, "ui", null)
+      )
+    ).toThrow(/severity or priority/i);
+
+    const graded = dispatchCommand(
+      bundle,
+      envelopeFor({ type: "item.update", projectId: bundle.project.id, itemId: item.id, patch: { priorityId: "high" } }, "ui", null)
+    ).bundle;
+    const accepted = dispatchCommand(
+      graded,
+      envelopeFor({ type: "item.update", projectId: graded.project.id, itemId: item.id, patch: { statusId: "ready" } }, "ui", null)
+    ).bundle;
+    expect(accepted.core.items.find((entry) => entry.id === item.id)?.statusId).toBe("ready");
   });
 });
