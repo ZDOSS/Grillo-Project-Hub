@@ -562,12 +562,12 @@ This combines the original saved-views slice and backlog/table parity slice into
 - Modify: `AI.md`
 - Modify: `Readme.md`
 
-- [ ] Add mobile navigation sheet or compact sidebar behavior.
-- [ ] Verify focus management for modal, dialog, command palette, and settings.
-- [ ] Ensure icon-only controls have accessible names.
-- [ ] Ensure warning, blocked, active, selected, and disabled states do not rely only on color.
-- [ ] Add e2e coverage for first launch, item lifecycle, docs, search, settings, and responsive smoke paths.
-- [ ] Run `npm.cmd test`, `npm.cmd run typecheck`, `npm.cmd run build:web`, `npm.cmd run build:desktop`, and `npm.cmd run test:e2e`.
+- [x] Add mobile navigation sheet or compact sidebar behavior.
+- [x] Verify focus management for modal, dialog, command palette, and settings.
+- [x] Ensure icon-only controls have accessible names.
+- [x] Ensure warning, blocked, active, selected, and disabled states do not rely only on color.
+- [x] Add e2e coverage for first launch, item lifecycle, docs, search, settings, and responsive smoke paths.
+- [x] Run `npm.cmd test`, `npm.cmd run typecheck`, `npm.cmd run build:web`, `npm.cmd run build:desktop`, and `npm.cmd run test:e2e`.
 
 ## Documentation Rules During Execution
 

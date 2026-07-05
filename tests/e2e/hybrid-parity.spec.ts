@@ -42,3 +42,20 @@ test("toggling theme switches between light and dark", async ({ page }) => {
   const nextTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
   expect(initialTheme).not.toBe(nextTheme);
 });
+
+test("mobile shell exposes workspace navigation from the header", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await page.locator(".modal-footer button.btn-primary").click();
+  await expect(page).toHaveURL(/\/overview/);
+
+  await page.getByRole("button", { name: "Open workspace navigation" }).click();
+  const sheet = page.getByRole("dialog", { name: "Workspace navigation" });
+
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByRole("navigation", { name: "Mobile workspace navigation" })).toBeVisible();
+
+  await sheet.getByRole("link", { name: "Calendar" }).click();
+  await expect(page).toHaveURL(/\/calendar/);
+  await expect(sheet).not.toBeVisible();
+});

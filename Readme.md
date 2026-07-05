@@ -7,7 +7,7 @@ A free, open source, hybrid day-one project management suite for practical softw
 The MVP implementation is in place. The current build supports:
 
 - **Workspace** with new/open/demo project flow, immediate folder-backed project creation when a folder is selected, recent-project reopen, browser-vs-folder storage guidance, inline delete/remove confirmation, an explicit `/projects` launcher route, and automatic restore of the last active project after reload
-- **Shared UI foundation** with reusable buttons, icon buttons, fields, page headers, surfaces, toolbars, empty states, inline alerts, modal/dialog primitives, data tables, and work-item metadata components
+- **Shared UI foundation** with reusable buttons, icon buttons, fields, page headers, surfaces, toolbars, empty states, inline alerts, focus-restoring modal/dialog primitives, data tables, work-item metadata components, and responsive shell navigation
 - **Overview** as the default project landing view for created, opened, imported, demo, and restored projects, summarizing active work, milestone progress, blocked items, future upcoming dates/reminders, triage-lane bug intake, recent activity, and the current storage/save state
 - **Board** with drag-and-drop, WIP limits (warn + hard modes), explicit hard-limit feedback, column-based status grouping, context-aware item creation that starts in the first board lane, and whole-card link navigation that keeps visible card metadata available to assistive technology
 - **Backlog** with priority-sorted items, saved working views, shared text/type/status/priority/assignee/milestone filters, custom-field metadata tags, a shared toolbar, and a visible new-item entry point
@@ -22,7 +22,7 @@ The MVP implementation is in place. The current build supports:
 - **Consistent settings editing** for members, statuses, priorities, types, and plugin trust with explicit edit or save/cancel flows instead of always-live row inputs
 - **Shared navigation config** so sidebar navigation and left-panel visibility toggles stay in sync
 - **Saved planning views** in the project view bar, with board/backlog/table save, update, delete, and reorder flows backed by validated shared filters that preserve multi-value saved filters
-- **Command palette** with `Ctrl/Cmd+K` and `C` to create items through a draft-preserving dialog with view-aware defaults
+- **Command palette** with `Ctrl/Cmd+K`, combobox/listbox keyboard semantics, and `C` to create items through a draft-preserving dialog with view-aware defaults
 - **Trash** with restore and confirmed permanent deletion for work items, documents, and attachments, including inline feedback when a recovery action cannot be completed
 - **Modal-style work item detail** backed by the shared modal primitive, with full edit, checklist (with convert-to-subtask), inline comment editing, an accessible comment composer, subtasks, relationship add/remove controls, custom fields, attachment upload/preview/delete, reminder create/update/delete, readable activity, app-owned permanent-delete confirmation, archive/trash/delete, and a pinned action footer
 - **Local full-text search** with structured filters
@@ -104,10 +104,10 @@ The UI/UX overhaul planning package lives in `docs/superpowers/specs/2026-07-02-
 | Suite | Count | Notes |
 | --- | --- | --- |
 | `packages/core` | 57 | Domain, storage, dispatcher, document sections/templates, automation rules, export, import |
-| `packages/ui` | 97 | AppShell, ProjectRouter, OverviewView, shared button and surface primitives, WorkItemModal attachment/reminder/custom-field coverage, TrashView, BoardView, saved planning views, BacklogView, BugTriageView, MyWorkView, TableView, RoadmapView, CalendarView, CommandPalette, CreateItemDialog, launcher, docs, settings, automation settings |
+| `packages/ui` | 109 | AppShell, ProjectRouter, OverviewView, shared button/surface/modal primitives, WorkItemModal attachment/reminder/custom-field coverage, TrashView, BoardView, saved planning views, BacklogView, BugTriageView, MyWorkView, TableView, RoadmapView, CalendarView, CommandPalette, CreateItemDialog, launcher, docs, settings, automation settings |
 | `apps/web` | 4 | PWA storage adapter folder-picker create/list/load flow, reload recovery when folder-handle persistence is unavailable, recovered-edit promotion, and external folder-change protection |
 | `apps/desktop` | 2 | Desktop storage adapter command wiring |
-| `tests/e2e` | 7 | Hybrid parity, project workflow, theme, palette, export, search |
+| `tests/e2e` | 10 | Hybrid parity, project workflow, theme, palette, export, search, calendar scheduled-work creation, docs edit/preview, mobile navigation |
 
 Run them all with `npm test` (unit) and `npm run test:e2e` (browser). The e2e runner starts Vite as an owned child process, passes `PLAYWRIGHT_BASE_URL` into Playwright, and shuts Vite down after Playwright exits, which keeps the command reliable on Windows and CI.
 `npm run typecheck` covers all packages and apps, and `npm run lint` currently aliases that same check until a dedicated lint rule set is introduced.

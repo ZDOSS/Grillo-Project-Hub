@@ -12,6 +12,7 @@ export function CommandPalette() {
   const [highlight, setHighlight] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const bundle = useProjectStore((s) => s.bundle);
+  const listboxId = "command-palette-results";
 
   useEffect(() => subscribePalette(setOpen), []);
 
@@ -67,16 +68,19 @@ export function CommandPalette() {
 
   if (!open) return null;
 
+  const optionId = (item: { id: string }) => `command-option-${item.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+  const activeOptionId = items[highlight] ? optionId(items[highlight]) : undefined;
+
   const handleKey = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") {
       e.preventDefault();
       closePalette();
     } else if (e.key === "ArrowDown") {
       e.preventDefault();
-      setHighlight((h) => Math.min(h + 1, items.length - 1));
+      setHighlight((h) => items.length ? Math.min(h + 1, items.length - 1) : 0);
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setHighlight((h) => Math.max(h - 1, 0));
+      setHighlight((h) => items.length ? Math.max(h - 1, 0) : 0);
     } else if (e.key === "Enter") {
       e.preventDefault();
       const item = items[highlight];
@@ -89,19 +93,26 @@ export function CommandPalette() {
       <div className="cmdk" role="dialog" aria-label="Command palette" onClick={(e) => e.stopPropagation()}>
         <input
           ref={inputRef}
+          aria-activedescendant={activeOptionId}
+          aria-autocomplete="list"
+          aria-controls={listboxId}
+          aria-expanded="true"
+          aria-label="Search commands, items, docs"
           className="cmdk-input"
           placeholder="Search commands, items, docs…"
+          role="combobox"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKey}
         />
-        <div className="cmdk-list">
+        <div className="cmdk-list" id={listboxId} role="listbox" aria-label="Command results">
           {items.length === 0 ? (
             <div className="cmdk-empty">No matches</div>
           ) : (
             items.map((item, idx) => (
               <div
                 key={item.id}
+                id={optionId(item)}
                 className="cmdk-item"
                 role="option"
                 aria-selected={idx === highlight}
