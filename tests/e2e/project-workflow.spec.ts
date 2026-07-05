@@ -1,5 +1,14 @@
 import { test, expect } from "@playwright/test";
 
+function todayDateOnly(): string {
+  const date = new Date();
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0")
+  ].join("-");
+}
+
 test("the user can create an item, change its status, and see the activity log", async ({ page }) => {
   await page.goto("/");
   await page.locator(".modal-footer button.btn-primary").click();
@@ -55,4 +64,38 @@ test("search finds items by title", async ({ page }) => {
   await page.getByPlaceholder(/Search commands/i).fill("unicorn");
   await page.waitForTimeout(300);
   await expect(page.locator(".cmdk-list").getByText("Findable unicorn")).toBeVisible();
+});
+
+test("calendar creates a dated work item from a day cell", async ({ page }) => {
+  const today = todayDateOnly();
+  await page.goto("/");
+  await page.locator(".modal-footer button.btn-primary").click();
+  await expect(page).toHaveURL(/\/overview/);
+
+  await page.getByLabel("Workspace", { exact: true }).getByRole("link", { name: "Calendar" }).click();
+  await page.getByRole("button", { name: `Add work on ${today}` }).click();
+  await expect(page.getByRole("dialog", { name: "Create work item" })).toBeVisible();
+  await expect(page.getByLabel("Due date")).toHaveValue(today);
+
+  await page.getByLabel("Title").fill("Calendar smoke item");
+  await page.getByRole("button", { name: "Create" }).click();
+
+  const detail = page.getByRole("dialog", { name: /work item/i });
+  await expect(detail).toBeVisible();
+  await expect(detail.getByLabel("Due")).toHaveValue(today);
+});
+
+test("docs workflow creates and previews a project note", async ({ page }) => {
+  await page.goto("/");
+  await page.locator(".modal-footer button.btn-primary").click();
+  await expect(page).toHaveURL(/\/overview/);
+
+  await page.getByLabel("Workspace", { exact: true }).getByRole("link", { name: "Docs" }).click();
+  await page.getByRole("button", { name: "New document" }).click();
+  await page.getByLabel("Document title").fill("Release checklist");
+  await page.getByRole("button", { name: "Edit" }).click();
+  await page.locator(".docs-editor textarea").fill("# Release checklist\n\n- Smoke the docs workflow");
+  await page.getByRole("button", { name: "Preview" }).click();
+
+  await expect(page.getByRole("heading", { name: "Release checklist" })).toBeVisible();
 });

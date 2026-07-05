@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { IconButton } from "../button";
 
@@ -19,6 +19,22 @@ export function Modal({
   size?: "md" | "lg" | "work-item";
   title: ReactNode;
 }) {
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    restoreFocusRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    closeButtonRef.current?.focus();
+    return () => {
+      const target = restoreFocusRef.current;
+      if (target && document.contains(target)) {
+        target.focus();
+      }
+    };
+  }, []);
+
   useEffect(() => {
     if (!closeOnEscape) return;
     const onKey = (event: KeyboardEvent) => {
@@ -39,7 +55,7 @@ export function Modal({
       >
         <header className="modal-header gph-modal-header">
           {typeof title === "string" ? <strong>{title}</strong> : title}
-          <IconButton aria-label="Close" onClick={onClose}>
+          <IconButton aria-label="Close" onClick={onClose} ref={closeButtonRef}>
             <X aria-hidden="true" />
           </IconButton>
         </header>

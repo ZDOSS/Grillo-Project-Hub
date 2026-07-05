@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo } from "react";
+import { type MouseEventHandler, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bug,
   CalendarDays,
@@ -9,6 +9,7 @@ import {
   KanbanSquare,
   LayoutDashboard,
   ListTodo,
+  Menu,
   Moon,
   Play,
   Search,
@@ -16,7 +17,8 @@ import {
   Sun,
   Table2,
   Trash2,
-  UserRound
+  UserRound,
+  X
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useProjectStore } from "./store/project-store";
@@ -98,6 +100,15 @@ export function AppShell({ appMode, children }: AppShellProps) {
   const navigate = useNavigate();
   const bundle = useProjectStore((s) => s.bundle);
   const { resolved, toggle } = useTheme();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const mobileNavOpenRef = useRef(false);
+  const mobileCloseRef = useRef<HTMLButtonElement>(null);
+  const mobileTriggerRef = useRef<HTMLButtonElement>(null);
+
+  const setMobileNavSheetOpen = (open: boolean) => {
+    mobileNavOpenRef.current = open;
+    setMobileNavOpen(open);
+  };
 
   useEffect(() => registerCoreCommands(), []);
 
@@ -127,12 +138,30 @@ export function AppShell({ appMode, children }: AppShellProps) {
         e.preventDefault();
         window.dispatchEvent(new CustomEvent("gph:open-create-item"));
       } else if (e.key === "Escape") {
+        if (mobileNavOpenRef.current) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          setMobileNavSheetOpen(false);
+          return;
+        }
         window.dispatchEvent(new CustomEvent("gph:close-overlay"));
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  useEffect(() => {
+    setMobileNavSheetOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+    requestAnimationFrame(() => mobileCloseRef.current?.focus());
+    return () => {
+      requestAnimationFrame(() => mobileTriggerRef.current?.focus());
+    };
+  }, [mobileNavOpen]);
 
   useEffect(() => {
     const onToggle = () => toggle();
@@ -177,71 +206,19 @@ export function AppShell({ appMode, children }: AppShellProps) {
   return (
     <div className="app-shell" data-mode={appMode} data-theme={resolved}>
       <nav className="app-sidebar" aria-label="Workspace">
-        <div className="sidebar-brand">
-          <GrilloLogo />
-          <span className="sidebar-brand-name">Grillo</span>
-        </div>
-
-        <div className="sidebar-section">
-          <div className="sidebar-section-title">Workspace</div>
-          <Link
-            to="/projects"
-            className="sidebar-link"
-            aria-current={location.pathname === "/projects" ? "page" : undefined}
-          >
-            <FolderKanban {...navIconProps} /> Projects
-          </Link>
-          <Link
-            to="/open"
-            className="sidebar-link"
-            aria-current={location.pathname === "/open" ? "page" : undefined}
-          >
-            <FolderOpen {...navIconProps} /> Open
-          </Link>
-          <Link
-            to="/demo"
-            className="sidebar-link"
-            aria-current={location.pathname === "/demo" ? "page" : undefined}
-          >
-            <Play {...navIconProps} /> Demo
-          </Link>
-        </div>
-
-        <div className="sidebar-section">
-          <div className="sidebar-section-title">Project</div>
-          {visibleNavItems.map((item) => (
-            <Link
-              key={item.to}
-              to={item.to}
-              className="sidebar-link"
-              aria-current={
-                location.pathname.startsWith(item.to) ? "page" : undefined
-              }
-            >
-              {item.icon} {item.label}
-            </Link>
-          ))}
-        </div>
-
-        <div className="sidebar-section">
-          <div className="sidebar-section-title">App</div>
-          {SECONDARY.map((item) => (
-            <Link
-              key={item.to}
-              to={item.to}
-              className="sidebar-link"
-              aria-current={
-                location.pathname.startsWith(item.to) ? "page" : undefined
-              }
-            >
-              {item.icon} {item.label}
-            </Link>
-          ))}
-        </div>
+        <ShellNavContent locationPathname={location.pathname} visibleNavItems={visibleNavItems} />
       </nav>
 
       <header className="app-header" aria-label="Grillo Project Hub">
         <div className="row" style={{ gap: 8 }}>
+          <IconButton
+            aria-label="Open workspace navigation"
+            className="mobile-nav-trigger"
+            onClick={() => setMobileNavSheetOpen(true)}
+            ref={mobileTriggerRef}
+          >
+            <Menu aria-hidden="true" />
+          </IconButton>
           {bundle ? (
             <>
               <strong>{bundle.project.name}</strong>
@@ -275,6 +252,40 @@ export function AppShell({ appMode, children }: AppShellProps) {
         </div>
       </header>
 
+      {mobileNavOpen ? (
+        <div className="mobile-nav-backdrop" onMouseDown={() => setMobileNavSheetOpen(false)}>
+          <aside
+            aria-label="Workspace navigation"
+            aria-modal="true"
+            className="mobile-nav-sheet"
+            onMouseDown={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <div className="mobile-nav-header">
+              <div className="sidebar-brand mobile-nav-brand">
+                <GrilloLogo />
+                <span className="sidebar-brand-name">Grillo</span>
+              </div>
+              <IconButton
+                aria-label="Close workspace navigation"
+                onClick={() => setMobileNavSheetOpen(false)}
+                ref={mobileCloseRef}
+              >
+                <X aria-hidden="true" />
+              </IconButton>
+            </div>
+            <nav className="mobile-nav-content" aria-label="Mobile workspace navigation">
+              <ShellNavContent
+                locationPathname={location.pathname}
+                onNavigate={() => setMobileNavSheetOpen(false)}
+                showBrand={false}
+                visibleNavItems={visibleNavItems}
+              />
+            </nav>
+          </aside>
+        </div>
+      ) : null}
+
       <main className="app-main">
         {isProjectRoute && bundle ? <ProjectViewTabs items={visibleNavItems} savedViews={savedPlanningViews} /> : null}
         <div className="view-content">{children}</div>
@@ -282,6 +293,91 @@ export function AppShell({ appMode, children }: AppShellProps) {
 
       <CommandPalette />
     </div>
+  );
+}
+
+function ShellNavContent({
+  locationPathname,
+  onNavigate,
+  showBrand = true,
+  visibleNavItems
+}: {
+  locationPathname: string;
+  onNavigate?: MouseEventHandler<HTMLAnchorElement>;
+  showBrand?: boolean;
+  visibleNavItems: typeof NAV_ITEMS;
+}) {
+  return (
+    <>
+      {showBrand ? (
+        <div className="sidebar-brand">
+          <GrilloLogo />
+          <span className="sidebar-brand-name">Grillo</span>
+        </div>
+      ) : null}
+
+      <div className="sidebar-section">
+        <div className="sidebar-section-title">Workspace</div>
+        <Link
+          to="/projects"
+          className="sidebar-link"
+          aria-current={locationPathname === "/projects" ? "page" : undefined}
+          onClick={onNavigate}
+        >
+          <FolderKanban {...navIconProps} /> Projects
+        </Link>
+        <Link
+          to="/open"
+          className="sidebar-link"
+          aria-current={locationPathname === "/open" ? "page" : undefined}
+          onClick={onNavigate}
+        >
+          <FolderOpen {...navIconProps} /> Open
+        </Link>
+        <Link
+          to="/demo"
+          className="sidebar-link"
+          aria-current={locationPathname === "/demo" ? "page" : undefined}
+          onClick={onNavigate}
+        >
+          <Play {...navIconProps} /> Demo
+        </Link>
+      </div>
+
+      <div className="sidebar-section">
+        <div className="sidebar-section-title">Project</div>
+        {visibleNavItems.map((item) => (
+          <Link
+            key={item.to}
+            to={item.to}
+            className="sidebar-link"
+            aria-current={
+              locationPathname.startsWith(item.to) ? "page" : undefined
+            }
+            onClick={onNavigate}
+          >
+            {item.icon} {item.label}
+          </Link>
+        ))}
+      </div>
+
+      <div className="sidebar-section">
+        <div className="sidebar-section-title">App</div>
+        {SECONDARY.map((item) => (
+          <Link
+            key={item.to}
+            to={item.to}
+            className="sidebar-link"
+            aria-current={
+              locationPathname.startsWith(item.to) ? "page" : undefined
+            }
+            onClick={onNavigate}
+          >
+            {item.icon} {item.label}
+          </Link>
+        ))}
+      </div>
+    </>
   );
 }
 

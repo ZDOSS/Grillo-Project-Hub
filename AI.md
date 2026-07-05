@@ -253,8 +253,12 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - the UI/UX overhaul implementation pass has started in code:
   - `packages/ui/src/components/` now exports shared button/icon-button, field, page-header, surface, toolbar, empty-state, inline-alert, modal/dialog, data-table, and work-item metadata primitives
   - `AppShell` uses a named workspace navigation landmark, shared header buttons, and lucide icons for command/theme actions
+  - `AppShell` now provides a header-triggered mobile workspace navigation sheet for narrow screens; the desktop sidebar remains the primary wide-screen nav, both surfaces share the same route metadata and hidden-view filtering, and the mobile sheet claims Escape while open so one key press cannot also dismiss an underlying overlay
+  - the shared `Modal` primitive focuses its close control on open, restores focus to the opener on close, and still supports `closeOnEscape={false}` for stacked confirmations
+  - the command palette input is exposed as a combobox with a labelled listbox and active-descendant option wiring, using URI-encoded option ids so distinct command/search-hit ids cannot collide after DOM id generation
   - board, backlog, table, bug triage, my work, search, roadmap, calendar, docs, and settings now use shared primitives for major controls, feedback, metadata, or layout
   - board hard-WIP rejection now surfaces visible status feedback instead of silently dropping the move
+  - WIP warnings, roadmap status bars, and warning/bad tags now use text, border style, or border treatment in addition to color
   - search results are grouped by surface type while preserving URL query/scope state
   - roadmap and calendar controls now sit in shared toolbars with accessible names
   - docs use shared confirmation for document delete and lucide document icons instead of emoji UI markers
@@ -264,7 +268,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 
 - TDD for the shared core: domain rules, command handlers, storage contract, and export/import
 - Vitest component tests for `AppShell`, `BoardView`, `BacklogView`, `CommandPalette`, `ProjectsListView`, and `DocsView`
-- UI foundation coverage now includes `components/button/Button.test.tsx`, `components/layout/Surface.test.tsx`, and `work-item/WorkItemModal.test.tsx`; AppShell tests assert banner, workspace navigation, and command-search affordances
+- UI foundation coverage now includes `components/button/Button.test.tsx`, `components/layout/Surface.test.tsx`, `components/overlay/Modal.test.tsx`, and `work-item/WorkItemModal.test.tsx`; AppShell tests assert banner, desktop/mobile workspace navigation, and command-search affordances
 - review-follow-up regressions now have dedicated tests for:
   - unknown-member updates in the dispatcher
   - legacy `hiddenViewIds` fallback behavior
@@ -312,6 +316,9 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - work-item custom-field editing, non-applicable custom-field rejection, hidden-value preservation after type change, table custom-field columns, and backlog custom-field summaries
   - docs delete navigation to the nearest active remaining document, skipping archived docs
   - create-dialog default refresh when the type registry changes while the dialog is open, including preservation of typed title and description drafts
+  - shared modal focus/restore behavior
+  - command palette combobox/listbox active-descendant semantics and collision-free option ids
+  - mobile workspace navigation sheet rendering, dismissal, and Escape ownership above other overlays
   - work-item unchanged-comment save disabling and the new-comment textarea accessible label
   - stacked delete-confirmation Escape handling that preserves the underlying item-detail route and unsaved comment draft
   - item-reference validation and unknown-target rejection in dispatcher commands
@@ -326,7 +333,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - the Settings view test now always seeds a fresh project-store bundle per run instead of reusing any stale Zustand singleton state from prior tests
 - UI test setup now installs a memory-backed `localStorage` shim when jsdom's storage implementation is unavailable or misconfigured, which keeps persistence-oriented tests deterministic
 - `apps/desktop` now has a Vitest/jsdom test harness for the desktop storage adapter
-- Playwright e2e for hybrid parity, theme toggle, command palette, project creation, item creation with `C` shortcut, JSON export download, and search
+- Playwright e2e for hybrid parity, theme toggle, command palette, project creation, item creation with `C` shortcut, JSON export download, search, calendar day-cell work creation, docs edit/preview, and mobile navigation
 - `npm test` runs core, UI, and desktop adapter tests; `npm run test:e2e` runs `apps/web/scripts/run-e2e.mjs`, which starts Vite as an owned child process, waits for readiness, runs Playwright, and shuts Vite down before returning; `npm run typecheck` covers all packages and apps; `npm run lint` currently aliases typecheck until a dedicated lint stack is added
 - `apps/web/scripts/run-e2e.mjs` owns the e2e base URL and passes it through `PLAYWRIGHT_BASE_URL`; `apps/web/playwright.config.ts` reads that environment value with a fixed local fallback so runner and config cannot silently drift.
 
@@ -534,6 +541,10 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - retaining the folder picker handle in the web adapter immediately after selection, so create/save/list/load stays folder-backed even when IndexedDB folder-handle persistence is unavailable or delayed
   - adding real `apps/web` Vitest coverage for the folder-picker create/list/load adapter flow and wiring web unit tests into the root `npm test` sequence
   - expanding UI regression coverage so adapter folder metadata overrides stale browser-local trust embedded inside older project JSON during folder open and session restore
+- applied the PR #25 Greptile accessibility follow-up by:
+  - making the mobile workspace sheet stop the current Escape key event when it closes itself, preserving any overlay underneath it
+  - switching command-palette option DOM ids from lossy character replacement to `encodeURIComponent()` so `aria-activedescendant` cannot reference duplicate ids
+  - adding focused AppShell and CommandPalette regressions for those cases
 - applied the PR #21 Greptile follow-up by:
   - writing a browser-local recovery copy for PWA folder saves so projects remain reachable after reload when the selected folder handle is not available
   - making post-reload recovery loads report browser-local trust when no active folder handle is available, while direct folder opens still report folder-backed trust

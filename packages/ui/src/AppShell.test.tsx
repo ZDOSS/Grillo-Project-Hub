@@ -1,5 +1,6 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { buildProjectFromTemplate } from "@gph/core";
 import { AppShell } from "./AppShell";
@@ -124,5 +125,60 @@ describe("AppShell", () => {
       expect(screen.getByTestId("location")).toHaveTextContent("/overview");
     });
     expect(screen.getByRole("link", { name: /Projects/i })).toHaveAttribute("href", "/projects");
+  });
+
+  it("exposes project navigation through a mobile sheet", async () => {
+    const bundle = buildProjectFromTemplate("software-project", "Project");
+    useProjectStore.setState({ bundle });
+
+    render(
+      <ThemeProvider>
+        <MemoryRouter initialEntries={["/overview"]}>
+          <AppShell appMode="web">
+            <div>content</div>
+          </AppShell>
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Open workspace navigation" }));
+
+    const sheet = screen.getByRole("dialog", { name: "Workspace navigation" });
+    expect(within(sheet).getByRole("navigation", { name: "Mobile workspace navigation" })).toBeInTheDocument();
+    expect(within(sheet).getByRole("link", { name: /Calendar/i })).toHaveAttribute("href", "/calendar");
+
+    await userEvent.click(within(sheet).getByRole("button", { name: "Close workspace navigation" }));
+    expect(screen.queryByRole("dialog", { name: "Workspace navigation" })).not.toBeInTheDocument();
+  });
+
+  it("claims Escape when the mobile sheet closes above another overlay", async () => {
+    const bundle = buildProjectFromTemplate("software-project", "Project");
+    useProjectStore.setState({ bundle });
+
+    render(
+      <ThemeProvider>
+        <MemoryRouter initialEntries={["/overview"]}>
+          <AppShell appMode="web">
+            <div>content</div>
+          </AppShell>
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Open workspace navigation" }));
+    expect(screen.getByRole("dialog", { name: "Workspace navigation" })).toBeInTheDocument();
+
+    const underlyingOverlayClose = vi.fn();
+    window.addEventListener("keydown", underlyingOverlayClose);
+    try {
+      await userEvent.keyboard("{Escape}");
+
+      await waitFor(() =>
+        expect(screen.queryByRole("dialog", { name: "Workspace navigation" })).not.toBeInTheDocument()
+      );
+      expect(underlyingOverlayClose).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener("keydown", underlyingOverlayClose);
+    }
   });
 });
