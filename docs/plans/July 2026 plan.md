@@ -463,7 +463,7 @@ This combines the original saved-views slice and backlog/table parity slice into
 
 **Intent:** Surface the structured automation model in a calm rule-builder UI.
 
-**Delivery note:** The Workflow Control milestone shipped the first command-backed automation builder. Rules live in `builtin.automation`, can be previewed before saving, and execute through the validated dispatcher on item events without recursively triggering themselves.
+**Delivery note:** The Workflow Control milestone shipped the first command-backed automation builder. Rules live in `builtin.automation`, can be previewed before saving, and execute through the validated dispatcher on item events without recursively triggering themselves. Automation action failures are recorded on the automation activity event and do not abort the originating item command.
 
 **Files:**
 

@@ -225,6 +225,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - bug triage cards are now `<article>` surfaces with an internal item link and real form controls, not whole-card links, so triage buttons/selects are valid and testable; accept/decline/assign dispatch `item.update`, decline resolves to an existing canceled status or completed fallback before dispatching, snooze dispatches `reminder.create`, and duplicate linking dispatches `relationship.create` with `relatesTo`
 - bug triage toolbar now includes severity and priority filters, cards can edit severity/priority plus plugin-owned source/context data stored under `moduleData.bug`, and the optional Workflow setting blocks Accept/Decline out of intake until a bug has either severity or priority
 - automation settings can create, dry-run preview, enable/disable, and delete rules; the first builder supports item-created/updated/status/due-date/milestone triggers plus set-field, add/remove-label, move-status, assign-milestone, create-subtask, and generate-doc actions
+- automation rule execution is a side-effect layer after the originating item command succeeds: each action still dispatches through the validated command surface with source `automation`, but action validation failures are captured on `automation.executed.data.failedActionCount` / `failures` instead of throwing back through the user's item command
 - My Work now has a `New assigned item` action that preselects the current local member as assignee, so work created from that filtered view remains visible in the same workflow after creation
 - board-level `New item` now preselects the first board column's default drop status, which keeps newly created cards visible on boards whose first lane does not use the project/type default status
 - table sorting now uses neutral ascending comparators plus explicit default directions, so `Priority (desc)` puts urgent work first and selecting `Updated` defaults to newest-first order
@@ -478,6 +479,10 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - adding persistent automation rules under `builtin.automation`, rule CRUD/enable/disable/dry-run commands, and item-event execution through the validated dispatcher
   - finishing bug triage gates with severity/priority filters, source/context fields, per-card severity/priority controls, and a command-level severity-or-priority requirement for configured intake exits
   - splitting focused Workflow and Automation settings components out of the main Settings view and adding regression coverage for the new controls
+- applied the PR #17 Greptile follow-up by:
+  - isolating automation action failures from the originating item command so a saved rule cannot reject a valid user create/update/move when a side-effect fails validation
+  - recording failed automation actions on the `automation.executed` activity event with action type and error message details
+  - adding a dispatcher regression for the bug-intake gate case where an enabled automation tries to move an ungraded intake bug to Ready
 
 ## Open follow-on planning
 

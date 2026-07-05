@@ -31,7 +31,7 @@ The MVP implementation is in place. The current build supports:
 - **PWA support** with offline service worker
 - **Desktop shell (Tauri)** with folder-backed storage adapter wired to registered Rust commands
 - **Validated command surface** for UI, automation, import, and AI/MCP bridge parity
-- **Automation rules** with command-backed create/update/delete/enable/disable, dry-run preview, item-event triggers, and validated actions for field updates, labels, status, milestones, subtasks, and generated docs
+- **Automation rules** with command-backed create/update/delete/enable/disable, dry-run preview, item-event triggers, validated actions for field updates, labels, status, milestones, subtasks, and generated docs, and audited action failures that do not abort the originating item command
 
 ## Quick start
 
@@ -97,7 +97,7 @@ The UI/UX overhaul planning package lives in `docs/superpowers/specs/2026-07-02-
 
 | Suite | Count | Notes |
 | --- | --- | --- |
-| `packages/core` | 50 | Domain, storage, dispatcher, automation rules, export, import |
+| `packages/core` | 51 | Domain, storage, dispatcher, automation rules, export, import |
 | `packages/ui` | 85 | AppShell, ProjectRouter, OverviewView, shared button and surface primitives, WorkItemModal attachment/reminder/custom-field coverage, TrashView, BoardView, saved planning views, BacklogView, BugTriageView, MyWorkView, TableView, RoadmapView, CalendarView, CommandPalette, CreateItemDialog, launcher, docs, settings, automation settings |
 | `apps/desktop` | 2 | Desktop storage adapter command wiring |
 | `tests/e2e` | 7 | Hybrid parity, project workflow, theme, palette, export, search |

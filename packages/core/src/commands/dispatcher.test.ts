@@ -1004,6 +1004,52 @@ describe("command dispatcher", () => {
     expect(created.core.events.some((event) => event.type === "automation.executed" && event.source === "automation")).toBe(true);
   });
 
+  it("keeps the originating item command when an automation action fails validation", () => {
+    let bundle = buildProjectFromTemplate("software-project", "Automation");
+    bundle = dispatchCommand(
+      bundle,
+      envelopeFor({ type: "bugTriage.updateConfig", projectId: bundle.project.id, patch: { requireSeverityOrPriority: true } } as never, "ui", null)
+    ).bundle;
+    bundle = dispatchCommand(
+      bundle,
+      envelopeFor(
+        {
+          type: "automationRule.create",
+          projectId: bundle.project.id,
+          rule: {
+            name: "Move new bugs to ready",
+            trigger: { type: "item.created" },
+            conditions: [{ type: "type.isOneOf", typeIds: ["bug"] }],
+            actions: [{ type: "moveToStatus", statusId: "ready" }]
+          }
+        } as never,
+        "ui",
+        null
+      )
+    ).bundle;
+
+    const created = dispatchCommand(
+      bundle,
+      envelopeFor({ type: "item.create", projectId: bundle.project.id, typeId: "bug", title: "Ungraded automation bug", statusId: "inbox" }, "ui", null)
+    ).bundle;
+
+    const bug = created.core.items.find((entry) => entry.title === "Ungraded automation bug")!;
+    expect(bug.statusId).toBe("inbox");
+    expect(created.core.events.some((event) => event.type === "item.created" && event.itemId === bug.id)).toBe(true);
+    expect(created.core.events).toContainEqual(
+      expect.objectContaining({
+        type: "automation.executed",
+        itemId: bug.id,
+        source: "automation",
+        data: expect.objectContaining({
+          ruleName: "Move new bugs to ready",
+          actionCount: 0,
+          failedActionCount: 1
+        })
+      })
+    );
+  });
+
   it("enforces configured bug intake severity or priority gates in the dispatcher", () => {
     let bundle = buildProjectFromTemplate("software-project", "Bugs");
     bundle = dispatchCommand(

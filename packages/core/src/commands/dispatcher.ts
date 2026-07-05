@@ -60,6 +60,11 @@ type AutomationPreview = {
   reason?: string;
 };
 
+type AutomationActionFailure = {
+  actionType: AutomationAction["type"];
+  message: string;
+};
+
 /**
  * Result of dispatching a command. Includes the new bundle, generated events, and any
  * auxiliary output (e.g. search results).
@@ -1624,28 +1629,39 @@ function applyAutomationRules(result: DispatchResult, envelope: CommandEnvelope)
       const item = bundle.core.items.find((entry) => entry.id === event.itemId);
       if (!item || !automationRuleMatchesEvent(bundle, rule, event, item)) continue;
       let actionCount = 0;
+      const failures: AutomationActionFailure[] = [];
       for (const action of rule.actions) {
         const currentItem = bundle.core.items.find((entry) => entry.id === event.itemId);
         if (!currentItem) break;
-        const payload = automationActionPayload(bundle, currentItem, action);
-        if (!payload) continue;
-        const actionResult = stampResultEvents(
-          dispatchCommand(bundle, envelopeFor(payload, "automation", envelope.actorId)),
-          "automation",
-          envelope.actorId
-        );
-        bundle = actionResult.bundle;
-        actionEvents.push(...actionResult.events);
-        actionCount += 1;
+        try {
+          const payload = automationActionPayload(bundle, currentItem, action);
+          if (!payload) continue;
+          const actionResult = stampResultEvents(
+            dispatchCommand(bundle, envelopeFor(payload, "automation", envelope.actorId)),
+            "automation",
+            envelope.actorId
+          );
+          bundle = actionResult.bundle;
+          actionEvents.push(...actionResult.events);
+          actionCount += 1;
+        } catch (error) {
+          failures.push({ actionType: action.type, message: errorToMessage(error) });
+        }
       }
-      if (actionCount > 0) {
+      if (actionCount > 0 || failures.length > 0) {
         const executed = createEvent({
           type: "automation.executed",
           projectId: bundle.project.id,
           itemId: event.itemId,
           source: "automation",
           actorId: envelope.actorId,
-          data: { ruleId: rule.id, ruleName: rule.name, actionCount }
+          data: {
+            ruleId: rule.id,
+            ruleName: rule.name,
+            actionCount,
+            failedActionCount: failures.length,
+            ...(failures.length > 0 ? { failures } : {})
+          }
         });
         bundle = appendEvent(bundle, executed);
         automationEvents.push(executed);
@@ -1654,6 +1670,11 @@ function applyAutomationRules(result: DispatchResult, envelope: CommandEnvelope)
   }
 
   return { bundle, events: [...result.events, ...actionEvents, ...automationEvents], output: result.output };
+}
+
+function errorToMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  return String(error);
 }
 
 function stampResultEvents(
