@@ -64,3 +64,6 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+        with:
+          # deploy-pages caps timeout at 600000 ms; use the maximum supported wait explicitly.
+          timeout: 600000
