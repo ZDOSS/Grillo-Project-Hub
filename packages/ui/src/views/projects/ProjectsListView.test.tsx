@@ -143,6 +143,171 @@ describe("ProjectsListView", () => {
     });
   });
 
+  it("reconnects a folder-backed PWA recent before opening it", async () => {
+    const bundle = buildProjectFromTemplate("software-project", "Folder Recent");
+    const loadFolderProject = vi.fn(async (key: string) => ({
+      json: exportProjectJson({
+        ...bundle,
+        projectSettings: { ...bundle.projectSettings, storageTrust: "folder" }
+      }),
+      metadata: {
+        key,
+        displayPath: `Bridge test/.pm-suite/${key}.pms.json`,
+        externalRevision: 2,
+        trust: "folder" as const
+      }
+    }));
+    const load = vi.fn(async () => null);
+    const chooseFolder = vi.fn(async () => "Bridge test");
+    const adapter: ProjectStoreAdapter = {
+      capabilities: { folderBacked: true, fileWatch: false, attachments: true },
+      list: async () => [],
+      has: async () => false,
+      load,
+      save: async (key) => ({ key, displayPath: null, externalRevision: 1, trust: "browser" }),
+      delete: async () => {},
+      chooseFolder,
+      getCurrentFolderDisplay: async () => null,
+      loadFolderProject
+    };
+    (window as typeof window & { __gph_store?: unknown }).__gph_store = adapter;
+
+    useWorkspaceStore.setState({
+      ...useWorkspaceStore.getState(),
+      recents: [
+        {
+          key: bundle.project.id,
+          name: bundle.project.name,
+          storagePath: `Bridge test/.pm-suite/${bundle.project.id}.pms.json`,
+          trust: "folder",
+          lastOpenedAt: new Date("2026-07-03T15:20:04.000Z").toISOString()
+        }
+      ]
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route path="/" element={<ProjectsListView />} />
+          <Route path="/overview" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Open" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/overview");
+    });
+    expect(chooseFolder).toHaveBeenCalledOnce();
+    expect(loadFolderProject).toHaveBeenCalledWith(bundle.project.id);
+    expect(load).not.toHaveBeenCalled();
+    expect(useProjectStore.getState().bundle?.project.name).toBe("Folder Recent");
+    expect(useProjectStore.getState().storageTrust).toBe("folder");
+  });
+
+  it("shows a folder reconnect error when a folder-backed PWA recent cannot be found", async () => {
+    const key = "project_4a83bc912cbe";
+    const adapter: ProjectStoreAdapter = {
+      capabilities: { folderBacked: true, fileWatch: false, attachments: true },
+      list: async () => [],
+      has: async () => false,
+      load: async () => null,
+      save: async () => ({ key, displayPath: null, externalRevision: 1, trust: "browser" }),
+      delete: async () => {},
+      chooseFolder: async () => "Bridge test",
+      getCurrentFolderDisplay: async () => null,
+      loadFolderProject: async () => null
+    };
+    (window as typeof window & { __gph_store?: unknown }).__gph_store = adapter;
+
+    useWorkspaceStore.setState({
+      ...useWorkspaceStore.getState(),
+      recents: [
+        {
+          key,
+          name: "My Project",
+          storagePath: `Bridge test/.pm-suite/${key}.pms.json`,
+          trust: "folder",
+          lastOpenedAt: new Date("2026-07-03T15:20:04.000Z").toISOString()
+        }
+      ]
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <ProjectsListView />
+      </MemoryRouter>
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Open" }));
+
+    expect(await screen.findByText(/Choose or reconnect the folder that contains Bridge test\/\.pm-suite\/project_4a83bc912cbe\.pms\.json/i)).toBeInTheDocument();
+    expect(screen.queryByText("The saved project could not be found in local storage.")).not.toBeInTheDocument();
+  });
+
+  it("falls back to browser recovery when reconnecting a folder-backed PWA recent is cancelled", async () => {
+    const cancelError = Object.assign(new Error("The user aborted a request."), { name: "AbortError" });
+    const bundle = buildProjectFromTemplate("software-project", "Recovered Recent");
+    const load = vi.fn(async (key: string) => ({
+      json: exportProjectJson({
+        ...bundle,
+        projectSettings: { ...bundle.projectSettings, storageTrust: "browser" }
+      }),
+      metadata: {
+        key,
+        displayPath: null,
+        externalRevision: 3,
+        trust: "browser" as const
+      }
+    }));
+    const adapter: ProjectStoreAdapter = {
+      capabilities: { folderBacked: true, fileWatch: false, attachments: true },
+      list: async () => [],
+      has: async () => true,
+      load,
+      save: async (key) => ({ key, displayPath: null, externalRevision: 1, trust: "browser" }),
+      delete: async () => {},
+      chooseFolder: async () => {
+        throw cancelError;
+      },
+      getCurrentFolderDisplay: async () => null,
+      loadFolderProject: async () => null
+    };
+    (window as typeof window & { __gph_store?: unknown }).__gph_store = adapter;
+
+    useWorkspaceStore.setState({
+      ...useWorkspaceStore.getState(),
+      recents: [
+        {
+          key: bundle.project.id,
+          name: bundle.project.name,
+          storagePath: `Bridge test/.pm-suite/${bundle.project.id}.pms.json`,
+          trust: "folder",
+          lastOpenedAt: new Date("2026-07-03T15:20:04.000Z").toISOString()
+        }
+      ]
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route path="/" element={<ProjectsListView />} />
+          <Route path="/overview" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Open" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/overview");
+    });
+    expect(load).toHaveBeenCalledWith(bundle.project.id);
+    expect(useProjectStore.getState().bundle?.project.name).toBe("Recovered Recent");
+    expect(useProjectStore.getState().storageTrust).toBe("browser");
+  });
+
   it("keeps the new project modal open when the backdrop is clicked", async () => {
     (window as typeof window & { __gph_store?: unknown }).__gph_store = new InMemoryProjectStore();
 

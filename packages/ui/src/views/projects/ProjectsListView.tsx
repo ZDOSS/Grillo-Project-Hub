@@ -62,6 +62,14 @@ function deriveFolderFromStoragePath(storagePath: string | null): string | null 
   return storagePath.replace(/[\\/]?\.pm-suite[\\/][^\\/]+$/, "");
 }
 
+function folderRecentTarget(recent: RecentProject): string {
+  return recent.storagePath ?? `${recent.name}'s folder-backed project file`;
+}
+
+function folderReconnectMessage(recent: RecentProject): string {
+  return `Choose or reconnect the folder that contains ${folderRecentTarget(recent)}. Browsers can require folder access again after a reload, permission reset, or storage cleanup.`;
+}
+
 function isAbortError(error: unknown): boolean {
   return typeof error === "object" && error !== null && "name" in error && (error as { name?: string }).name === "AbortError";
 }
@@ -76,14 +84,29 @@ async function openSavedProject(
     throw new Error("No storage adapter is available in this runtime.");
   }
 
+  let loaded: Awaited<ReturnType<ProjectStoreAdapter["load"]>> = null;
   const folder = deriveFolderFromStoragePath(recent.storagePath);
-  if (recent.trust === "folder" && folder) {
-    // DesktopAdapter.load() currently reads the active folder from localStorage on demand.
-    // Restore the folder path before load() so folder-backed recents resolve correctly.
-    setDesktopFolderPath(folder);
+  if (recent.trust === "folder") {
+    if (isDesktopRuntime() && folder) {
+      // DesktopAdapter.load() currently reads the active folder from localStorage on demand.
+      // Restore the folder path before load() so folder-backed recents resolve correctly.
+      setDesktopFolderPath(folder);
+      loaded = await adapter.load(recent.key);
+    } else if (!isDesktopRuntime() && adapter.loadFolderProject) {
+      loaded = await adapter.loadFolderProject(recent.key);
+      if (!loaded) {
+        loaded = await adapter.load(recent.key);
+      }
+      if (!loaded) {
+        throw new Error(folderReconnectMessage(recent));
+      }
+    } else {
+      loaded = await adapter.load(recent.key);
+    }
+  } else {
+    loaded = await adapter.load(recent.key);
   }
 
-  const loaded = await adapter.load(recent.key);
   if (!loaded) {
     throw new Error("The saved project could not be found in local storage.");
   }
@@ -213,10 +236,26 @@ export function ProjectsListView() {
     setWorkspaceError(null);
     setBusyRecentKey(recent.key);
     try {
+      if (
+        recent.trust === "folder" &&
+        !desktopRuntime &&
+        !browserFolderLabel.trim() &&
+        adapter?.chooseFolder &&
+        adapter?.loadFolderProject
+      ) {
+        try {
+          const label = await adapter.chooseFolder();
+          if (label) {
+            setBrowserFolderLabel(label);
+          }
+        } catch (error) {
+          if (!isAbortError(error)) throw error;
+        }
+      }
       await openSavedProject(recent, setBundle, recordRecent);
       navigate("/overview");
     } catch (error) {
-      setWorkspaceError((error as Error).message);
+      setWorkspaceError(isAbortError(error) && recent.trust === "folder" ? folderReconnectMessage(recent) : (error as Error).message);
     } finally {
       setBusyRecentKey(null);
     }
