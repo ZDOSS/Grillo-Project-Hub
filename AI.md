@@ -194,9 +194,10 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - work-item modal relationship selectors now memoize item and relationship derivations, so transient local-state changes such as typing in comments do not rebuild every relationship group on large projects
 - comment editing disables `Save comment` until the body is non-empty and actually changed; the new-comment composer has a stable `aria-label="New comment"` instead of depending on placeholder text for its accessible name
 - shared `Modal` supports `closeOnEscape={false}` for stacked modal cases; `WorkItemModal` disables its Escape handler while the permanent-delete `ConfirmDialog` is open so Escape only cancels the top confirmation and preserves item-detail drafts
-- settings view with theme, left-panel visibility, editable members, editable statuses, editable priorities, editable types, labels, milestones, custom fields, workflow guardrails, automation rules, plugins, export/import, AI bridge
-- settings workflow and automation sections now live in focused `WorkflowSettings.tsx` and `AutomationSettings.tsx` files instead of expanding the main `SettingsView.tsx` switch further
-- settings sections now expose tab semantics, the edit icon comes from `lucide-react`, and import failures render as inline alerts instead of browser-native `alert()`
+- settings view is now a shell plus focused panels: `SettingsView.tsx` owns grouped tab navigation/tabpanel semantics only, while `GeneralSettings`, `AppearanceSettings`, `StorageSettings`, `ViewsSettings`, `MembersSettings`, `WorkflowSettings`, `LabelsMilestonesSettings`, `CustomFieldsSettings`, `PluginsSettings`, `AutomationSettings`, `ImportExportSettings`, and `BridgeSettings` own their own command wiring
+- settings workflow, automation, and bridge sections should stay out of the shell; add future settings surfaces as focused files under `packages/ui/src/views/settings/` and register them through the shell tab list
+- settings sections expose keyboard-accessible tab semantics with Arrow/Home/End navigation, the edit icon comes from `lucide-react`, and import failures render as inline alerts instead of browser-native `alert()`
+- `BridgeSettings.tsx` is truth-in-UI for future AI/MCP integration: it documents real core command coverage and explicitly says no installable bridge/server binary/client config is shipped yet, so do not add setup commands until a bridge runtime exists
 - settings registry tables now follow a consistent edit flow for members/statuses/priorities/types:
   - read-only rows by default
   - explicit edit affordance
@@ -279,6 +280,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - bug triage filters for needs-repro and command-backed accept/decline/snooze/assign/duplicate actions
   - bug triage severity/priority filtering, plugin-owned source/context editing, and the configured severity-or-priority intake exit gate
   - automation rule create/update/delete/enable/disable/dry-run commands, dispatcher execution through automation source commands, and Settings automation rule preview/save/toggle/delete flows
+  - settings section decomposition, keyboard tab navigation, and AI bridge future-capability copy that avoids placeholder install instructions
   - board-context item creation that uses the first board column default status
   - my-work item creation that preselects the active local member as assignee
   - table priority and updated-date sort direction behavior
@@ -497,6 +499,12 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - redirecting stale archived/deleted doc routes to the first active doc instead of showing the generic empty-docs state
   - suppressing the Markdown Docs section when every document is archived
   - allowing public `doc.create` payloads without a title to create an `Untitled` blank document
+- continued the July 2026 polish/trust pass with settings decomposition and AI bridge truth-in-UI by:
+  - replacing the monolithic Settings switch with a keyboard-accessible grouped tab shell and focused settings panel files
+  - grouping status, priority, type defaults, and bug-intake guardrails inside the Workflow settings panel
+  - combining labels/milestones and import/export into clearer workflow panels while preserving the existing command paths
+  - replacing placeholder AI bridge install/setup copy with real command-coverage documentation and explicit "not shipped yet" runtime gaps
+  - adding SettingsView regression coverage for panel splitting, keyboard navigation, and bridge truth copy
 
 ## Open follow-on planning
 

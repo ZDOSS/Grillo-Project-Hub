@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { MemoryRouter } from "react-router-dom";
@@ -139,5 +139,103 @@ describe("SettingsView", () => {
     await userEvent.click(screen.getByLabelText("Require severity or priority before bugs leave intake"));
 
     expect(useProjectStore.getState().bundle!.modules["builtin.bugs"].config.requireSeverityOrPriority).toBe(true);
+  });
+
+  it("splits settings into focused working panels", async () => {
+    render(
+      <ThemeProvider>
+        <MemoryRouter>
+          <SettingsView />
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    const tablist = screen.getByRole("tablist", { name: "Settings sections" });
+    for (const name of [
+      "General",
+      "Appearance",
+      "Storage",
+      "Views",
+      "Members",
+      "Workflow",
+      "Labels & milestones",
+      "Custom fields",
+      "Plugins & trust",
+      "Automation",
+      "Import & export",
+      "AI bridge"
+    ]) {
+      expect(within(tablist).getByRole("tab", { name })).toBeInTheDocument();
+    }
+
+    await userEvent.click(within(tablist).getByRole("tab", { name: "Appearance" }));
+    expect(screen.getByRole("tabpanel", { name: "Appearance" })).toContainElement(screen.getByLabelText("Theme"));
+
+    await userEvent.click(within(tablist).getByRole("tab", { name: "Storage" }));
+    expect(screen.getByRole("tabpanel", { name: "Storage" })).toHaveTextContent("Browser-local");
+
+    await userEvent.click(within(tablist).getByRole("tab", { name: "Workflow" }));
+    const workflowPanel = screen.getByRole("tabpanel", { name: "Workflow" });
+    expect(workflowPanel).toHaveTextContent("Workflow statuses");
+    expect(workflowPanel).toHaveTextContent("Priorities");
+    expect(workflowPanel).toHaveTextContent("Work item types");
+    expect(within(workflowPanel).getByLabelText("Require severity or priority before bugs leave intake")).toBeInTheDocument();
+
+    await userEvent.click(within(tablist).getByRole("tab", { name: "Labels & milestones" }));
+    const labelPanel = screen.getByRole("tabpanel", { name: "Labels & milestones" });
+    expect(within(labelPanel).getByPlaceholderText("Label name")).toBeInTheDocument();
+    expect(within(labelPanel).getByPlaceholderText("Milestone name")).toBeInTheDocument();
+  });
+
+  it("supports keyboard navigation across settings sections", async () => {
+    render(
+      <ThemeProvider>
+        <MemoryRouter>
+          <SettingsView />
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    const tablist = screen.getByRole("tablist", { name: "Settings sections" });
+    const generalTab = within(tablist).getByRole("tab", { name: "General" });
+    generalTab.focus();
+
+    await userEvent.keyboard("{ArrowDown}");
+    const appearanceTab = within(tablist).getByRole("tab", { name: "Appearance" });
+    expect(appearanceTab).toHaveFocus();
+    expect(appearanceTab).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tabpanel", { name: "Appearance" })).toBeInTheDocument();
+
+    await userEvent.keyboard("{End}");
+    const bridgeTab = within(tablist).getByRole("tab", { name: "AI bridge" });
+    expect(bridgeTab).toHaveFocus();
+    expect(bridgeTab).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tabpanel", { name: "AI bridge" })).toBeInTheDocument();
+
+    await userEvent.keyboard("{Home}");
+    expect(generalTab).toHaveFocus();
+    expect(generalTab).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("shows truthful AI bridge status and command coverage instead of placeholder install instructions", async () => {
+    render(
+      <ThemeProvider>
+        <MemoryRouter>
+          <SettingsView />
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    await userEvent.click(screen.getByRole("tab", { name: "AI bridge" }));
+    const bridgePanel = screen.getByRole("tabpanel", { name: "AI bridge" });
+
+    expect(bridgePanel).toHaveTextContent("No installable bridge is shipped yet");
+    expect(bridgePanel).toHaveTextContent("Core command coverage");
+    expect(bridgePanel).toHaveTextContent("Work items");
+    expect(bridgePanel).toHaveTextContent("Documents");
+    expect(bridgePanel).toHaveTextContent("Search");
+    expect(bridgePanel).not.toHaveTextContent("@gph/bridge");
+    expect(bridgePanel).not.toHaveTextContent("placeholder");
+    expect(bridgePanel).not.toHaveTextContent("Paste the snippet");
   });
 });

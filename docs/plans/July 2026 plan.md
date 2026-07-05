@@ -533,6 +533,8 @@ This combines the original saved-views slice and backlog/table parity slice into
 
 **Intent:** Reduce settings risk and remove placeholder bridge promises.
 
+**Delivery note:** This slice shipped the focused settings panel decomposition, keyboard-accessible grouped settings tabs, and an AI bridge panel that documents real command coverage while clearly stating that no installable bridge runtime is shipped yet. Broader responsive/release polish remains in PR 11.
+
 **Files:**
 
 - Split: `packages/ui/src/views/settings/SettingsView.tsx`
@@ -541,11 +543,11 @@ This combines the original saved-views slice and backlog/table parity slice into
 - Modify: `AI.md`
 - Modify: `Readme.md`
 
-- [ ] Split settings into focused components: general, appearance, storage, views, members, workflow, labels/milestones, fields, plugins, automation, import/export, AI bridge.
-- [ ] Replace placeholder AI bridge install copy with either implemented instructions or clearly labeled future capability copy.
-- [ ] Add a bridge capability checklist tied to real command coverage.
-- [ ] Keep plugin trust language risk-aware.
-- [ ] Verify settings navigation remains keyboard accessible.
+- [x] Split settings into focused components: general, appearance, storage, views, members, workflow, labels/milestones, fields, plugins, automation, import/export, AI bridge.
+- [x] Replace placeholder AI bridge install copy with either implemented instructions or clearly labeled future capability copy.
+- [x] Add a bridge capability checklist tied to real command coverage.
+- [x] Keep plugin trust language risk-aware.
+- [x] Verify settings navigation remains keyboard accessible.
 
 ### PR 11: Responsive, Accessibility, And Release Polish
 
