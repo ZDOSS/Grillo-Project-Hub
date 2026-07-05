@@ -39,22 +39,27 @@ describe("project session restore", () => {
 
   it("restores folder trust from adapter metadata when persisted JSON is stale", async () => {
     const bundle = buildProjectFromTemplate("software-project", "Restored Folder Project");
+    const load = vi.fn(async () => {
+      throw new Error("generic load should not restore folder sessions");
+    });
+    const loadFolderProject = vi.fn(async () => ({
+      json: exportProjectJson({
+        ...bundle,
+        projectSettings: { ...bundle.projectSettings, storageTrust: "browser" }
+      }),
+      metadata: {
+        key: bundle.project.id,
+        displayPath: `Client Folder/.pm-suite/${bundle.project.id}.pms.json`,
+        externalRevision: 2,
+        trust: "folder" as const
+      }
+    }));
     (window as typeof window & { __gph_store?: unknown }).__gph_store = {
       capabilities: { folderBacked: true, fileWatch: false, attachments: true },
       list: async () => [],
       has: async () => true,
-      load: async () => ({
-        json: exportProjectJson({
-          ...bundle,
-          projectSettings: { ...bundle.projectSettings, storageTrust: "browser" }
-        }),
-        metadata: {
-          key: bundle.project.id,
-          displayPath: `Client Folder/.pm-suite/${bundle.project.id}.pms.json`,
-          externalRevision: 2,
-          trust: "folder" as const
-        }
-      }),
+      load,
+      loadFolderProject,
       save: async () => {
         throw new Error("unused");
       },
@@ -71,6 +76,8 @@ describe("project session restore", () => {
     const restored = await restoreLastProjectSession();
 
     expect(restored).toBe(true);
+    expect(loadFolderProject).toHaveBeenCalledWith(bundle.project.id);
+    expect(load).not.toHaveBeenCalled();
     expect(useProjectStore.getState().storageTrust).toBe("folder");
     expect(useProjectStore.getState().bundle?.projectSettings.storageTrust).toBe("folder");
     expect(useProjectStore.getState().storagePath).toBe(`Client Folder/.pm-suite/${bundle.project.id}.pms.json`);
@@ -117,6 +124,49 @@ describe("project session restore", () => {
 
     expect(restored).toBe(false);
     expect(loadFolderProject).toHaveBeenCalledWith(bundle.project.id);
+    expect(load).not.toHaveBeenCalled();
+    expect(useProjectStore.getState().bundle).toBeNull();
+    expect(storage.getItem?.("gph.active.project")).toBeNull();
+  });
+
+  it("clears a folder session when the adapter has no folder-aware loader", async () => {
+    const bundle = buildProjectFromTemplate("software-project", "Folder Missing Loader");
+    const load = vi.fn(async (key: string) => ({
+      json: exportProjectJson({
+        ...bundle,
+        projectSettings: { ...bundle.projectSettings, storageTrust: "browser" }
+      }),
+      metadata: {
+        key,
+        displayPath: null,
+        externalRevision: 3,
+        trust: "browser" as const
+      }
+    }));
+    (window as typeof window & { __gph_store?: unknown }).__gph_store = {
+      capabilities: { folderBacked: true, fileWatch: false, attachments: true },
+      list: async () => [],
+      has: async () => true,
+      load,
+      save: async () => {
+        throw new Error("unused");
+      },
+      delete: async () => {}
+    };
+    const storage = localStorage as Storage & {
+      getItem?: (key: string) => string | null;
+      setItem?: (key: string, value: string) => void;
+    };
+
+    storage.setItem?.("gph.active.project", JSON.stringify({
+      storageKey: bundle.project.id,
+      storagePath: `Client Folder/.pm-suite/${bundle.project.id}.pms.json`,
+      storageTrust: "folder"
+    }));
+
+    const restored = await restoreLastProjectSession();
+
+    expect(restored).toBe(false);
     expect(load).not.toHaveBeenCalled();
     expect(useProjectStore.getState().bundle).toBeNull();
     expect(storage.getItem?.("gph.active.project")).toBeNull();

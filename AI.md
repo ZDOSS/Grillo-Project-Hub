@@ -89,7 +89,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - the browser adapter now repairs older browser-local saves whose metadata index is missing by falling back to the raw `localStorage` project blob and reconstructing the saved-project index entry on load
 - the active project session is now persisted in `localStorage` (`gph.active.project`) and restored on startup through `restoreLastProjectSession()`, so reloads in both web and desktop shells reopen the last project instead of dropping the user into an empty shell
 - session restore now treats corrupt or invalid persisted bundles as stale state: failed import/validation clears `gph.active.project` instead of bubbling an unhandled rejection through the startup hook
-- session restore treats folder-backed active sessions as folder-backed only when the adapter exposes `loadFolderProject()`: if that folder project cannot be read, it clears the active session and returns to the launcher/recent-project reconnect path instead of silently opening the browser-local recovery copy as browser mode
+- session restore treats folder-backed active sessions as folder-backed only when the adapter exposes `loadFolderProject()`: if that folder-aware loader is missing or cannot read the project, it clears the active session and returns to the launcher/recent-project reconnect path instead of silently opening the browser-local recovery copy as browser mode
 - the web runtime now installs the same `WebLocalStorageAdapter` instance into both `window.__gph_store` and `WebStorageAdapter.adapter`, preventing auto-save and startup restore from drifting onto different adapter instances if adapter-local state is added later
 - the desktop runtime now installs the same `DesktopStorageAdapter.adapter` instance into `window.__gph_store`; folder-backed desktop saves/loads/existence checks/deletes call `save_project`, `load_project`, `project_exists`, and `delete_project`
 - `useProjectStore.setBundle()` and `markSaved()` normalize `bundle.projectSettings.storageTrust` to the runtime storage trust, so overview/settings/header storage surfaces do not keep showing browser-local after a folder save or open
@@ -567,6 +567,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - adding focused ProjectsListView regressions for reconnect-and-open, rejected/null folder-load recovery, and missing-folder-file behavior
 - fixed the post-July flow-correctness gaps by:
   - preventing folder-backed startup restore from silently downgrading to browser recovery when `loadFolderProject()` cannot read the project
+  - tightening that guard so a folder-trust active session also clears when an adapter lacks `loadFolderProject()` entirely, rather than falling back through recovery-capable `load()`
   - extending the create dialog with milestone prefill and `item.create` submission support
   - making board, backlog, and table New item actions inherit active planning filters through `createItemPrefillFromFilter()`
   - adding the missing table-level New item action so table users do not have to leave the surface to create matching work
