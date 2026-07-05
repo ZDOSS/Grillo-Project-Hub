@@ -1001,7 +1001,7 @@ function createDocCommand(bundle: ProjectBundle, payload: { projectId: string; t
   const title = payload.title?.trim() ?? "";
   const doc = payload.templateId
     ? createDocumentFromTemplate({ templateId: payload.templateId, title, body: payload.body, folderId: payload.folderId ?? null })
-    : createDocument({ title, body: payload.body ?? "", folderId: payload.folderId ?? null });
+    : createDocument({ title: title || "Untitled", body: payload.body ?? "", folderId: payload.folderId ?? null });
   if (!doc.title.trim()) throw new Error("Document title must not be empty");
   const nextBundle = withCore(bundle, (c) => ({ ...c, documents: [...c.documents, doc] }));
   const event = createEvent({ type: "doc.created", projectId: bundle.project.id, docId: doc.id });

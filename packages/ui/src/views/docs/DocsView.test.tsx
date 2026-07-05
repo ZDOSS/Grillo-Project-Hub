@@ -261,6 +261,45 @@ describe("DocsView", () => {
     expect(screen.queryByText("No documents")).not.toBeInTheDocument();
   });
 
+  it("redirects stale document routes to an active document instead of showing an empty workspace", async () => {
+    const bundle = useProjectStore.getState().bundle!;
+    const staleDoc = useProjectStore.getState().applyCommand({
+      type: "doc.create",
+      projectId: bundle.project.id,
+      title: "Archived Route Target"
+    }).bundle.core.documents.at(-1)!;
+    useProjectStore.getState().applyCommand({
+      type: "doc.update",
+      projectId: bundle.project.id,
+      docId: staleDoc.id,
+      patch: { archived: true }
+    });
+    const activeDoc = useProjectStore.getState().bundle!.core.documents.find((doc) => !doc.archived)!;
+
+    render(
+      <MemoryRouter initialEntries={[`/doc/${staleDoc.id}`]}>
+        <Routes>
+          <Route
+            path="*"
+            element={
+              <>
+                <LocationProbe />
+                <Routes>
+                  <Route path="/docs" element={<DocsView />} />
+                  <Route path="/doc/:docId" element={<DocsView />} />
+                </Routes>
+              </>
+            }
+          />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByDisplayValue(activeDoc.title)).toBeInTheDocument();
+    expect(screen.getByTestId("location")).toHaveTextContent(`/doc/${activeDoc.id}`);
+    expect(screen.queryByText("No documents")).not.toBeInTheDocument();
+  });
+
   it("skips archived documents when picking the post-delete navigation target", async () => {
     const bundle = useProjectStore.getState().bundle!;
     const deleteMe = useProjectStore.getState().applyCommand({

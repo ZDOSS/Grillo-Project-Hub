@@ -38,12 +38,20 @@ export function DocsView() {
     () => activeDocs.filter((doc) => docMatchesQuery(doc, foldersById, searchQuery)),
     [activeDocs, foldersById, searchQuery]
   );
-  const current = (docId ? activeDocs.find((doc) => doc.id === docId) : activeDocs[0]) ?? null;
+  const requestedDoc = docId ? activeDocs.find((doc) => doc.id === docId) ?? null : null;
+  const fallbackDoc = activeDocs[0] ?? null;
+  const current = requestedDoc ?? fallbackDoc;
   const backlinks = useMemo(() => {
     const m = deriveBacklinks(activeDocs);
     if (!current) return [] as Document[];
     return (m.get(current.id) ?? []).map((id) => activeDocs.find((doc) => doc.id === id)).filter(Boolean) as Document[];
   }, [activeDocs, current?.id]);
+
+  useEffect(() => {
+    if (docId && !requestedDoc && fallbackDoc) {
+      navigate(`/doc/${fallbackDoc.id}`, { replace: true });
+    }
+  }, [docId, fallbackDoc?.id, navigate, requestedDoc?.id]);
 
   if (!bundle) return null;
 

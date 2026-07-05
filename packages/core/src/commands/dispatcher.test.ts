@@ -491,6 +491,20 @@ describe("command dispatcher", () => {
     ).toThrow(/Document template not found/);
   });
 
+  it("creates an untitled blank document when the public create payload omits title", () => {
+    const bundle = createProjectBundle({ name: "P" });
+
+    const created = dispatchCommand(
+      bundle,
+      envelopeFor({ type: "doc.create", projectId: bundle.project.id }, "ui", null)
+    ).bundle;
+    const doc = created.core.documents.at(-1)!;
+
+    expect(doc.title).toBe("Untitled");
+    expect(doc.body).toBe("");
+    expect(() => validateProjectBundle(created)).not.toThrow();
+  });
+
   it("restores and permanently removes trashed attachments through the command surface", () => {
     const bundle = createProjectBundle({ name: "P" });
     const withItem = dispatchCommand(

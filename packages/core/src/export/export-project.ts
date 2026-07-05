@@ -32,11 +32,11 @@ export function exportProjectMarkdown(bundle: ProjectBundle): string {
     }
     lines.push("");
   }
-  if (bundle.core.documents.length) {
+  const activeDocs = bundle.core.documents.filter((doc) => !doc.archived);
+  if (activeDocs.length) {
     lines.push("## Docs");
     const activeFolders = bundle.core.folders.filter((folder) => !folder.archived);
     const activeFolderIds = new Set(activeFolders.map((folder) => folder.id));
-    const activeDocs = bundle.core.documents.filter((doc) => !doc.archived);
     for (const folder of activeFolders) {
       const docs = activeDocs.filter((doc) => doc.folderId === folder.id);
       if (!docs.length) continue;

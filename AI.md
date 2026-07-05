@@ -216,9 +216,10 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - rendered `[[doc:id]]` / `[[item:id]]` preview links are intercepted client-side instead of hard-navigating to a 404
   - preview interception now keys off a stable `data-route` attribute rather than the styling-only `docs-link` class, so class-name or sanitizer changes do not silently break routing
 - docs now have command-backed knowledge sections through `docFolder.create` and `docFolder.update`; documents still store only `folderId`, `doc.move` remains the document placement command, and folder parent updates reject cycles before bundle validation
-- document templates live in `DOCUMENT_TEMPLATES` / `createDocumentFromTemplate()` in `packages/core/src/domain/document.ts`; `doc.create` accepts an optional `templateId` for decision records, release notes, bug context, and project briefs while still supporting blank docs
+- document templates live in `DOCUMENT_TEMPLATES` / `createDocumentFromTemplate()` in `packages/core/src/domain/document.ts`; `doc.create` accepts an optional `templateId` for decision records, release notes, bug context, and project briefs while still supporting blank docs, and omitted/blank non-template titles create an `Untitled` document so the public payload type matches runtime behavior
 - the Docs view is now a three-part knowledge workspace: the sidebar creates/searches docs and sections, the editor preserves the existing preview/edit/delete behavior, and the right context rail derives linked work, referenced docs, and backlinks from `parseDocLinks()` / `deriveBacklinks()` instead of storing duplicate relationship state
-- Markdown export groups active docs by active folder section and puts docs without an active section under `Unfiled`, so section organization is visible outside the app while JSON remains the lossless project handoff
+- DocsView recovers stale `/doc/:id` routes by replacing them with the first active document route when the requested document is archived/deleted and active docs still exist, preventing a populated docs workspace from rendering as empty
+- Markdown export groups active docs by active folder section and puts docs without an active section under `Unfiled`, so section organization is visible outside the app while JSON remains the lossless project handoff; archived-only doc collections do not emit an empty `## Docs` heading
 - docs view local editor state now resyncs when the selected document changes, which fixes the "stuck on getting started" behavior where clicking another doc changed selection without updating the editor/preview pane
 - that editor reset now keys only on `doc.id`, so switching documents still refreshes the draft while external bundle updates to the same document do not silently clobber unsaved local typing
 - deleting the currently open doc now routes to the nearest active remaining document, or `/docs` when none remain, so the route does not stay pinned to a deleted or archived document ID while other docs still exist
@@ -492,6 +493,10 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - adding reusable document templates for decision records, release notes, bug context, and project briefs
   - upgrading DocsView with section creation, template creation, in-surface search, document section selection, linked-work context, referenced-doc context, and backlinks
   - grouping Markdown export docs by section and adding focused core/UI/export regressions
+- applied the PR #18 Greptile cleanup by:
+  - redirecting stale archived/deleted doc routes to the first active doc instead of showing the generic empty-docs state
+  - suppressing the Markdown Docs section when every document is archived
+  - allowing public `doc.create` payloads without a title to create an `Untitled` blank document
 
 ## Open follow-on planning
 

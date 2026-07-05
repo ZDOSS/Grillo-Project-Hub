@@ -39,6 +39,26 @@ describe("export", () => {
     expect(md).toContain("- [Loose notes](doc:doc_unfiled)");
   });
 
+  it("does not emit a Markdown docs section when every document is archived", () => {
+    const project = createProjectBundle({ name: "Demo" });
+    const archivedDoc = {
+      ...createDocument({ id: "doc_archived", title: "Archived notes" }),
+      archived: true
+    };
+    const withArchivedDoc = {
+      ...project,
+      core: {
+        ...project.core,
+        documents: [archivedDoc]
+      }
+    };
+
+    const md = exportProjectMarkdown(withArchivedDoc);
+
+    expect(md).not.toContain("## Docs");
+    expect(md).not.toContain("Archived notes");
+  });
+
   it("exports CSV with header row", () => {
     const project = createProjectBundle({ name: "Demo" });
     const csv = exportProjectCsv(project);
