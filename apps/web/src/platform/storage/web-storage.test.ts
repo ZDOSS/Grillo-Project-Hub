@@ -170,4 +170,47 @@ describe("WebStorageAdapter folder mode", () => {
     });
     expect(folder.files.get(`${bundle.project.id}.pms.json`)).toBe(recoveredJson);
   });
+
+  it("does not promote browser recovery when the folder file changed externally", async () => {
+    const bundle = buildProjectFromTemplate("software-project", "Folder Original");
+    const folderJson = exportProjectJson({
+      ...bundle,
+      projectSettings: { ...bundle.projectSettings, storageTrust: "folder" }
+    });
+    const recoveredJson = exportProjectJson({
+      ...bundle,
+      project: { ...bundle.project, name: "Recovered Stale" },
+      projectSettings: { ...bundle.projectSettings, storageTrust: "browser" }
+    });
+    const externalFolderJson = exportProjectJson({
+      ...bundle,
+      project: { ...bundle.project, name: "External Folder Newer" },
+      projectSettings: { ...bundle.projectSettings, storageTrust: "folder" }
+    });
+    const folder = createFakeFolder("Client Folder");
+    Object.defineProperty(window, "showDirectoryPicker", {
+      configurable: true,
+      value: vi.fn(async () => folder.handle)
+    });
+    const adapter = await getAdapter();
+
+    await adapter.chooseFolder();
+    await adapter.save(bundle.project.id, folderJson, null);
+
+    vi.resetModules();
+    const recoveryAdapter = await getAdapter();
+    await recoveryAdapter.save(bundle.project.id, recoveredJson, null);
+    folder.files.set(`${bundle.project.id}.pms.json`, externalFolderJson);
+
+    await recoveryAdapter.chooseFolder();
+    const reopened = await recoveryAdapter.loadFolderProject?.(bundle.project.id);
+
+    expect(reopened?.json).toBe(externalFolderJson);
+    expect(reopened?.metadata).toMatchObject({
+      displayPath: `Client Folder/.pm-suite/${bundle.project.id}.pms.json`,
+      trust: "folder"
+    });
+    expect(folder.files.get(`${bundle.project.id}.pms.json`)).toBe(externalFolderJson);
+    expect(localStorage.getItem(`gph.project.${bundle.project.id}`)).toBe(externalFolderJson);
+  });
 });

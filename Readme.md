@@ -66,6 +66,7 @@ Note: This is a static client-side demo only. All data lives in the browser (loc
 - Opening from a selected folder reads the listed `.pms.json` file directly, even if that project has never been recorded in the browser-local recent-project index, and folder metadata wins over stale browser-local trust saved inside older project files.
 - PWA folder saves also keep a browser-local recovery copy so the project still reopens if the browser cannot restore folder access after reload; until the folder is selected again, that recovery load reports as browser-local because the app no longer has write access to the folder.
 - If you edit that browser-local recovery copy and then select the folder again, opening the folder project promotes the newer recovery copy back into `.pm-suite` before returning to folder-backed mode.
+- If the folder file changed externally while the app was using browser recovery, the folder version is loaded instead of being overwritten by stale browser recovery data.
 - Reloading now restores the last active project from browser state instead of dropping you into an empty shell.
 - Older browser-local saves are repaired on load if their saved-project index metadata is missing, so reopening an existing project no longer depends on that index staying intact.
 - Reopening a saved project from the launcher now runs the same bundle validation used by startup restore and direct storage loads, so corrupt saved data is rejected consistently instead of loading halfway into the app.
@@ -103,7 +104,7 @@ The UI/UX overhaul planning package lives in `docs/superpowers/specs/2026-07-02-
 | --- | --- | --- |
 | `packages/core` | 57 | Domain, storage, dispatcher, document sections/templates, automation rules, export, import |
 | `packages/ui` | 97 | AppShell, ProjectRouter, OverviewView, shared button and surface primitives, WorkItemModal attachment/reminder/custom-field coverage, TrashView, BoardView, saved planning views, BacklogView, BugTriageView, MyWorkView, TableView, RoadmapView, CalendarView, CommandPalette, CreateItemDialog, launcher, docs, settings, automation settings |
-| `apps/web` | 3 | PWA storage adapter folder-picker create/list/load flow, reload recovery when folder-handle persistence is unavailable, and recovered-edit promotion back into the selected folder |
+| `apps/web` | 4 | PWA storage adapter folder-picker create/list/load flow, reload recovery when folder-handle persistence is unavailable, recovered-edit promotion, and external folder-change protection |
 | `apps/desktop` | 2 | Desktop storage adapter command wiring |
 | `tests/e2e` | 7 | Hybrid parity, project workflow, theme, palette, export, search |
 

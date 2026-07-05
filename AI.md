@@ -95,6 +95,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - folder/open/session paths treat adapter metadata as the source of truth for storage trust; this intentionally overrides stale `projectSettings.storageTrust` values inside older `.pms.json` files so folder-backed projects do not continue to display as browser-local after a direct folder open
 - PWA folder-backed saves write the `.pms.json` file and keep a browser-local recovery copy; after reload without an active folder handle or permission, plain `load()` returns that recovery copy as browser-local until the user reselects the folder
 - when a user reselects a folder after editing the browser-local recovery copy, `loadFolderProject()` promotes the newer recovery JSON back into the selected `.pm-suite` file before returning folder-backed metadata, preventing stale folder files from overwriting recovered edits
+- recovery promotion is guarded by a last-known folder snapshot in `gph.project.folderBase.<project-id>`; if the current folder file changed externally since that snapshot, the adapter loads the folder file and mirrors it into browser recovery instead of overwriting it with stale browser state
 
 ## Command surface
 
@@ -535,6 +536,10 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - applied the second PR #21 Greptile follow-up by:
   - promoting newer browser-local recovery saves back into the selected folder on direct folder reopen
   - adding a web adapter regression that proves a stale `.pms.json` file cannot replace newer recovered browser edits after the folder is selected again
+- applied the third PR #21 Greptile follow-up by:
+  - adding a last-known folder snapshot for PWA recovery copies so promotion can detect external folder changes
+  - making externally changed folder files win over stale browser recovery copies instead of being overwritten during folder reopen
+  - adding a web adapter regression for folder-side changes that happen while the PWA is operating from a browser recovery copy
 
 ## Open follow-on planning
 

@@ -9,6 +9,7 @@ import type { ProjectStoreAdapter, StorageMetadata, WatchEvent } from "@gph/core
 import { exportProjectJson, importProjectJson, type ProjectBundle, validateProjectBundle } from "@gph/core";
 
 const NAMESPACE = "gph.project.";
+const RECOVERY_BASE_NAMESPACE = "gph.project.folderBase.";
 const INDEX_KEY = "gph.project.index";
 const FS_DB_NAME = "gph.web.fs";
 const FS_STORE_NAME = "handles";
@@ -18,6 +19,10 @@ let activeFolderHandle: FileSystemDirectoryHandle | null = null;
 
 function getKey(id: string): string {
   return NAMESPACE + id;
+}
+
+function getRecoveryBaseKey(id: string): string {
+  return RECOVERY_BASE_NAMESPACE + id;
 }
 
 function supportsFolderAccess(): boolean {
@@ -220,30 +225,50 @@ class WebLocalStorageAdapter implements ProjectStoreAdapter {
     if (!folderHandle) return null;
     const existing = readIndex().find((m) => m.key === key);
     const recoveredJson = typeof localStorage === "undefined" ? null : localStorage.getItem(getKey(key));
+    const recoveryBaseJson = typeof localStorage === "undefined" ? null : localStorage.getItem(getRecoveryBaseKey(key));
+    const folderJson = await readFolderProjectJson(folderHandle, key);
     if (existing?.trust === "browser" && recoveredJson) {
-      const writableFolderHandle = await getBoundFolderHandle({ mode: "readwrite", allowPrompt: true });
-      if (!writableFolderHandle) return null;
-      await writeFolderProjectJson(writableFolderHandle, key, recoveredJson);
       const metadata: StorageMetadata = {
         key,
-        displayPath: folderDisplayPath(writableFolderHandle, key),
+        displayPath: folderDisplayPath(folderHandle, key),
         externalRevision: existing.externalRevision,
         trust: "folder"
       };
-      upsertIndexEntry(metadata);
-      return { json: recoveredJson, metadata };
+      if (folderJson && (!recoveryBaseJson || (folderJson !== recoveryBaseJson && folderJson !== recoveredJson))) {
+        if (typeof localStorage !== "undefined") {
+          localStorage.setItem(getKey(key), folderJson);
+          localStorage.setItem(getRecoveryBaseKey(key), folderJson);
+        }
+        upsertIndexEntry(metadata);
+        return { json: folderJson, metadata };
+      }
+      const writableFolderHandle = await getBoundFolderHandle({ mode: "readwrite", allowPrompt: true });
+      if (!writableFolderHandle) return null;
+      await writeFolderProjectJson(writableFolderHandle, key, recoveredJson);
+      const promotedMetadata: StorageMetadata = {
+        ...metadata,
+        displayPath: folderDisplayPath(writableFolderHandle, key)
+      };
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem(getRecoveryBaseKey(key), recoveredJson);
+      }
+      upsertIndexEntry(promotedMetadata);
+      return { json: recoveredJson, metadata: promotedMetadata };
     }
 
-    const json = await readFolderProjectJson(folderHandle, key);
-    if (!json) return null;
+    if (!folderJson) return null;
     const metadata: StorageMetadata = {
       key,
       displayPath: folderDisplayPath(folderHandle, key),
       externalRevision: existing?.externalRevision ?? null,
       trust: "folder"
     };
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(getKey(key), folderJson);
+      localStorage.setItem(getRecoveryBaseKey(key), folderJson);
+    }
     upsertIndexEntry(metadata);
-    return { json, metadata };
+    return { json: folderJson, metadata };
   }
   async save(key: string, json: string, expectedRevision?: number | null): Promise<StorageMetadata> {
     if (typeof localStorage === "undefined") throw new Error("localStorage unavailable");
@@ -266,6 +291,7 @@ class WebLocalStorageAdapter implements ProjectStoreAdapter {
       };
       writeIndex([meta, ...index.filter((m) => m.key !== key)]);
       localStorage.setItem(getKey(key), json);
+      localStorage.setItem(getRecoveryBaseKey(key), json);
       return meta;
     }
 
@@ -289,6 +315,7 @@ class WebLocalStorageAdapter implements ProjectStoreAdapter {
     }
     if (typeof localStorage !== "undefined") {
       localStorage.removeItem(getKey(key));
+      localStorage.removeItem(getRecoveryBaseKey(key));
     }
     writeIndex(readIndex().filter((m) => m.key !== key));
   }
