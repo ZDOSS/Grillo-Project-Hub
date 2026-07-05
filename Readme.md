@@ -64,6 +64,7 @@ Note: This is a static client-side demo only. All data lives in the browser (loc
 - In the **PWA/web app**, projects are browser-local by default. On browsers that support the File System Access API, the launcher can also bind the PWA to a real local folder and save `.pm-suite` project files there; the selected folder is treated as active immediately, with browser handle persistence used only to remember it for later sessions.
 - Creating a new project after selecting a folder writes the initial `.pm-suite/<project-id>.pms.json` file before the app enters the project, so the folder-backed copy exists immediately.
 - Opening from a selected folder reads the listed `.pms.json` file directly, even if that project has never been recorded in the browser-local recent-project index, and folder metadata wins over stale browser-local trust saved inside older project files.
+- PWA folder saves also keep a browser-local recovery copy so the project still reopens if the browser cannot restore folder access after reload; until the folder is selected again, that recovery load reports as browser-local because the app no longer has write access to the folder.
 - Reloading now restores the last active project from browser state instead of dropping you into an empty shell.
 - Older browser-local saves are repaired on load if their saved-project index metadata is missing, so reopening an existing project no longer depends on that index staying intact.
 - Reopening a saved project from the launcher now runs the same bundle validation used by startup restore and direct storage loads, so corrupt saved data is rejected consistently instead of loading halfway into the app.
@@ -101,7 +102,7 @@ The UI/UX overhaul planning package lives in `docs/superpowers/specs/2026-07-02-
 | --- | --- | --- |
 | `packages/core` | 57 | Domain, storage, dispatcher, document sections/templates, automation rules, export, import |
 | `packages/ui` | 97 | AppShell, ProjectRouter, OverviewView, shared button and surface primitives, WorkItemModal attachment/reminder/custom-field coverage, TrashView, BoardView, saved planning views, BacklogView, BugTriageView, MyWorkView, TableView, RoadmapView, CalendarView, CommandPalette, CreateItemDialog, launcher, docs, settings, automation settings |
-| `apps/web` | 1 | PWA storage adapter folder-picker create/list/load flow |
+| `apps/web` | 2 | PWA storage adapter folder-picker create/list/load flow and reload recovery when folder-handle persistence is unavailable |
 | `apps/desktop` | 2 | Desktop storage adapter command wiring |
 | `tests/e2e` | 7 | Hybrid parity, project workflow, theme, palette, export, search |
 

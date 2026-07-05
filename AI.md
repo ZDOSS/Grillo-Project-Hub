@@ -93,6 +93,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - the desktop runtime now installs the same `DesktopStorageAdapter.adapter` instance into `window.__gph_store`; folder-backed desktop saves/loads/existence checks/deletes call `save_project`, `load_project`, `project_exists`, and `delete_project`
 - `useProjectStore.setBundle()` and `markSaved()` normalize `bundle.projectSettings.storageTrust` to the runtime storage trust, so overview/settings/header storage surfaces do not keep showing browser-local after a folder save or open
 - folder/open/session paths treat adapter metadata as the source of truth for storage trust; this intentionally overrides stale `projectSettings.storageTrust` values inside older `.pms.json` files so folder-backed projects do not continue to display as browser-local after a direct folder open
+- PWA folder-backed saves write the `.pms.json` file and keep a browser-local recovery copy; after reload without an active folder handle or permission, plain `load()` returns that recovery copy as browser-local until the user reselects the folder
 
 ## Command surface
 
@@ -526,6 +527,10 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - retaining the folder picker handle in the web adapter immediately after selection, so create/save/list/load stays folder-backed even when IndexedDB folder-handle persistence is unavailable or delayed
   - adding real `apps/web` Vitest coverage for the folder-picker create/list/load adapter flow and wiring web unit tests into the root `npm test` sequence
   - expanding UI regression coverage so adapter folder metadata overrides stale browser-local trust embedded inside older project JSON during folder open and session restore
+- applied the PR #21 Greptile follow-up by:
+  - writing a browser-local recovery copy for PWA folder saves so projects remain reachable after reload when the selected folder handle is not available
+  - making post-reload recovery loads report browser-local trust when no active folder handle is available, while direct folder opens still report folder-backed trust
+  - adding a web adapter regression that saves to a mocked folder, resets module state to simulate reload, and verifies the project remains loadable from the recovery copy
 
 ## Open follow-on planning
 

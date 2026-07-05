@@ -199,7 +199,12 @@ class WebLocalStorageAdapter implements ProjectStoreAdapter {
     const raw = localStorage.getItem(getKey(key));
     if (!raw) return null;
 
-    const fallbackMeta: StorageMetadata = meta ?? {
+    const fallbackMeta: StorageMetadata = meta?.trust === "folder" ? {
+      key,
+      displayPath: null,
+      externalRevision: meta.externalRevision,
+      trust: "browser"
+    } : meta ?? {
       key,
       displayPath: null,
       externalRevision: null,
@@ -245,6 +250,7 @@ class WebLocalStorageAdapter implements ProjectStoreAdapter {
         trust: "folder"
       };
       writeIndex([meta, ...index.filter((m) => m.key !== key)]);
+      localStorage.setItem(getKey(key), json);
       return meta;
     }
 

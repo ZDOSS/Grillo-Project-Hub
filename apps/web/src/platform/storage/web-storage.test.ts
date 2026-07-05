@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildProjectFromTemplate, exportProjectJson } from "@gph/core";
-import { WebStorageAdapter } from "./web-storage";
 
 type FakeFolder = {
   handle: FileSystemDirectoryHandle;
@@ -56,8 +55,14 @@ function createFakeFolder(name: string, seed: Record<string, string> = {}): Fake
   return { handle, files };
 }
 
+async function getAdapter() {
+  const module = await import("./web-storage");
+  return module.WebStorageAdapter.adapter;
+}
+
 describe("WebStorageAdapter folder mode", () => {
   beforeEach(() => {
+    vi.resetModules();
     localStorage.clear();
     Object.defineProperty(globalThis, "indexedDB", { configurable: true, value: undefined });
     Object.defineProperty(window, "showDirectoryPicker", { configurable: true, value: undefined });
@@ -65,37 +70,66 @@ describe("WebStorageAdapter folder mode", () => {
 
   it("keeps a chosen folder active for create, list, and load when handle persistence is unavailable", async () => {
     const bundle = buildProjectFromTemplate("software-project", "Folder Project");
+    const serializedBundle = exportProjectJson({
+      ...bundle,
+      projectSettings: { ...bundle.projectSettings, storageTrust: "folder" }
+    });
     const folder = createFakeFolder("Client Folder", {
-      [`${bundle.project.id}.pms.json`]: exportProjectJson({
-        ...bundle,
-        projectSettings: { ...bundle.projectSettings, storageTrust: "folder" }
-      })
+      [`${bundle.project.id}.pms.json`]: serializedBundle
     });
     Object.defineProperty(window, "showDirectoryPicker", {
       configurable: true,
       value: vi.fn(async () => folder.handle)
     });
+    const adapter = await getAdapter();
 
-    await expect(WebStorageAdapter.adapter.chooseFolder()).resolves.toBe("Client Folder");
+    await expect(adapter.chooseFolder()).resolves.toBe("Client Folder");
 
-    const saved = await WebStorageAdapter.adapter.save(bundle.project.id, exportProjectJson({
-      ...bundle,
-      projectSettings: { ...bundle.projectSettings, storageTrust: "folder" }
-    }), null);
+    const saved = await adapter.save(bundle.project.id, serializedBundle, null);
     expect(saved).toMatchObject({
       displayPath: `Client Folder/.pm-suite/${bundle.project.id}.pms.json`,
       trust: "folder"
     });
-    expect(localStorage.getItem(`gph.project.${bundle.project.id}`)).toBeNull();
+    expect(localStorage.getItem(`gph.project.${bundle.project.id}`)).toBe(serializedBundle);
 
-    await expect(WebStorageAdapter.adapter.listFolderProjects()).resolves.toEqual([
+    await expect(adapter.listFolderProjects()).resolves.toEqual([
       `${bundle.project.id}.pms.json`
     ]);
-    await expect(WebStorageAdapter.adapter.loadFolderProject?.(bundle.project.id)).resolves.toMatchObject({
+    await expect(adapter.loadFolderProject?.(bundle.project.id)).resolves.toMatchObject({
       metadata: {
         displayPath: `Client Folder/.pm-suite/${bundle.project.id}.pms.json`,
         trust: "folder"
       }
     });
+  });
+
+  it("restores a browser recovery copy after reload when the folder handle was not durable", async () => {
+    const bundle = buildProjectFromTemplate("software-project", "Recovered Folder Project");
+    const serializedBundle = exportProjectJson({
+      ...bundle,
+      projectSettings: { ...bundle.projectSettings, storageTrust: "folder" }
+    });
+    const folder = createFakeFolder("Client Folder");
+    Object.defineProperty(window, "showDirectoryPicker", {
+      configurable: true,
+      value: vi.fn(async () => folder.handle)
+    });
+    const adapter = await getAdapter();
+
+    await adapter.chooseFolder();
+    await adapter.save(bundle.project.id, serializedBundle, null);
+    expect(folder.files.get(`${bundle.project.id}.pms.json`)).toBe(serializedBundle);
+
+    vi.resetModules();
+    const reloadedAdapter = await getAdapter();
+    const loaded = await reloadedAdapter.load(bundle.project.id);
+
+    expect(loaded?.json).toBe(serializedBundle);
+    expect(loaded?.metadata).toMatchObject({
+      displayPath: null,
+      trust: "browser"
+    });
+    await expect(reloadedAdapter.has(bundle.project.id)).resolves.toBe(true);
+    await expect(reloadedAdapter.listFolderProjects()).resolves.toEqual([]);
   });
 });
