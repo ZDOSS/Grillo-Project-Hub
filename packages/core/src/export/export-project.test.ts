@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createProjectBundle } from "../domain/project";
+import { createDocument, createFolder } from "../domain/document";
 import { exportProjectJson, exportProjectMarkdown, exportProjectCsv } from "./export-project";
 import { importProjectJson } from "../import/import-project";
 
@@ -14,6 +15,48 @@ describe("export", () => {
     const project = createProjectBundle({ name: "Demo" });
     const md = exportProjectMarkdown(project);
     expect(md).toContain("# Demo");
+  });
+
+  it("exports Markdown docs grouped by section", () => {
+    const project = createProjectBundle({ name: "Demo" });
+    const folder = createFolder({ id: "folder_decisions", name: "Decisions" });
+    const sectionDoc = createDocument({ id: "doc_decision", title: "ADR 001", folderId: folder.id });
+    const unfiledDoc = createDocument({ id: "doc_unfiled", title: "Loose notes" });
+    const withDocs = {
+      ...project,
+      core: {
+        ...project.core,
+        folders: [folder],
+        documents: [sectionDoc, unfiledDoc]
+      }
+    };
+
+    const md = exportProjectMarkdown(withDocs);
+
+    expect(md).toContain("### Decisions");
+    expect(md).toContain("- [ADR 001](doc:doc_decision)");
+    expect(md).toContain("### Unfiled");
+    expect(md).toContain("- [Loose notes](doc:doc_unfiled)");
+  });
+
+  it("does not emit a Markdown docs section when every document is archived", () => {
+    const project = createProjectBundle({ name: "Demo" });
+    const archivedDoc = {
+      ...createDocument({ id: "doc_archived", title: "Archived notes" }),
+      archived: true
+    };
+    const withArchivedDoc = {
+      ...project,
+      core: {
+        ...project.core,
+        documents: [archivedDoc]
+      }
+    };
+
+    const md = exportProjectMarkdown(withArchivedDoc);
+
+    expect(md).not.toContain("## Docs");
+    expect(md).not.toContain("Archived notes");
   });
 
   it("exports CSV with header row", () => {

@@ -510,6 +510,8 @@ This combines the original saved-views slice and backlog/table parity slice into
 
 **Intent:** Make docs feel like project knowledge rather than a Markdown side tab.
 
+**Delivery note:** The Docs Knowledge System slice shipped command-backed doc sections, reusable document templates, a DocsView search/sidebar workflow, document section assignment, linked-work and referenced-doc context, backlinks, and section-aware Markdown export.
+
 **Files:**
 
 - Modify: `packages/ui/src/views/docs/DocsView.tsx`
@@ -520,12 +522,12 @@ This combines the original saved-views slice and backlog/table parity slice into
 - Modify: `AI.md`
 - Modify: `Readme.md`
 
-- [ ] Add doc folders or sections.
-- [ ] Add document templates for decisions, release notes, bug report context, and project brief.
-- [ ] Add linked-work panel for items referenced by the doc.
-- [ ] Add backlinks context panel.
-- [ ] Add doc search inside the docs surface.
-- [ ] Preserve router-safe internal links.
+- [x] Add doc folders or sections.
+- [x] Add document templates for decisions, release notes, bug report context, and project brief.
+- [x] Add linked-work panel for items referenced by the doc.
+- [x] Add backlinks context panel.
+- [x] Add doc search inside the docs surface.
+- [x] Preserve router-safe internal links.
 
 ### PR 10: Settings Decomposition And AI Bridge Truth-In-UI
 

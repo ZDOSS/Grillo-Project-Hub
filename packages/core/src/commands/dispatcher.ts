@@ -29,7 +29,7 @@ import {
   statusCategoryFor
 } from "../domain/workflow";
 import { createWorkItemType } from "../domain/work-item-type";
-import { createDocument, createFolder } from "../domain/document";
+import { createDocument, createDocumentFromTemplate, createFolder } from "../domain/document";
 import { createCustomField, isFieldApplicableToType, validateCustomFieldValue, type CustomFieldValue } from "../domain/custom-field";
 import { createReminder, type Reminder } from "../domain/reminder";
 import { createAttachment, type Attachment } from "../domain/attachment";
@@ -145,6 +145,8 @@ const dispatchers: Record<string, (b: ProjectBundle, env: CommandEnvelope) => Di
   "doc.restore": (b, env) => restoreDocCommand(b, env.payload as Parameters<typeof restoreDocCommand>[1]),
   "doc.permanentlyDelete": (b, env) => permanentlyDeleteDocCommand(b, env.payload as Parameters<typeof permanentlyDeleteDocCommand>[1]),
   "doc.move": (b, env) => moveDocCommand(b, env.payload as Parameters<typeof moveDocCommand>[1]),
+  "docFolder.create": (b, env) => createDocFolderCommand(b, env.payload as Parameters<typeof createDocFolderCommand>[1]),
+  "docFolder.update": (b, env) => updateDocFolderCommand(b, env.payload as Parameters<typeof updateDocFolderCommand>[1]),
   "customField.define": (b, env) => defineCustomFieldCommand(b, env.payload as Parameters<typeof defineCustomFieldCommand>[1]),
   "reminder.create": (b, env) => createReminderCommand(b, env.payload as Parameters<typeof createReminderCommand>[1]),
   "reminder.update": (b, env) => updateReminderCommand(b, env.payload as Parameters<typeof updateReminderCommand>[1]),
@@ -993,10 +995,14 @@ function updateTypeCommand(bundle: ProjectBundle, payload: { projectId: string; 
 
 /* ----- docs ----- */
 
-function createDocCommand(bundle: ProjectBundle, payload: { projectId: string; title: string; body?: string; folderId?: string | null }): DispatchResult {
+function createDocCommand(bundle: ProjectBundle, payload: { projectId: string; title?: string; body?: string; folderId?: string | null; templateId?: string }): DispatchResult {
   assertProjectId(bundle, payload.projectId);
   assertNullableRecordExists(bundle.core.folders, payload.folderId ?? null, "Folder");
-  const doc = createDocument({ title: payload.title, body: payload.body ?? "", folderId: payload.folderId ?? null });
+  const title = payload.title?.trim() ?? "";
+  const doc = payload.templateId
+    ? createDocumentFromTemplate({ templateId: payload.templateId, title, body: payload.body, folderId: payload.folderId ?? null })
+    : createDocument({ title: title || "Untitled", body: payload.body ?? "", folderId: payload.folderId ?? null });
+  if (!doc.title.trim()) throw new Error("Document title must not be empty");
   const nextBundle = withCore(bundle, (c) => ({ ...c, documents: [...c.documents, doc] }));
   const event = createEvent({ type: "doc.created", projectId: bundle.project.id, docId: doc.id });
   return { bundle: appendEvent(nextBundle, event), events: [event] };
@@ -1112,6 +1118,63 @@ function moveDocCommand(bundle: ProjectBundle, payload: { projectId: string; doc
     documents: c.documents.map((d) => (d.id === payload.docId ? { ...d, folderId: payload.toFolderId, updatedAt: nowTimestamp() } : d))
   }));
   return { bundle: nextBundle, events: [] };
+}
+
+function createDocFolderCommand(
+  bundle: ProjectBundle,
+  payload: { projectId: string; name: string; parentFolderId?: string | null }
+): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
+  assertNullableRecordExists(bundle.core.folders, payload.parentFolderId ?? null, "Parent folder");
+  const name = payload.name.trim();
+  if (!name) throw new Error("Folder name must not be empty");
+  const folder = createFolder({ name, parentFolderId: payload.parentFolderId ?? null });
+  const nextBundle = withCore(bundle, (c) => ({ ...c, folders: [...c.folders, folder] }));
+  return { bundle: nextBundle, events: [] };
+}
+
+function updateDocFolderCommand(
+  bundle: ProjectBundle,
+  payload: { projectId: string; folderId: string; patch: { name?: string; parentFolderId?: string | null; archived?: boolean } }
+): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
+  const current = findRecordOrThrow(bundle.core.folders, payload.folderId, "Folder");
+  const parentFolderId = Object.prototype.hasOwnProperty.call(payload.patch, "parentFolderId")
+    ? payload.patch.parentFolderId ?? null
+    : current.parentFolderId;
+  assertNullableRecordExists(bundle.core.folders.filter((folder) => folder.id !== payload.folderId), parentFolderId, "Parent folder");
+  if (parentFolderId === payload.folderId) throw new Error("Folder cannot be its own parent");
+  if (wouldCreateFolderCycle(bundle.core.folders, payload.folderId, parentFolderId)) {
+    throw new Error("Folder parent change would create a cycle");
+  }
+  const name = typeof payload.patch.name === "string" ? payload.patch.name.trim() : current.name;
+  if (!name) throw new Error("Folder name must not be empty");
+  const nextBundle = withCore(bundle, (c) => ({
+    ...c,
+    folders: c.folders.map((folder) =>
+      folder.id === payload.folderId
+        ? {
+            ...folder,
+            ...stripReadOnly(payload.patch),
+            name,
+            parentFolderId
+          }
+        : folder
+    )
+  }));
+  return { bundle: nextBundle, events: [] };
+}
+
+function wouldCreateFolderCycle(folders: ProjectBundle["core"]["folders"], folderId: string, parentFolderId: string | null): boolean {
+  let cursor = parentFolderId;
+  const seen = new Set<string>();
+  while (cursor) {
+    if (cursor === folderId) return true;
+    if (seen.has(cursor)) return true;
+    seen.add(cursor);
+    cursor = folders.find((folder) => folder.id === cursor)?.parentFolderId ?? null;
+  }
+  return false;
 }
 
 /* ----- custom fields ----- */
