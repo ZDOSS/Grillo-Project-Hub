@@ -84,4 +84,60 @@ describe("SettingsView", () => {
     expect(screen.queryByDisplayValue("Temp")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
   });
+
+  it("creates previews toggles and deletes automation rules from settings", async () => {
+    const bundle = useProjectStore.getState().bundle!;
+    useProjectStore.getState().applyCommand({
+      type: "item.create",
+      projectId: bundle.project.id,
+      typeId: "bug",
+      title: "Automation target",
+      statusId: "inbox"
+    });
+
+    render(
+      <ThemeProvider>
+        <MemoryRouter>
+          <SettingsView />
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    await userEvent.click(screen.getByRole("tab", { name: "Automation" }));
+    await userEvent.type(screen.getByLabelText("Rule name"), "Tag new bugs");
+    await userEvent.selectOptions(screen.getByLabelText("Automation trigger"), "item.created");
+    await userEvent.selectOptions(screen.getByLabelText("Condition type"), "bug");
+    await userEvent.selectOptions(screen.getByLabelText("Automation action"), "addLabel");
+    await userEvent.selectOptions(screen.getByLabelText("Action label"), screen.getByRole("option", { name: "frontend" }).getAttribute("value") ?? "");
+    await userEvent.selectOptions(screen.getByLabelText("Preview item"), screen.getByRole("option", { name: "Automation target" }).getAttribute("value") ?? "");
+    await userEvent.click(screen.getByRole("button", { name: "Preview rule" }));
+
+    expect(screen.getByText(/would add label frontend/i)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Save automation rule" }));
+
+    expect(screen.getByText("Tag new bugs")).toBeInTheDocument();
+    expect(((useProjectStore.getState().bundle!.modules["builtin.automation"].data as { rules?: unknown[] }).rules ?? [])).toHaveLength(1);
+
+    await userEvent.click(screen.getByRole("button", { name: "Disable Tag new bugs" }));
+    expect(((useProjectStore.getState().bundle!.modules["builtin.automation"].data as { rules?: Array<{ enabled: boolean }> }).rules ?? [])[0].enabled).toBe(false);
+
+    await userEvent.click(screen.getByRole("button", { name: "Delete Tag new bugs" }));
+    expect(((useProjectStore.getState().bundle!.modules["builtin.automation"].data as { rules?: unknown[] }).rules ?? [])).toHaveLength(0);
+  });
+
+  it("updates workflow triage gate settings", async () => {
+    render(
+      <ThemeProvider>
+        <MemoryRouter>
+          <SettingsView />
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    await userEvent.click(screen.getByRole("tab", { name: "Workflow" }));
+    await userEvent.click(screen.getByLabelText("Require severity or priority before bugs leave intake"));
+
+    expect(useProjectStore.getState().bundle!.modules["builtin.bugs"].config.requireSeverityOrPriority).toBe(true);
+  });
 });

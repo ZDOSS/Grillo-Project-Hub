@@ -440,7 +440,7 @@ This combines the original saved-views slice and backlog/table parity slice into
 
 **Intent:** Turn bug triage into a true intake and decision surface.
 
-**Delivery note:** The July Planning Workflow milestone PR shipped the command-backed triage actions and practical filters using existing `item.update`, `relationship.create`, and `reminder.create` commands. Configurable severity/priority gates and extra plugin-owned bug source/context fields remain open.
+**Delivery note:** The July Planning Workflow milestone PR shipped the command-backed triage actions and practical filters using existing `item.update`, `relationship.create`, and `reminder.create` commands. The Workflow Control milestone finished the configurable severity/priority gate, plugin-owned bug source/context fields, and severity/priority filters.
 
 **Files:**
 
@@ -453,15 +453,17 @@ This combines the original saved-views slice and backlog/table parity slice into
 - Modify: `Readme.md`
 
 - [x] Add triage actions: accept, decline, mark duplicate, snooze, assign owner.
-- [ ] Require severity or priority before leaving intake when configured.
+- [x] Require severity or priority before leaving intake when configured.
 - [x] Add duplicate relationship support through existing relationship mechanics when possible.
-- [ ] Add bug source/context fields using plugin-owned data.
+- [x] Add bug source/context fields using plugin-owned data.
 - [x] Add filters for stale bugs, unassigned bugs, and needs-repro.
-- [ ] Add severity and priority filters to the bug triage toolbar.
+- [x] Add severity and priority filters to the bug triage toolbar.
 
 ### PR 7: Automation Rule Builder
 
 **Intent:** Surface the structured automation model in a calm rule-builder UI.
+
+**Delivery note:** The Workflow Control milestone shipped the first command-backed automation builder. Rules live in `builtin.automation`, can be previewed before saving, and execute through the validated dispatcher on item events without recursively triggering themselves.
 
 **Files:**
 
@@ -473,12 +475,12 @@ This combines the original saved-views slice and backlog/table parity slice into
 - Modify: `AI.md`
 - Modify: `Readme.md`
 
-- [ ] Store automation rules in project module data.
-- [ ] Add rule create/edit/delete/enable/disable commands.
-- [ ] Support triggers for item created, item updated, status changed, due date changed, and milestone assigned.
-- [ ] Support actions for set field, add/remove label, move status, assign milestone, create subtask, and generate doc.
-- [ ] Show a dry-run preview before saving a rule.
-- [ ] Execute rules through the same validated command surface.
+- [x] Store automation rules in project module data.
+- [x] Add rule create/edit/delete/enable/disable commands.
+- [x] Support triggers for item created, item updated, status changed, due date changed, and milestone assigned.
+- [x] Support actions for set field, add/remove label, move status, assign milestone, create subtask, and generate doc.
+- [x] Show a dry-run preview before saving a rule.
+- [x] Execute rules through the same validated command surface.
 
 ### PR 8: Project Overview And Dashboard
 

@@ -7,6 +7,7 @@ import { useProjectStore } from "../../store/project-store";
 import { buildBugTriageColumns, declineStatusId } from "./bug-triage-helpers";
 
 type BugFilter = "all" | "intake" | "unassigned" | "needs-repro" | "stale";
+type BugContextDraft = { source: string; context: string };
 
 /**
  * Bug triage view. Three columns: Intake, Ready, In Progress.
@@ -16,7 +17,10 @@ export function BugTriageView() {
   const bundle = useProjectStore((s) => s.bundle);
   const applyCommand = useProjectStore((s) => s.applyCommand);
   const [filter, setFilter] = useState<BugFilter>("all");
+  const [severityFilter, setSeverityFilter] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState("");
   const [duplicateTargets, setDuplicateTargets] = useState<Record<string, string>>({});
+  const [contextDrafts, setContextDrafts] = useState<Record<string, BugContextDraft>>({});
   const [actionError, setActionError] = useState<string | null>(null);
 
   if (!bundle) return null;
@@ -48,6 +52,31 @@ export function BugTriageView() {
   const updateItem = (item: WorkItem, patch: Record<string, unknown>) => {
     runAction(() => {
       applyCommand({ type: "item.update", projectId: bundle.project.id, itemId: item.id, patch });
+    });
+  };
+
+  const updateBugData = (item: WorkItem, patch: Record<string, unknown>) => {
+    const current = getBugData(item) ?? emptyBugData();
+    updateItem(item, {
+      moduleData: {
+        ...(item.moduleData ?? {}),
+        bug: {
+          ...current,
+          ...patch
+        }
+      }
+    });
+  };
+
+  const saveBugContext = (item: WorkItem) => {
+    const data = getBugData(item);
+    const draft = contextDrafts[item.id] ?? {
+      source: data?.source ?? "",
+      context: data?.context ?? ""
+    };
+    updateBugData(item, {
+      source: draft.source.trim(),
+      context: draft.context.trim()
     });
   };
 
@@ -99,12 +128,32 @@ export function BugTriageView() {
           <option value="needs-repro">Needs repro</option>
           <option value="stale">Stale</option>
         </SelectField>
+        <SelectField
+          label="Severity filter"
+          value={severityFilter}
+          onChange={(event) => setSeverityFilter(event.target.value)}
+        >
+          <option value="">Any severity</option>
+          {severities.map((severity) => (
+            <option key={severity.id} value={severity.id}>{severity.name}</option>
+          ))}
+        </SelectField>
+        <SelectField
+          label="Priority filter"
+          value={priorityFilter}
+          onChange={(event) => setPriorityFilter(event.target.value)}
+        >
+          <option value="">Any priority</option>
+          {priorities.filter((priority) => !priority.archived).map((priority) => (
+            <option key={priority.id} value={priority.id}>{priority.name}</option>
+          ))}
+        </SelectField>
         {actionError ? <InlineAlert tone="danger">{actionError}</InlineAlert> : null}
       </ViewToolbar>
       <div className="bugs">
         {columns.map((col) => {
           const items = allBugs.filter((item) =>
-            col.statusIds.includes(item.statusId) && bugMatchesFilter(item, filter, col.id === "intake")
+            col.statusIds.includes(item.statusId) && bugMatchesFilter(item, filter, col.id === "intake", severityFilter, priorityFilter)
           );
           return (
             <div key={col.id} className="bugs-column">
@@ -128,6 +177,10 @@ export function BugTriageView() {
               ) : null}
               {items.map((item) => {
                 const data = getBugData(item);
+                const contextDraft = contextDrafts[item.id] ?? {
+                  source: data?.source ?? "",
+                  context: data?.context ?? ""
+                };
                 const sev = severities.find((s) => s.id === data?.severityId);
                 const priority = priorities.find((p) => p.id === item.priorityId);
                 const status = statuses.find((s) => s.id === item.statusId);
@@ -150,7 +203,63 @@ export function BugTriageView() {
                           {sev.name}
                         </MetadataBadge>
                       ) : null}
+                      {data?.source ? <MetadataBadge>{data.source}</MetadataBadge> : null}
                       <span className="text-xs text-muted">{data?.reproductionSteps?.length ?? 0} reproduction steps</span>
+                    </div>
+                    <div className="bugs-card-actions">
+                      <select
+                        aria-label={`Severity for ${item.title}`}
+                        className="select bugs-action-select"
+                        value={data?.severityId ?? ""}
+                        onChange={(event) => updateBugData(item, { severityId: event.target.value || null })}
+                      >
+                        <option value="">No severity</option>
+                        {severities.map((severity) => (
+                          <option key={severity.id} value={severity.id}>{severity.name}</option>
+                        ))}
+                      </select>
+                      <select
+                        aria-label={`Priority for ${item.title}`}
+                        className="select bugs-action-select"
+                        value={item.priorityId ?? ""}
+                        onChange={(event) => updateItem(item, { priorityId: event.target.value || null })}
+                      >
+                        <option value="">No priority</option>
+                        {priorities.filter((entry) => !entry.archived).map((entry) => (
+                          <option key={entry.id} value={entry.id}>{entry.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="bugs-card-actions bugs-context-actions">
+                      <input
+                        aria-label={`Bug source for ${item.title}`}
+                        className="input"
+                        placeholder="Source"
+                        value={contextDraft.source}
+                        onChange={(event) => setContextDrafts((current) => ({
+                          ...current,
+                          [item.id]: {
+                            ...(current[item.id] ?? { source: data?.source ?? "", context: data?.context ?? "" }),
+                            source: event.target.value
+                          }
+                        }))}
+                      />
+                      <input
+                        aria-label={`Bug context for ${item.title}`}
+                        className="input"
+                        placeholder="Context"
+                        value={contextDraft.context}
+                        onChange={(event) => setContextDrafts((current) => ({
+                          ...current,
+                          [item.id]: {
+                            ...(current[item.id] ?? { source: data?.source ?? "", context: data?.context ?? "" }),
+                            context: event.target.value
+                          }
+                        }))}
+                      />
+                      <Button size="sm" variant="ghost" onClick={() => saveBugContext(item)}>
+                        Save bug context for {item.title}
+                      </Button>
                     </div>
                     <div className="bugs-card-actions">
                       <Button size="sm" onClick={() => updateItem(item, { statusId: readyStatusId })}>
@@ -212,7 +321,20 @@ export function BugTriageView() {
   );
 }
 
-function bugMatchesFilter(item: WorkItem, filter: BugFilter, isIntake: boolean) {
+function emptyBugData() {
+  return {
+    severityId: null,
+    reproductionSteps: [],
+    expectedBehavior: "",
+    actualBehavior: "",
+    environment: "",
+    affectedVersion: null
+  };
+}
+
+function bugMatchesFilter(item: WorkItem, filter: BugFilter, isIntake: boolean, severityFilter: string, priorityFilter: string) {
+  if (severityFilter && getBugData(item)?.severityId !== severityFilter) return false;
+  if (priorityFilter && item.priorityId !== priorityFilter) return false;
   if (filter === "all") return true;
   if (filter === "intake") return isIntake;
   if (filter === "unassigned") return !item.assigneeId;

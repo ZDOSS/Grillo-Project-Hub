@@ -12,6 +12,7 @@ import {
   createRelationship,
   validateRelationship,
   canonicalizeRelatesTo,
+  getBugData,
   type WorkItem,
   type Relationship
 } from "../domain/work-item";
@@ -40,10 +41,23 @@ import { createBoardView, createBacklogView, createTableView, createRoadmapView,
 import { createSeverity } from "../domain/bug";
 import { generateId } from "../domain/ids";
 import { searchProject } from "../search/local-search";
+import { createAutomationRule, type AutomationAction, type AutomationCondition, type AutomationRule, type AutomationTrigger } from "../automation/rules";
 
 type DocumentTrashPayload = Document | {
   document: Document;
   reminders?: Reminder[];
+};
+
+type AutomationPreviewAction = {
+  type: AutomationAction["type"];
+  summary: string;
+};
+
+type AutomationPreview = {
+  matched: boolean;
+  ruleName: string;
+  actions: AutomationPreviewAction[];
+  reason?: string;
 };
 
 /**
@@ -89,9 +103,9 @@ export function dispatchCommand(bundle: ProjectBundle, envelope: CommandEnvelope
 const dispatchers: Record<string, (b: ProjectBundle, env: CommandEnvelope) => DispatchResult> = {
   "project.rename": (b, env) => renameProject(b, env.payload as { name: string }),
   "project.updateSettings": (b, env) => updateProjectSettings(b, env.payload as Parameters<typeof updateProjectSettings>[1]),
-  "item.create": (b, env) => createItem(b, env.payload as Parameters<typeof createItem>[1]),
-  "item.update": (b, env) => updateItem(b, env.payload as Parameters<typeof updateItem>[1]),
-  "item.moveStatus": (b, env) => moveItemStatus(b, env.payload as Parameters<typeof moveItemStatus>[1]),
+  "item.create": (b, env) => applyAutomationRules(createItem(b, env.payload as Parameters<typeof createItem>[1]), env),
+  "item.update": (b, env) => applyAutomationRules(updateItem(b, env.payload as Parameters<typeof updateItem>[1]), env),
+  "item.moveStatus": (b, env) => applyAutomationRules(moveItemStatus(b, env.payload as Parameters<typeof moveItemStatus>[1]), env),
   "item.moveParent": (b, env) => moveItemParent(b, env.payload as Parameters<typeof moveItemParent>[1]),
   "item.archive": (b, env) => archiveItem(b, env.payload as { projectId: string; itemId: string }),
   "item.trash": (b, env) => trashItem(b, env.payload as { projectId: string; itemId: string }),
@@ -134,6 +148,12 @@ const dispatchers: Record<string, (b: ProjectBundle, env: CommandEnvelope) => Di
   "attachment.delete": (b, env) => deleteAttachmentCommand(b, env.payload as Parameters<typeof deleteAttachmentCommand>[1]),
   "attachment.restore": (b, env) => restoreAttachmentCommand(b, env.payload as Parameters<typeof restoreAttachmentCommand>[1]),
   "attachment.permanentlyDelete": (b, env) => permanentlyDeleteAttachmentCommand(b, env.payload as Parameters<typeof permanentlyDeleteAttachmentCommand>[1]),
+  "automationRule.create": (b, env) => createAutomationRuleCommand(b, env.payload as Parameters<typeof createAutomationRuleCommand>[1]),
+  "automationRule.update": (b, env) => updateAutomationRuleCommand(b, env.payload as Parameters<typeof updateAutomationRuleCommand>[1]),
+  "automationRule.delete": (b, env) => deleteAutomationRuleCommand(b, env.payload as Parameters<typeof deleteAutomationRuleCommand>[1]),
+  "automationRule.setEnabled": (b, env) => setAutomationRuleEnabledCommand(b, env.payload as Parameters<typeof setAutomationRuleEnabledCommand>[1]),
+  "automationRule.dryRun": (b, env) => dryRunAutomationRuleCommand(b, env.payload as Parameters<typeof dryRunAutomationRuleCommand>[1]),
+  "bugTriage.updateConfig": (b, env) => updateBugTriageConfigCommand(b, env.payload as Parameters<typeof updateBugTriageConfigCommand>[1]),
   "view.create": (b, env) => createViewCommand(b, env.payload as Parameters<typeof createViewCommand>[1]),
   "view.update": (b, env) => updateViewCommand(b, env.payload as Parameters<typeof updateViewCommand>[1]),
   "view.delete": (b, env) => deleteViewCommand(b, env.payload as Parameters<typeof deleteViewCommand>[1]),
@@ -216,6 +236,30 @@ function customFieldValuesEqual(a: CustomFieldValue | undefined, b: CustomFieldV
     return a.length === b.length && a.every((entry, index) => entry === b[index]);
   }
   return a === b;
+}
+
+function validateBugIntakeExit(bundle: ProjectBundle, previous: WorkItem, next: WorkItem): void {
+  if (previous.statusId === next.statusId) return;
+  const bugsModule = bundle.modules["builtin.bugs"];
+  const applicableTypeIds = (bugsModule?.config?.applicableTypeIds as string[] | undefined) ?? [];
+  if (!applicableTypeIds.includes(next.typeId)) return;
+  if (bugsModule?.config?.requireSeverityOrPriority !== true) return;
+
+  const intakeStatusIds = bugIntakeStatusIds(bundle);
+  if (!intakeStatusIds.includes(previous.statusId) || intakeStatusIds.includes(next.statusId)) return;
+
+  const bugData = getBugData(next);
+  if (bugData?.severityId || next.priorityId) return;
+  throw new Error("Choose a severity or priority before moving this bug out of intake.");
+}
+
+function bugIntakeStatusIds(bundle: ProjectBundle): string[] {
+  const statuses = bundle.core.statuses;
+  const statusById = new Map(statuses.map((status) => [status.id, status]));
+  const preferred = ["new", "confirmed", "inbox"].filter((id) => statusById.has(id));
+  if (preferred.length > 0) return preferred;
+  const planned = statuses.find((status) => status.category === "planned" && !status.archived);
+  return planned ? [planned.id] : [bundle.project.defaultInitialStatusId];
 }
 
 function assertReminderTargetExists(
@@ -405,6 +449,7 @@ function updateItem(bundle: ProjectBundle, payload: { projectId: string; itemId:
   const next: WorkItem = { ...item, ...stripReadOnly(payload.patch), updatedAt: nowTimestamp() };
   validateWorkItem(next);
   validateItemReferences(bundle, next);
+  validateBugIntakeExit(bundle, item, next);
   if (Object.prototype.hasOwnProperty.call(payload.patch, "customFields")) {
     validateItemCustomFields(bundle, next, item);
   }
@@ -434,6 +479,7 @@ function moveItemStatus(bundle: ProjectBundle, payload: { projectId: string; ite
   const statusDef = findStatus(bundle.core.statuses, payload.toStatusId);
   if (!statusDef) throw new Error(`Unknown status: ${payload.toStatusId}`);
   const next = { ...item, statusId: payload.toStatusId, updatedAt: nowTimestamp() };
+  validateBugIntakeExit(bundle, item, next);
   const nextBundle = withCore(bundle, (c) => ({ ...c, items: c.items.map((i) => (i.id === item.id ? next : i)) }));
   const event = createEvent({
     type: "item.statusChanged",
@@ -1236,6 +1282,150 @@ function permanentlyDeleteAttachmentCommand(bundle: ProjectBundle, payload: { pr
   return { bundle: appendEvent(nextBundle, event), events: [event] };
 }
 
+/* ----- automation ----- */
+
+function createAutomationRuleCommand(
+  bundle: ProjectBundle,
+  payload: {
+    projectId: string;
+    rule: {
+      name: string;
+      description?: string;
+      enabled?: boolean;
+      trigger: AutomationTrigger;
+      conditions?: AutomationCondition[];
+      actions: AutomationAction[];
+    };
+  }
+): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
+  const rule = createAutomationRule({
+    ...payload.rule,
+    name: payload.rule.name.trim(),
+    description: payload.rule.description?.trim() ?? "",
+    conditions: payload.rule.conditions ?? [],
+    actions: payload.rule.actions,
+    enabled: payload.rule.enabled ?? true
+  });
+  validateAutomationRule(bundle, rule);
+  return { bundle: withAutomationRules(bundle, [...automationRules(bundle), rule]), events: [] };
+}
+
+function updateAutomationRuleCommand(
+  bundle: ProjectBundle,
+  payload: {
+    projectId: string;
+    ruleId: string;
+    patch: Partial<Omit<AutomationRule, "id" | "createdAt" | "updatedAt">>;
+  }
+): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
+  const rules = automationRules(bundle);
+  const current = rules.find((rule) => rule.id === payload.ruleId);
+  if (!current) throw new Error(`Automation rule not found: ${payload.ruleId}`);
+  const nextRule: AutomationRule = {
+    ...current,
+    ...payload.patch,
+    name: typeof payload.patch.name === "string" ? payload.patch.name.trim() : current.name,
+    description: typeof payload.patch.description === "string" ? payload.patch.description.trim() : current.description,
+    conditions: payload.patch.conditions ?? current.conditions,
+    actions: payload.patch.actions ?? current.actions,
+    updatedAt: nowTimestamp()
+  };
+  validateAutomationRule(bundle, nextRule);
+  return {
+    bundle: withAutomationRules(bundle, rules.map((rule) => (rule.id === payload.ruleId ? nextRule : rule))),
+    events: []
+  };
+}
+
+function deleteAutomationRuleCommand(bundle: ProjectBundle, payload: { projectId: string; ruleId: string }): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
+  const rules = automationRules(bundle);
+  if (!rules.some((rule) => rule.id === payload.ruleId)) {
+    throw new Error(`Automation rule not found: ${payload.ruleId}`);
+  }
+  return { bundle: withAutomationRules(bundle, rules.filter((rule) => rule.id !== payload.ruleId)), events: [] };
+}
+
+function setAutomationRuleEnabledCommand(
+  bundle: ProjectBundle,
+  payload: { projectId: string; ruleId: string; enabled: boolean }
+): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
+  const rules = automationRules(bundle);
+  const current = rules.find((rule) => rule.id === payload.ruleId);
+  if (!current) throw new Error(`Automation rule not found: ${payload.ruleId}`);
+  const nextRule = { ...current, enabled: payload.enabled, updatedAt: nowTimestamp() };
+  return {
+    bundle: withAutomationRules(bundle, rules.map((rule) => (rule.id === payload.ruleId ? nextRule : rule))),
+    events: []
+  };
+}
+
+function dryRunAutomationRuleCommand(
+  bundle: ProjectBundle,
+  payload: {
+    projectId: string;
+    ruleId?: string;
+    rule?: {
+      name: string;
+      description?: string;
+      enabled?: boolean;
+      trigger: AutomationTrigger;
+      conditions?: AutomationCondition[];
+      actions: AutomationAction[];
+    };
+    itemId?: string;
+  }
+): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
+  const rule = payload.ruleId
+    ? automationRules(bundle).find((entry) => entry.id === payload.ruleId)
+    : payload.rule
+    ? createAutomationRule({
+        ...payload.rule,
+        name: payload.rule.name.trim() || "Unsaved rule",
+        conditions: payload.rule.conditions ?? [],
+        enabled: payload.rule.enabled ?? true
+      })
+    : null;
+  if (!rule) throw new Error("Automation rule not found");
+  validateAutomationRule(bundle, rule);
+  const item = payload.itemId
+    ? findItemOrThrow(bundle, payload.itemId)
+    : bundle.core.items.find((entry) => !entry.trashedAt && !entry.archived) ?? null;
+  return { bundle, events: [], output: previewAutomationRule(bundle, rule, item) };
+}
+
+function updateBugTriageConfigCommand(
+  bundle: ProjectBundle,
+  payload: { projectId: string; patch: { requireSeverityOrPriority?: boolean } }
+): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
+  const bugsModule = bundle.modules["builtin.bugs"];
+  if (!bugsModule) throw new Error("Bug module is not available");
+  const nextConfig = {
+    ...bugsModule.config,
+    ...(payload.patch.requireSeverityOrPriority === undefined
+      ? {}
+      : { requireSeverityOrPriority: payload.patch.requireSeverityOrPriority })
+  };
+  return {
+    bundle: bumpRevision({
+      ...bundle,
+      modules: {
+        ...bundle.modules,
+        "builtin.bugs": {
+          ...bugsModule,
+          config: nextConfig
+        }
+      }
+    }),
+    events: []
+  };
+}
+
 /* ----- views ----- */
 
 function createViewCommand(
@@ -1420,6 +1610,351 @@ function searchCommand(
   assertProjectId(bundle, payload.projectId);
   const hits = searchProject(bundle, payload.query, { scope: payload.scope, filters: payload.filters });
   return { bundle, events: [], output: { hits } };
+}
+
+function applyAutomationRules(result: DispatchResult, envelope: CommandEnvelope): DispatchResult {
+  if (envelope.source === "automation") return result;
+  let bundle = result.bundle;
+  const automationEvents: ReturnType<typeof createEvent>[] = [];
+  const actionEvents: ReturnType<typeof createEvent>[] = [];
+
+  for (const event of result.events) {
+    if (!event.itemId) continue;
+    for (const rule of automationRules(bundle).filter((entry) => entry.enabled)) {
+      const item = bundle.core.items.find((entry) => entry.id === event.itemId);
+      if (!item || !automationRuleMatchesEvent(bundle, rule, event, item)) continue;
+      let actionCount = 0;
+      for (const action of rule.actions) {
+        const currentItem = bundle.core.items.find((entry) => entry.id === event.itemId);
+        if (!currentItem) break;
+        const payload = automationActionPayload(bundle, currentItem, action);
+        if (!payload) continue;
+        const actionResult = stampResultEvents(
+          dispatchCommand(bundle, envelopeFor(payload, "automation", envelope.actorId)),
+          "automation",
+          envelope.actorId
+        );
+        bundle = actionResult.bundle;
+        actionEvents.push(...actionResult.events);
+        actionCount += 1;
+      }
+      if (actionCount > 0) {
+        const executed = createEvent({
+          type: "automation.executed",
+          projectId: bundle.project.id,
+          itemId: event.itemId,
+          source: "automation",
+          actorId: envelope.actorId,
+          data: { ruleId: rule.id, ruleName: rule.name, actionCount }
+        });
+        bundle = appendEvent(bundle, executed);
+        automationEvents.push(executed);
+      }
+    }
+  }
+
+  return { bundle, events: [...result.events, ...actionEvents, ...automationEvents], output: result.output };
+}
+
+function stampResultEvents(
+  result: DispatchResult,
+  source: CommandEnvelope["source"],
+  actorId: CommandEnvelope["actorId"]
+): DispatchResult {
+  if (!result.events.length) return result;
+  const stampedEvents = result.events.map((event) => ({ ...event, source, actorId }));
+  const stampedById = new Map(stampedEvents.map((event) => [event.id, event]));
+  return {
+    ...result,
+    events: stampedEvents,
+    bundle: {
+      ...result.bundle,
+      core: {
+        ...result.bundle.core,
+        events: result.bundle.core.events.map((event) => stampedById.get(event.id) ?? event)
+      }
+    }
+  };
+}
+
+function automationRules(bundle: ProjectBundle): AutomationRule[] {
+  const raw = bundle.modules["builtin.automation"]?.data?.rules;
+  return Array.isArray(raw) ? structuredClone(raw as AutomationRule[]) : [];
+}
+
+function withAutomationRules(bundle: ProjectBundle, rules: AutomationRule[]): ProjectBundle {
+  const current = bundle.modules["builtin.automation"] ?? {
+    schemaVersion: 1,
+    enabled: true,
+    config: {},
+    data: {}
+  };
+  return bumpRevision({
+    ...bundle,
+    modules: {
+      ...bundle.modules,
+      "builtin.automation": {
+        ...current,
+        data: {
+          ...current.data,
+          rules: structuredClone(rules)
+        }
+      }
+    }
+  });
+}
+
+function validateAutomationRule(bundle: ProjectBundle, rule: AutomationRule): void {
+  if (!rule.name || rule.name.trim() === "") throw new Error("Automation rule name must not be empty");
+  validateAutomationTrigger(rule.trigger);
+  if (!Array.isArray(rule.conditions)) throw new Error("Automation rule conditions must be an array");
+  if (!Array.isArray(rule.actions) || rule.actions.length === 0) {
+    throw new Error("Automation rule must have at least one action");
+  }
+  for (const condition of rule.conditions) validateAutomationCondition(bundle, condition);
+  for (const action of rule.actions) validateAutomationAction(bundle, action);
+}
+
+function validateAutomationTrigger(trigger: AutomationTrigger): void {
+  const valid = new Set([
+    "item.created",
+    "item.updated",
+    "item.statusChanged",
+    "item.moved",
+    "milestone.assigned",
+    "dueDate.changed"
+  ]);
+  if (!valid.has(trigger.type)) throw new Error(`Unsupported automation trigger: ${String(trigger.type)}`);
+}
+
+function validateAutomationCondition(bundle: ProjectBundle, condition: AutomationCondition): void {
+  switch (condition.type) {
+    case "field.equals":
+    case "field.notEquals":
+      if (!condition.field) throw new Error("Automation field condition requires a field");
+      break;
+    case "type.isOneOf":
+      if (!condition.typeIds.length) throw new Error("Automation type condition requires at least one type");
+      validateFilterIds(bundle.core.itemTypes, condition.typeIds, "Automation condition type");
+      break;
+    case "has.label":
+      findRecordOrThrow(bundle.core.labels, condition.labelId, "Automation condition label");
+      break;
+    case "milestone.is":
+      findRecordOrThrow(bundle.core.milestones, condition.milestoneId, "Automation condition milestone");
+      break;
+  }
+}
+
+function validateAutomationAction(bundle: ProjectBundle, action: AutomationAction): void {
+  switch (action.type) {
+    case "setField":
+      if (!action.field) throw new Error("Automation set field action requires a field");
+      validateAutomationSetField(bundle, action.field, action.value);
+      break;
+    case "addLabel":
+    case "removeLabel":
+      findRecordOrThrow(bundle.core.labels, action.labelId, "Automation action label");
+      break;
+    case "moveToStatus":
+      findRecordOrThrow(bundle.core.statuses, action.statusId, "Automation action status");
+      break;
+    case "assignMilestone":
+      findRecordOrThrow(bundle.core.milestones, action.milestoneId, "Automation action milestone");
+      break;
+    case "createSubtask":
+      if (!action.title.trim()) throw new Error("Automation subtask title must not be empty");
+      break;
+    case "generateDoc":
+      if (!action.title.trim()) throw new Error("Automation doc title must not be empty");
+      break;
+  }
+}
+
+function validateAutomationSetField(bundle: ProjectBundle, field: string, value: unknown): void {
+  if (field === "statusId") findRecordOrThrow(bundle.core.statuses, String(value), "Automation action status");
+  if (field === "priorityId" && value) findRecordOrThrow(bundle.core.priorities, String(value), "Automation action priority");
+  if (field === "assigneeId" && value) findRecordOrThrow(bundle.core.members, String(value), "Automation action assignee");
+  if (field === "milestoneId" && value) findRecordOrThrow(bundle.core.milestones, String(value), "Automation action milestone");
+  if (field.startsWith("custom:")) findRecordOrThrow(bundle.core.customFields, field.slice("custom:".length), "Automation action custom field");
+}
+
+function automationRuleMatchesEvent(
+  bundle: ProjectBundle,
+  rule: AutomationRule,
+  event: ReturnType<typeof createEvent>,
+  item: WorkItem
+): boolean {
+  if (!automationTriggerMatches(rule.trigger, event)) return false;
+  return rule.conditions.every((condition) => automationConditionMatches(item, condition));
+}
+
+function automationTriggerMatches(trigger: AutomationTrigger, event: ReturnType<typeof createEvent>): boolean {
+  if (trigger.type === "item.created") return event.type === "item.created";
+  if (trigger.type === "item.updated") return event.type === "item.updated";
+  if (trigger.type === "item.moved") return event.type === "item.moved";
+  if (trigger.type === "item.statusChanged") {
+    if (event.type !== "item.statusChanged") return false;
+    const from = event.data?.from;
+    const to = event.data?.to;
+    return (!trigger.from || trigger.from === from) && (!trigger.to || trigger.to === to);
+  }
+  if (trigger.type === "dueDate.changed") {
+    return event.type === "item.updated" && patchHasField(event, "dueDate");
+  }
+  if (trigger.type === "milestone.assigned") {
+    return event.type === "item.updated" && patchHasField(event, "milestoneId") && Boolean((event.data?.patch as Record<string, unknown> | undefined)?.milestoneId);
+  }
+  return false;
+}
+
+function patchHasField(event: ReturnType<typeof createEvent>, field: string): boolean {
+  const patch = event.data?.patch as Record<string, unknown> | undefined;
+  return Boolean(patch && Object.prototype.hasOwnProperty.call(patch, field));
+}
+
+function automationConditionMatches(item: WorkItem, condition: AutomationCondition): boolean {
+  switch (condition.type) {
+    case "field.equals":
+      return automationFieldValue(item, condition.field) === condition.value;
+    case "field.notEquals":
+      return automationFieldValue(item, condition.field) !== condition.value;
+    case "type.isOneOf":
+      return condition.typeIds.includes(item.typeId);
+    case "has.label":
+      return item.labelIds.includes(condition.labelId);
+    case "milestone.is":
+      return item.milestoneId === condition.milestoneId;
+  }
+}
+
+function automationFieldValue(item: WorkItem, field: string): unknown {
+  if (field.startsWith("custom:")) {
+    return item.customFields?.[field.slice("custom:".length)];
+  }
+  if (field.startsWith("bug.")) {
+    return (getBugData(item) as Record<string, unknown> | null)?.[field.slice("bug.".length)];
+  }
+  return (item as unknown as Record<string, unknown>)[field];
+}
+
+function automationActionPayload(bundle: ProjectBundle, item: WorkItem, action: AutomationAction): CommandPayload | null {
+  switch (action.type) {
+    case "setField":
+      return {
+        type: "item.update",
+        projectId: bundle.project.id,
+        itemId: item.id,
+        patch: automationSetFieldPatch(item, action.field, action.value)
+      };
+    case "addLabel":
+      if (item.labelIds.includes(action.labelId)) return null;
+      return {
+        type: "item.update",
+        projectId: bundle.project.id,
+        itemId: item.id,
+        patch: { labelIds: [...item.labelIds, action.labelId] }
+      };
+    case "removeLabel":
+      if (!item.labelIds.includes(action.labelId)) return null;
+      return {
+        type: "item.update",
+        projectId: bundle.project.id,
+        itemId: item.id,
+        patch: { labelIds: item.labelIds.filter((labelId) => labelId !== action.labelId) }
+      };
+    case "moveToStatus":
+      if (item.statusId === action.statusId) return null;
+      return {
+        type: "item.moveStatus",
+        projectId: bundle.project.id,
+        itemId: item.id,
+        toStatusId: action.statusId
+      };
+    case "assignMilestone":
+      if (item.milestoneId === action.milestoneId) return null;
+      return {
+        type: "item.update",
+        projectId: bundle.project.id,
+        itemId: item.id,
+        patch: { milestoneId: action.milestoneId }
+      };
+    case "createSubtask":
+      return {
+        type: "item.create",
+        projectId: bundle.project.id,
+        typeId: bundle.project.defaultTypeId,
+        title: action.title.trim(),
+        parentId: item.id,
+        statusId: bundle.project.defaultInitialStatusId
+      };
+    case "generateDoc":
+      return {
+        type: "doc.create",
+        projectId: bundle.project.id,
+        title: action.title.trim(),
+        body: `Linked work: [[item:${item.id}]]\n\nGenerated by automation rule.`
+      };
+  }
+}
+
+function automationSetFieldPatch(item: WorkItem, field: string, value: unknown): Record<string, unknown> {
+  if (field.startsWith("custom:")) {
+    const fieldId = field.slice("custom:".length);
+    return { customFields: { ...(item.customFields ?? {}), [fieldId]: value } };
+  }
+  if (field.startsWith("bug.")) {
+    const key = field.slice("bug.".length);
+    return {
+      moduleData: {
+        ...(item.moduleData ?? {}),
+        bug: {
+          ...(getBugData(item) ?? {
+            severityId: null,
+            reproductionSteps: [],
+            expectedBehavior: "",
+            actualBehavior: "",
+            environment: "",
+            affectedVersion: null
+          }),
+          [key]: value
+        }
+      }
+    };
+  }
+  return { [field]: value };
+}
+
+function previewAutomationRule(bundle: ProjectBundle, rule: AutomationRule, item: WorkItem | null): AutomationPreview {
+  if (!item) {
+    return { matched: false, ruleName: rule.name, actions: [], reason: "Choose an item to preview this rule." };
+  }
+  const matched = rule.conditions.every((condition) => automationConditionMatches(item, condition));
+  return {
+    matched,
+    ruleName: rule.name,
+    actions: matched ? rule.actions.map((action) => describeAutomationAction(bundle, action)) : [],
+    reason: matched ? undefined : "The selected item does not match this rule's conditions."
+  };
+}
+
+function describeAutomationAction(bundle: ProjectBundle, action: AutomationAction): AutomationPreviewAction {
+  switch (action.type) {
+    case "setField":
+      return { type: action.type, summary: `Would set ${action.field} to ${String(action.value ?? "empty")}.` };
+    case "addLabel":
+      return { type: action.type, summary: `Would add label ${findRecordOrThrow(bundle.core.labels, action.labelId, "Label").name}.` };
+    case "removeLabel":
+      return { type: action.type, summary: `Would remove label ${findRecordOrThrow(bundle.core.labels, action.labelId, "Label").name}.` };
+    case "moveToStatus":
+      return { type: action.type, summary: `Would move to ${findRecordOrThrow(bundle.core.statuses, action.statusId, "Status").name}.` };
+    case "assignMilestone":
+      return { type: action.type, summary: `Would assign milestone ${findRecordOrThrow(bundle.core.milestones, action.milestoneId, "Milestone").name}.` };
+    case "createSubtask":
+      return { type: action.type, summary: `Would create subtask ${action.title}.` };
+    case "generateDoc":
+      return { type: action.type, summary: `Would generate doc ${action.title}.` };
+  }
 }
 
 /* ----- helpers ----- */
