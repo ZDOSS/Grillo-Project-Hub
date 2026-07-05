@@ -25,7 +25,7 @@ test("export downloads a JSON project bundle", async ({ page }) => {
   await expect(page).toHaveURL(/\/overview/);
   // Navigate to settings and export
   await page.getByRole("link", { name: "Settings" }).click();
-  await page.getByRole("tab", { name: "Export & import" }).click();
+  await page.getByRole("tab", { name: "Import & export" }).click();
   const [download] = await Promise.all([
     page.waitForEvent("download"),
     page.getByRole("button", { name: /JSON/i }).click()
