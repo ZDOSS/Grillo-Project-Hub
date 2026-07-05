@@ -217,6 +217,29 @@ describe("SettingsView", () => {
     expect(generalTab).toHaveAttribute("aria-selected", "true");
   });
 
+  it("preserves unsaved panel drafts when switching settings sections", async () => {
+    render(
+      <ThemeProvider>
+        <MemoryRouter>
+          <SettingsView />
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    const tablist = screen.getByRole("tablist", { name: "Settings sections" });
+    await userEvent.click(within(tablist).getByRole("tab", { name: "Workflow" }));
+
+    const workflowPanel = screen.getByRole("tabpanel", { name: "Workflow" });
+    const statusNameInput = within(workflowPanel).getAllByPlaceholderText("Name")[0];
+    await userEvent.type(statusNameInput, "Draft status");
+
+    await userEvent.click(within(tablist).getByRole("tab", { name: "Appearance" }));
+    expect(screen.getByRole("tabpanel", { name: "Appearance" })).toBeInTheDocument();
+
+    await userEvent.click(within(tablist).getByRole("tab", { name: "Workflow" }));
+    expect(within(screen.getByRole("tabpanel", { name: "Workflow" })).getByDisplayValue("Draft status")).toBeInTheDocument();
+  });
+
   it("shows truthful AI bridge status and command coverage instead of placeholder install instructions", async () => {
     render(
       <ThemeProvider>

@@ -196,7 +196,8 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - shared `Modal` supports `closeOnEscape={false}` for stacked modal cases; `WorkItemModal` disables its Escape handler while the permanent-delete `ConfirmDialog` is open so Escape only cancels the top confirmation and preserves item-detail drafts
 - settings view is now a shell plus focused panels: `SettingsView.tsx` owns grouped tab navigation/tabpanel semantics only, while `GeneralSettings`, `AppearanceSettings`, `StorageSettings`, `ViewsSettings`, `MembersSettings`, `WorkflowSettings`, `LabelsMilestonesSettings`, `CustomFieldsSettings`, `PluginsSettings`, `AutomationSettings`, `ImportExportSettings`, and `BridgeSettings` own their own command wiring
 - settings workflow, automation, and bridge sections should stay out of the shell; add future settings surfaces as focused files under `packages/ui/src/views/settings/` and register them through the shell tab list
-- settings sections expose keyboard-accessible tab semantics with Arrow/Home/End navigation, the edit icon comes from `lucide-react`, and import failures render as inline alerts instead of browser-native `alert()`
+- settings sections expose keyboard-accessible tab semantics with Arrow/Home/End navigation; inactive settings panels stay mounted with `hidden` instead of being unmounted so unsaved local form drafts survive section switches
+- settings edit icons come from `lucide-react`, and import failures render as inline alerts instead of browser-native `alert()`
 - `BridgeSettings.tsx` is truth-in-UI for future AI/MCP integration: it documents real core command coverage and explicitly says no installable bridge/server binary/client config is shipped yet, so do not add setup commands until a bridge runtime exists
 - settings registry tables now follow a consistent edit flow for members/statuses/priorities/types:
   - read-only rows by default
@@ -280,7 +281,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - bug triage filters for needs-repro and command-backed accept/decline/snooze/assign/duplicate actions
   - bug triage severity/priority filtering, plugin-owned source/context editing, and the configured severity-or-priority intake exit gate
   - automation rule create/update/delete/enable/disable/dry-run commands, dispatcher execution through automation source commands, and Settings automation rule preview/save/toggle/delete flows
-  - settings section decomposition, keyboard tab navigation, and AI bridge future-capability copy that avoids placeholder install instructions
+  - settings section decomposition, keyboard tab navigation, draft preservation across panel switches, and AI bridge future-capability copy that avoids placeholder install instructions
   - board-context item creation that uses the first board column default status
   - my-work item creation that preselects the active local member as assignee
   - table priority and updated-date sort direction behavior
@@ -501,6 +502,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - allowing public `doc.create` payloads without a title to create an `Untitled` blank document
 - continued the July 2026 polish/trust pass with settings decomposition and AI bridge truth-in-UI by:
   - replacing the monolithic Settings switch with a keyboard-accessible grouped tab shell and focused settings panel files
+  - keeping inactive settings panels mounted behind `hidden` so unsaved form drafts are not lost when users switch sections
   - grouping status, priority, type defaults, and bug-intake guardrails inside the Workflow settings panel
   - combining labels/milestones and import/export into clearer workflow panels while preserving the existing command paths
   - replacing placeholder AI bridge install/setup copy with real command-coverage documentation and explicit "not shipped yet" runtime gaps

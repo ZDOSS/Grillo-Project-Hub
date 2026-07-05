@@ -119,8 +119,6 @@ export function SettingsView() {
   if (!bundle) return null;
 
   const activeIndex = SETTINGS_TABS.findIndex((entry) => entry.id === tab);
-  const activeTab = SETTINGS_TABS[activeIndex] ?? SETTINGS_TABS[0];
-
   const activateTab = (next: SettingsTabId) => {
     setTab(next);
     tabRefs.current[next]?.focus();
@@ -206,15 +204,22 @@ export function SettingsView() {
           </div>
         </aside>
 
-        <section
-          aria-labelledby={tabId(activeTab.id)}
-          className="settings-content-panel"
-          id={panelId(activeTab.id)}
-          role="tabpanel"
-          tabIndex={0}
-        >
-          {renderPanel(activeTab.id)}
-        </section>
+        {SETTINGS_TABS.map((entry) => {
+          const selected = tab === entry.id;
+          return (
+            <section
+              aria-labelledby={tabId(entry.id)}
+              className="settings-content-panel"
+              hidden={!selected}
+              id={panelId(entry.id)}
+              key={entry.id}
+              role="tabpanel"
+              tabIndex={selected ? 0 : -1}
+            >
+              {renderPanel(entry.id)}
+            </section>
+          );
+        })}
       </div>
     </div>
   );

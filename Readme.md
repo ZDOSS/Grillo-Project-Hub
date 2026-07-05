@@ -18,7 +18,7 @@ The MVP implementation is in place. The current build supports:
 - **Bug triage** with severity, priority, source/context metadata, reproduction steps, expected/actual behavior, environment, affected version, shared work-card metadata, practical triage filters, accept/decline/snooze/assign/duplicate actions, configurable severity-or-priority intake gates, workflow-safe decline handling, and a visible new-bug entry point that defaults to the Intake lane without starving Ready in custom planned workflows
 - **My work** filtered to the locally selected member with a real member select control, shared work rows, and assigned-to-me creation
 - **Search** across items, docs, comments, and labels with shared search controls and grouped results
-- **Settings** split into focused panels for general project identity, appearance, storage, visible views, members, workflow, labels/milestones, custom fields, plugin trust, automation rules, import/export, and a truthful AI bridge readiness panel with keyboard-accessible section tabs
+- **Settings** split into focused panels for general project identity, appearance, storage, visible views, members, workflow, labels/milestones, custom fields, plugin trust, automation rules, import/export, and a truthful AI bridge readiness panel with keyboard-accessible section tabs that preserve in-progress drafts while switching sections
 - **Consistent settings editing** for members, statuses, priorities, types, and plugin trust with explicit edit or save/cancel flows instead of always-live row inputs
 - **Shared navigation config** so sidebar navigation and left-panel visibility toggles stay in sync
 - **Saved planning views** in the project view bar, with board/backlog/table save, update, delete, and reorder flows backed by validated shared filters that preserve multi-value saved filters
@@ -98,7 +98,7 @@ The UI/UX overhaul planning package lives in `docs/superpowers/specs/2026-07-02-
 | Suite | Count | Notes |
 | --- | --- | --- |
 | `packages/core` | 57 | Domain, storage, dispatcher, document sections/templates, automation rules, export, import |
-| `packages/ui` | 91 | AppShell, ProjectRouter, OverviewView, shared button and surface primitives, WorkItemModal attachment/reminder/custom-field coverage, TrashView, BoardView, saved planning views, BacklogView, BugTriageView, MyWorkView, TableView, RoadmapView, CalendarView, CommandPalette, CreateItemDialog, launcher, docs, settings, automation settings |
+| `packages/ui` | 92 | AppShell, ProjectRouter, OverviewView, shared button and surface primitives, WorkItemModal attachment/reminder/custom-field coverage, TrashView, BoardView, saved planning views, BacklogView, BugTriageView, MyWorkView, TableView, RoadmapView, CalendarView, CommandPalette, CreateItemDialog, launcher, docs, settings, automation settings |
 | `apps/desktop` | 2 | Desktop storage adapter command wiring |
 | `tests/e2e` | 7 | Hybrid parity, project workflow, theme, palette, export, search |
 
