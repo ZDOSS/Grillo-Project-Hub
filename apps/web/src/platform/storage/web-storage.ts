@@ -14,6 +14,8 @@ const FS_DB_NAME = "gph.web.fs";
 const FS_STORE_NAME = "handles";
 const FS_FOLDER_HANDLE_KEY = "project-folder";
 
+let activeFolderHandle: FileSystemDirectoryHandle | null = null;
+
 function getKey(id: string): string {
   return NAMESPACE + id;
 }
@@ -55,6 +57,7 @@ function openHandlesDb(): Promise<IDBDatabase> {
 }
 
 async function readStoredFolderHandle(): Promise<FileSystemDirectoryHandle | null> {
+  if (activeFolderHandle) return activeFolderHandle;
   if (typeof indexedDB === "undefined") return null;
   const db = await openHandlesDb();
   return new Promise<FileSystemDirectoryHandle | null>((resolve, reject) => {
@@ -62,7 +65,9 @@ async function readStoredFolderHandle(): Promise<FileSystemDirectoryHandle | nul
     const request = tx.objectStore(FS_STORE_NAME).get(FS_FOLDER_HANDLE_KEY);
     request.onsuccess = () => {
       const value = request.result;
-      resolve(value == null ? null : (value as FileSystemDirectoryHandle));
+      const handle = value == null ? null : (value as FileSystemDirectoryHandle);
+      activeFolderHandle = handle;
+      resolve(handle);
     };
     request.onerror = () => reject(request.error ?? new Error("Could not read folder handle"));
   }).finally(() => db.close());
@@ -272,7 +277,12 @@ class WebLocalStorageAdapter implements ProjectStoreAdapter {
     const handle = await picker.call(window, { mode: "readwrite" });
     const granted = await ensureFolderPermission(handle, "readwrite", true);
     if (!granted) return null;
-    await writeStoredFolderHandle(handle);
+    activeFolderHandle = handle;
+    try {
+      await writeStoredFolderHandle(handle);
+    } catch {
+      // Folder handle persistence is best-effort; the active handle should still work this session.
+    }
     return handle.name;
   }
   async getCurrentFolderDisplay(): Promise<string | null> {

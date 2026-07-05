@@ -75,7 +75,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - canonical durable format: `project.pms.json` inside `.pm-suite/` (or browser `localStorage` as a labeled compatibility layer)
 - adapter contract: `ProjectStoreAdapter` in `packages/core/src/storage/store.ts`; folder-capable adapters may implement `loadFolderProject(key)` for files discovered by a currently selected folder even when the browser-local metadata index has never seen that project
 - `WebLocalStorageAdapter` for browser/PWA mode
-- the web adapter is now hybrid: browser-local storage remains the default, but browsers with File System Access support can persist project files into a user-chosen local folder and remember that folder handle through IndexedDB
+- the web adapter is now hybrid: browser-local storage remains the default, but browsers with File System Access support can persist project files into a user-chosen local folder; the selected folder handle becomes the active handle immediately, while IndexedDB persistence is a best-effort durability layer for later sessions
 - `DesktopAdapter` for Tauri (calls the registered Rust commands and falls back to `localStorage` when Tauri is absent in dev)
 - `InMemoryProjectStore` is available for tests
 - external change detection uses the adapter's `externalRevision` counter and `WatchEvent` notifications
@@ -92,6 +92,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - the web runtime now installs the same `WebLocalStorageAdapter` instance into both `window.__gph_store` and `WebStorageAdapter.adapter`, preventing auto-save and startup restore from drifting onto different adapter instances if adapter-local state is added later
 - the desktop runtime now installs the same `DesktopStorageAdapter.adapter` instance into `window.__gph_store`; folder-backed desktop saves/loads/existence checks/deletes call `save_project`, `load_project`, `project_exists`, and `delete_project`
 - `useProjectStore.setBundle()` and `markSaved()` normalize `bundle.projectSettings.storageTrust` to the runtime storage trust, so overview/settings/header storage surfaces do not keep showing browser-local after a folder save or open
+- folder/open/session paths treat adapter metadata as the source of truth for storage trust; this intentionally overrides stale `projectSettings.storageTrust` values inside older `.pms.json` files so folder-backed projects do not continue to display as browser-local after a direct folder open
 
 ## Command surface
 
@@ -521,6 +522,10 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - requiring explicit Cancel/Create dismissal for the new-project modal
   - replacing the bug-triage duplicate target select with a searchable picker modal that confirms an existing bug before dispatching `relationship.create`; canceling the picker clears duplicate-scoped errors so stale relationship failures do not leak back into the toolbar
   - adding focused launcher and bug-triage regression coverage for those flows
+- fixed the remaining PWA folder-mode regression by:
+  - retaining the folder picker handle in the web adapter immediately after selection, so create/save/list/load stays folder-backed even when IndexedDB folder-handle persistence is unavailable or delayed
+  - adding real `apps/web` Vitest coverage for the folder-picker create/list/load adapter flow and wiring web unit tests into the root `npm test` sequence
+  - expanding UI regression coverage so adapter folder metadata overrides stale browser-local trust embedded inside older project JSON during folder open and session restore
 
 ## Open follow-on planning
 

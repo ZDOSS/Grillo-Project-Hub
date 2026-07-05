@@ -225,7 +225,7 @@ describe("ProjectsListView", () => {
   it("opens a listed folder project without requiring browser-local index metadata", async () => {
     const bundle = buildProjectFromTemplate("software-project", "Folder Project");
     const loadFolderProject = vi.fn(async (key: string) => ({
-      json: exportProjectJson({ ...bundle, projectSettings: { ...bundle.projectSettings, storageTrust: "folder" } }),
+      json: exportProjectJson({ ...bundle, projectSettings: { ...bundle.projectSettings, storageTrust: "browser" } }),
       metadata: {
         key,
         displayPath: `Client Folder/.pm-suite/${key}.pms.json`,
@@ -271,5 +271,6 @@ describe("ProjectsListView", () => {
     expect(load).not.toHaveBeenCalled();
     expect(useProjectStore.getState().bundle?.project.name).toBe("Folder Project");
     expect(useProjectStore.getState().storageTrust).toBe("folder");
+    expect(useProjectStore.getState().bundle?.projectSettings.storageTrust).toBe("folder");
   });
 });
