@@ -132,4 +132,42 @@ describe("WebStorageAdapter folder mode", () => {
     await expect(reloadedAdapter.has(bundle.project.id)).resolves.toBe(true);
     await expect(reloadedAdapter.listFolderProjects()).resolves.toEqual([]);
   });
+
+  it("promotes newer browser recovery edits when a folder project is reopened", async () => {
+    const bundle = buildProjectFromTemplate("software-project", "Folder Original");
+    const folderJson = exportProjectJson({
+      ...bundle,
+      projectSettings: { ...bundle.projectSettings, storageTrust: "folder" }
+    });
+    const recoveredJson = exportProjectJson({
+      ...bundle,
+      project: { ...bundle.project, name: "Recovered Newer" },
+      projectSettings: { ...bundle.projectSettings, storageTrust: "browser" }
+    });
+    const folder = createFakeFolder("Client Folder");
+    Object.defineProperty(window, "showDirectoryPicker", {
+      configurable: true,
+      value: vi.fn(async () => folder.handle)
+    });
+    const adapter = await getAdapter();
+
+    await adapter.chooseFolder();
+    await adapter.save(bundle.project.id, folderJson, null);
+    expect(folder.files.get(`${bundle.project.id}.pms.json`)).toBe(folderJson);
+
+    vi.resetModules();
+    const recoveryAdapter = await getAdapter();
+    await recoveryAdapter.save(bundle.project.id, recoveredJson, null);
+    expect(folder.files.get(`${bundle.project.id}.pms.json`)).toBe(folderJson);
+
+    await recoveryAdapter.chooseFolder();
+    const reopened = await recoveryAdapter.loadFolderProject?.(bundle.project.id);
+
+    expect(reopened?.json).toBe(recoveredJson);
+    expect(reopened?.metadata).toMatchObject({
+      displayPath: `Client Folder/.pm-suite/${bundle.project.id}.pms.json`,
+      trust: "folder"
+    });
+    expect(folder.files.get(`${bundle.project.id}.pms.json`)).toBe(recoveredJson);
+  });
 });

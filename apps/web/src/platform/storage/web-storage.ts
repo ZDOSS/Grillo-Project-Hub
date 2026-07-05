@@ -218,9 +218,24 @@ class WebLocalStorageAdapter implements ProjectStoreAdapter {
   async loadFolderProject(key: string): Promise<{ json: string; metadata: StorageMetadata } | null> {
     const folderHandle = await getBoundFolderHandle({ mode: "read", allowPrompt: true });
     if (!folderHandle) return null;
+    const existing = readIndex().find((m) => m.key === key);
+    const recoveredJson = typeof localStorage === "undefined" ? null : localStorage.getItem(getKey(key));
+    if (existing?.trust === "browser" && recoveredJson) {
+      const writableFolderHandle = await getBoundFolderHandle({ mode: "readwrite", allowPrompt: true });
+      if (!writableFolderHandle) return null;
+      await writeFolderProjectJson(writableFolderHandle, key, recoveredJson);
+      const metadata: StorageMetadata = {
+        key,
+        displayPath: folderDisplayPath(writableFolderHandle, key),
+        externalRevision: existing.externalRevision,
+        trust: "folder"
+      };
+      upsertIndexEntry(metadata);
+      return { json: recoveredJson, metadata };
+    }
+
     const json = await readFolderProjectJson(folderHandle, key);
     if (!json) return null;
-    const existing = readIndex().find((m) => m.key === key);
     const metadata: StorageMetadata = {
       key,
       displayPath: folderDisplayPath(folderHandle, key),
