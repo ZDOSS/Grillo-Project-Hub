@@ -1,6 +1,6 @@
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { buildProjectFromTemplate } from "@gph/core";
 import { AppShell } from "./AppShell";
@@ -149,5 +149,36 @@ describe("AppShell", () => {
 
     await userEvent.click(within(sheet).getByRole("button", { name: "Close workspace navigation" }));
     expect(screen.queryByRole("dialog", { name: "Workspace navigation" })).not.toBeInTheDocument();
+  });
+
+  it("claims Escape when the mobile sheet closes above another overlay", async () => {
+    const bundle = buildProjectFromTemplate("software-project", "Project");
+    useProjectStore.setState({ bundle });
+
+    render(
+      <ThemeProvider>
+        <MemoryRouter initialEntries={["/overview"]}>
+          <AppShell appMode="web">
+            <div>content</div>
+          </AppShell>
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Open workspace navigation" }));
+    expect(screen.getByRole("dialog", { name: "Workspace navigation" })).toBeInTheDocument();
+
+    const underlyingOverlayClose = vi.fn();
+    window.addEventListener("keydown", underlyingOverlayClose);
+    try {
+      await userEvent.keyboard("{Escape}");
+
+      await waitFor(() =>
+        expect(screen.queryByRole("dialog", { name: "Workspace navigation" })).not.toBeInTheDocument()
+      );
+      expect(underlyingOverlayClose).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener("keydown", underlyingOverlayClose);
+    }
   });
 });

@@ -68,7 +68,7 @@ export function CommandPalette() {
 
   if (!open) return null;
 
-  const optionId = (item: { id: string }) => `command-option-${item.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+  const optionId = (item: { id: string }) => `command-option-${encodeURIComponent(item.id)}`;
   const activeOptionId = items[highlight] ? optionId(items[highlight]) : undefined;
 
   const handleKey = (e: React.KeyboardEvent) => {

@@ -101,8 +101,14 @@ export function AppShell({ appMode, children }: AppShellProps) {
   const bundle = useProjectStore((s) => s.bundle);
   const { resolved, toggle } = useTheme();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const mobileNavOpenRef = useRef(false);
   const mobileCloseRef = useRef<HTMLButtonElement>(null);
   const mobileTriggerRef = useRef<HTMLButtonElement>(null);
+
+  const setMobileNavSheetOpen = (open: boolean) => {
+    mobileNavOpenRef.current = open;
+    setMobileNavOpen(open);
+  };
 
   useEffect(() => registerCoreCommands(), []);
 
@@ -132,7 +138,12 @@ export function AppShell({ appMode, children }: AppShellProps) {
         e.preventDefault();
         window.dispatchEvent(new CustomEvent("gph:open-create-item"));
       } else if (e.key === "Escape") {
-        setMobileNavOpen(false);
+        if (mobileNavOpenRef.current) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          setMobileNavSheetOpen(false);
+          return;
+        }
         window.dispatchEvent(new CustomEvent("gph:close-overlay"));
       }
     };
@@ -141,7 +152,7 @@ export function AppShell({ appMode, children }: AppShellProps) {
   }, []);
 
   useEffect(() => {
-    setMobileNavOpen(false);
+    setMobileNavSheetOpen(false);
   }, [location.pathname]);
 
   useEffect(() => {
@@ -203,7 +214,7 @@ export function AppShell({ appMode, children }: AppShellProps) {
           <IconButton
             aria-label="Open workspace navigation"
             className="mobile-nav-trigger"
-            onClick={() => setMobileNavOpen(true)}
+            onClick={() => setMobileNavSheetOpen(true)}
             ref={mobileTriggerRef}
           >
             <Menu aria-hidden="true" />
@@ -242,7 +253,7 @@ export function AppShell({ appMode, children }: AppShellProps) {
       </header>
 
       {mobileNavOpen ? (
-        <div className="mobile-nav-backdrop" onMouseDown={() => setMobileNavOpen(false)}>
+        <div className="mobile-nav-backdrop" onMouseDown={() => setMobileNavSheetOpen(false)}>
           <aside
             aria-label="Workspace navigation"
             aria-modal="true"
@@ -257,7 +268,7 @@ export function AppShell({ appMode, children }: AppShellProps) {
               </div>
               <IconButton
                 aria-label="Close workspace navigation"
-                onClick={() => setMobileNavOpen(false)}
+                onClick={() => setMobileNavSheetOpen(false)}
                 ref={mobileCloseRef}
               >
                 <X aria-hidden="true" />
@@ -266,7 +277,7 @@ export function AppShell({ appMode, children }: AppShellProps) {
             <nav className="mobile-nav-content" aria-label="Mobile workspace navigation">
               <ShellNavContent
                 locationPathname={location.pathname}
-                onNavigate={() => setMobileNavOpen(false)}
+                onNavigate={() => setMobileNavSheetOpen(false)}
                 showBrand={false}
                 visibleNavItems={visibleNavItems}
               />

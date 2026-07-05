@@ -253,9 +253,9 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - the UI/UX overhaul implementation pass has started in code:
   - `packages/ui/src/components/` now exports shared button/icon-button, field, page-header, surface, toolbar, empty-state, inline-alert, modal/dialog, data-table, and work-item metadata primitives
   - `AppShell` uses a named workspace navigation landmark, shared header buttons, and lucide icons for command/theme actions
-  - `AppShell` now provides a header-triggered mobile workspace navigation sheet for narrow screens; the desktop sidebar remains the primary wide-screen nav, and both surfaces share the same route metadata and hidden-view filtering
+  - `AppShell` now provides a header-triggered mobile workspace navigation sheet for narrow screens; the desktop sidebar remains the primary wide-screen nav, both surfaces share the same route metadata and hidden-view filtering, and the mobile sheet claims Escape while open so one key press cannot also dismiss an underlying overlay
   - the shared `Modal` primitive focuses its close control on open, restores focus to the opener on close, and still supports `closeOnEscape={false}` for stacked confirmations
-  - the command palette input is exposed as a combobox with a labelled listbox and active-descendant option wiring, so keyboard movement is reflected through ARIA instead of visual highlight only
+  - the command palette input is exposed as a combobox with a labelled listbox and active-descendant option wiring, using URI-encoded option ids so distinct command/search-hit ids cannot collide after DOM id generation
   - board, backlog, table, bug triage, my work, search, roadmap, calendar, docs, and settings now use shared primitives for major controls, feedback, metadata, or layout
   - board hard-WIP rejection now surfaces visible status feedback instead of silently dropping the move
   - WIP warnings, roadmap status bars, and warning/bad tags now use text, border style, or border treatment in addition to color
@@ -317,8 +317,8 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - docs delete navigation to the nearest active remaining document, skipping archived docs
   - create-dialog default refresh when the type registry changes while the dialog is open, including preservation of typed title and description drafts
   - shared modal focus/restore behavior
-  - command palette combobox/listbox active-descendant semantics
-  - mobile workspace navigation sheet rendering and dismissal
+  - command palette combobox/listbox active-descendant semantics and collision-free option ids
+  - mobile workspace navigation sheet rendering, dismissal, and Escape ownership above other overlays
   - work-item unchanged-comment save disabling and the new-comment textarea accessible label
   - stacked delete-confirmation Escape handling that preserves the underlying item-detail route and unsaved comment draft
   - item-reference validation and unknown-target rejection in dispatcher commands
@@ -541,6 +541,10 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - retaining the folder picker handle in the web adapter immediately after selection, so create/save/list/load stays folder-backed even when IndexedDB folder-handle persistence is unavailable or delayed
   - adding real `apps/web` Vitest coverage for the folder-picker create/list/load adapter flow and wiring web unit tests into the root `npm test` sequence
   - expanding UI regression coverage so adapter folder metadata overrides stale browser-local trust embedded inside older project JSON during folder open and session restore
+- applied the PR #25 Greptile accessibility follow-up by:
+  - making the mobile workspace sheet stop the current Escape key event when it closes itself, preserving any overlay underneath it
+  - switching command-palette option DOM ids from lossy character replacement to `encodeURIComponent()` so `aria-activedescendant` cannot reference duplicate ids
+  - adding focused AppShell and CommandPalette regressions for those cases
 - applied the PR #21 Greptile follow-up by:
   - writing a browser-local recovery copy for PWA folder saves so projects remain reachable after reload when the selected folder handle is not available
   - making post-reload recovery loads report browser-local trust when no active folder handle is available, while direct folder opens still report folder-backed trust
