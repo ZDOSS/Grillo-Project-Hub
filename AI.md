@@ -83,7 +83,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - the active UI store now tracks `saveStatus`, `lastSavedAt`, and `saveError` separately from `isDirty`; auto-save bridges call `markSaving()`, `markSaved()`, or `markSaveFailed()` so the header can report `Saved to folder/browser`, `Saving`, `Unsaved changes`, or `Save failed` without inferring that state from storage trust alone
 - `AppShell` now consumes adapter `watch()` events for the active project and shows an explicit external-change banner with `Reload from storage` and `Keep my changes`; reloading validates the bundle before replacing the store, rename events carry `event.newKey` through the reload path so the app does not keep saving to a stale file key, and keeping local changes marks the project dirty so auto-save can intentionally overwrite on the next save cycle
 - the shared shell wraps routes in `ToastProvider`; route code should use `useToast()` for short-lived feedback and keep blocking or recoverable errors in `InlineAlert`
-- the shared shell exposes explicit project actions next to the save-state indicator: `Save now` / `Retry save` routes through the active `ProjectStoreAdapter.save()` plus `markSaving()` / `markSaved()` / `markSaveFailed()`, `Switch project` navigates to `/projects`, and `Close project` returns to the launcher immediately only for clean saved projects; dirty projects and unsaved in-memory imports/demos must confirm `Close without saving` before `closeProject()` runs
+- the shared shell exposes explicit project actions next to the save-state indicator: `Save now` / `Retry save` routes through the active `ProjectStoreAdapter.save()` plus `markSaving()` / `markSaved()` / `markSaveFailed()`, records a launcher recent from successful browser/folder save metadata, `Switch project` navigates to `/projects`, and `Close project` returns to the launcher immediately only for clean saved projects; dirty projects and unsaved in-memory imports/demos must confirm `Close without saving` before `closeProject()` runs
 - the web shell now surfaces offline status and a captured `beforeinstallprompt` install action in the header, and emits one lightweight due-item/reminder notification per project/day/count combination
 - desktop storage now only writes to the filesystem when a folder path has actually been attached; otherwise the desktop shell behaves as browser-local storage on purpose instead of pretending to be folder-backed
 - recent-project reopen uses the active adapter's `load()` path rather than forcing JSON import; desktop recents restore the remembered folder path before loading
@@ -611,6 +611,10 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - gating AppShell `Close project` behind a shared `ConfirmDialog` whenever the active project is dirty or has `storageTrust: "unsaved"`, covering imported JSON and demo sessions whose only copy is still in memory
   - preserving direct close behavior for clean saved browser/folder projects
   - adding AppShell regressions for dirty saved projects, unsaved in-memory projects, canceling the dialog, and confirming the destructive close
+- addressed the Greptile manual-save follow-up on the project-flow milestone PR by:
+  - recording a workspace recent when AppShell `Save now` successfully persists an unsaved import/demo project, using the adapter-returned key, display path, and trust
+  - keeping direct JSON imports and demos out of recents until they are actually saved
+  - adding an AppShell regression that fails if an unsaved manual save cannot be reopened from the launcher recents
 
 ## Open follow-on planning
 

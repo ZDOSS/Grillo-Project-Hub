@@ -32,6 +32,7 @@ import { CommandPalette, registerCoreCommands } from "./commands/CommandPalette"
 import { openPalette } from "./commands/palette-bus";
 import { Button, ConfirmDialog, HelpTip, IconButton, InlineAlert, ToastProvider, useToast } from "./components";
 import { PROJECT_NAV_ITEMS } from "./nav-config";
+import { useWorkspaceStore } from "./store/workspace-store";
 import { hasRegisteredSavedRoute, savedViewsForBundle, viewRoute } from "./views/planning/view-helpers";
 
 export type AppShellProps = {
@@ -142,6 +143,7 @@ function AppShellFrame({ appMode, children }: AppShellProps) {
   const markSaveFailed = useProjectStore((s) => s.markSaveFailed);
   const markUnsaved = useProjectStore((s) => s.markUnsaved);
   const closeProject = useProjectStore((s) => s.closeProject);
+  const recordRecent = useWorkspaceStore((s) => s.recordRecent);
   const { resolved, toggle } = useTheme();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [externalNotice, setExternalNotice] = useState<ExternalNotice | null>(null);
@@ -360,6 +362,15 @@ function AppShellFrame({ appMode, children }: AppShellProps) {
       const targetTrust = await trustForManualSave(adapter, storageTrust);
       const metadata = await adapter.save(key, exportProjectJson(withRuntimeStorageTrust(bundle, targetTrust)), null);
       markSaved(metadata.key, metadata.displayPath, metadata.trust);
+      if (metadata.trust !== "unsaved") {
+        recordRecent({
+          key: metadata.key,
+          name: bundle.project.name,
+          storagePath: metadata.displayPath,
+          trust: metadata.trust,
+          lastOpenedAt: new Date().toISOString()
+        });
+      }
       notify({
         tone: "success",
         message: `Saved ${bundle.project.name} to ${metadata.trust === "folder" ? "folder" : "browser storage"}.`
@@ -369,7 +380,7 @@ function AppShellFrame({ appMode, children }: AppShellProps) {
       markSaveFailed(message);
       notify({ tone: "danger", message: `Save failed: ${message}` });
     }
-  }, [bundle, markSaveFailed, markSaved, markSaving, notify, storageKey, storageTrust]);
+  }, [bundle, markSaveFailed, markSaved, markSaving, notify, recordRecent, storageKey, storageTrust]);
 
   const confirmCloseProject = useCallback(() => {
     setCloseConfirmOpen(false);

@@ -6,6 +6,7 @@ import { buildProjectFromTemplate, exportProjectJson, importProjectJson, type Pr
 import { AppShell } from "./AppShell";
 import { ThemeProvider } from "./theme/theme-provider";
 import { useProjectStore } from "./store/project-store";
+import { useWorkspaceStore } from "./store/workspace-store";
 
 function LocationProbe() {
   const location = useLocation();
@@ -27,6 +28,7 @@ describe("AppShell", () => {
       lastSavedAt: null,
       saveError: null
     });
+    useWorkspaceStore.setState({ localMemberId: null, recents: [] });
     delete (window as typeof window & { __gph_store?: unknown }).__gph_store;
   });
 
@@ -450,6 +452,53 @@ describe("AppShell", () => {
     const savedJson = save.mock.calls[0][1];
     expect(importProjectJson(savedJson).bundle.projectSettings.storageTrust).toBe("folder");
     expect(useProjectStore.getState().storageTrust).toBe("folder");
+  });
+
+  it("records a launcher recent when manually saving an unsaved project", async () => {
+    const bundle = buildProjectFromTemplate("software-project", "Imported Project");
+    const save = vi.fn(async (key: string) => ({
+      key,
+      displayPath: null,
+      externalRevision: 1,
+      trust: "browser" as const
+    }));
+    const adapter: ProjectStoreAdapter = {
+      capabilities: { folderBacked: false, fileWatch: false, attachments: true },
+      list: async () => [],
+      has: async () => false,
+      load: async () => null,
+      save,
+      delete: async () => {}
+    };
+    (window as typeof window & { __gph_store?: ProjectStoreAdapter }).__gph_store = adapter;
+    useProjectStore.getState().setBundle(bundle, {
+      storageKey: null,
+      storagePath: null,
+      storageTrust: "unsaved"
+    });
+
+    render(
+      <ThemeProvider>
+        <MemoryRouter initialEntries={["/overview"]}>
+          <AppShell appMode="web">
+            <div>content</div>
+          </AppShell>
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Save now" }));
+
+    await waitFor(() => {
+      expect(useWorkspaceStore.getState().recents).toEqual([
+        expect.objectContaining({
+          key: bundle.project.id,
+          name: "Imported Project",
+          storagePath: null,
+          trust: "browser"
+        })
+      ]);
+    });
   });
 
   it("offers explicit conflict actions when the active project changes externally", async () => {
