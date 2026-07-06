@@ -12,18 +12,24 @@ export function useAutoSave() {
   const bundle = useProjectStore((s) => s.bundle);
   const storageKey = useProjectStore((s) => s.storageKey);
   const isDirty = useProjectStore((s) => s.isDirty);
+  const markSaving = useProjectStore((s) => s.markSaving);
   const markSaved = useProjectStore((s) => s.markSaved);
+  const markSaveFailed = useProjectStore((s) => s.markSaveFailed);
 
   useEffect(() => {
     if (!bundle || !storageKey || !isDirty) return;
     const json = useProjectStore.getState().serialize();
     let cancelled = false;
+    markSaving();
     WebStorageAdapter.adapter.save(storageKey, json, null).then((meta) => {
       if (cancelled) return;
       markSaved(storageKey, meta.displayPath, meta.trust);
     }).catch((err) => {
+      if (!cancelled) {
+        markSaveFailed(err instanceof Error ? err.message : "Auto-save failed.");
+      }
       console.warn("Auto-save failed:", err);
     });
     return () => { cancelled = true; };
-  }, [bundle, storageKey, isDirty, markSaved]);
+  }, [bundle, storageKey, isDirty, markSaveFailed, markSaved, markSaving]);
 }

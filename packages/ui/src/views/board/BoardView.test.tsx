@@ -307,4 +307,27 @@ describe("BoardView", () => {
     const updated = Object.values(updatedViews).find((entry) => entry.name === "Ready and done")!;
     expect(updated.filter?.statusIds).toEqual(["ready", "done"]);
   });
+
+  it("shows a density hint on very large boards", () => {
+    const bundle = buildProjectFromTemplate("simple-kanban", "Large Board");
+    useProjectStore.setState({ bundle });
+    const apply = useProjectStore.getState().applyCommand;
+    for (let index = 0; index < 90; index += 1) {
+      apply({
+        type: "item.create",
+        projectId: bundle.project.id,
+        typeId: "task",
+        title: `Large board item ${index + 1}`,
+        statusId: "ready"
+      });
+    }
+    const current = useProjectStore.getState().bundle!;
+    const views = (current.modules["builtin.kanban"].data as { views?: Record<string, Parameters<typeof BoardView>[0]["view"]> }).views ?? {};
+    const view = Object.values(views).find((entry) => entry.type === "board")!;
+
+    renderBoard(view);
+
+    expect(screen.getByText("Large board view")).toBeInTheDocument();
+    expect(screen.getByText(/filters or WIP limits/i)).toBeInTheDocument();
+  });
 });

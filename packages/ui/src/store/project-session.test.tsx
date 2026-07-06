@@ -12,6 +12,9 @@ describe("project session restore", () => {
       storagePath: null,
       storageTrust: "unsaved",
       isDirty: false,
+      saveStatus: "idle",
+      lastSavedAt: null,
+      saveError: null,
       lastSource: null
     });
     delete (window as typeof window & { __gph_store?: unknown }).__gph_store;
@@ -48,8 +51,8 @@ describe("project session restore", () => {
         projectSettings: { ...bundle.projectSettings, storageTrust: "browser" }
       }),
       metadata: {
-        key: bundle.project.id,
-        displayPath: `Client Folder/.pm-suite/${bundle.project.id}.pms.json`,
+        key: "folder-alias",
+        displayPath: "Client Folder/.pm-suite/folder-alias.pms.json",
         externalRevision: 2,
         trust: "folder" as const
       }
@@ -79,8 +82,49 @@ describe("project session restore", () => {
     expect(loadFolderProject).toHaveBeenCalledWith(bundle.project.id);
     expect(load).not.toHaveBeenCalled();
     expect(useProjectStore.getState().storageTrust).toBe("folder");
+    expect(useProjectStore.getState().storageKey).toBe("folder-alias");
     expect(useProjectStore.getState().bundle?.projectSettings.storageTrust).toBe("folder");
-    expect(useProjectStore.getState().storagePath).toBe(`Client Folder/.pm-suite/${bundle.project.id}.pms.json`);
+    expect(useProjectStore.getState().storagePath).toBe("Client Folder/.pm-suite/folder-alias.pms.json");
+  });
+
+  it("treats an explicit null storage key as an unsaved imported project", () => {
+    const current = buildProjectFromTemplate("software-project", "Current Folder Project");
+    const imported = buildProjectFromTemplate("software-project", "Imported Bundle");
+    const storage = localStorage as Storage & {
+      getItem?: (key: string) => string | null;
+      setItem?: (key: string, value: string) => void;
+    };
+    storage.setItem?.("gph.active.project", JSON.stringify({
+      storageKey: "current-folder-project",
+      storagePath: "Client Folder/.pm-suite/current-folder-project.pms.json",
+      storageTrust: "folder"
+    }));
+    useProjectStore.setState({
+      bundle: current,
+      storageKey: "current-folder-project",
+      storagePath: "Client Folder/.pm-suite/current-folder-project.pms.json",
+      storageTrust: "folder",
+      isDirty: false,
+      saveStatus: "saved",
+      lastSavedAt: "2026-07-06T00:00:00.000Z",
+      saveError: null
+    });
+
+    useProjectStore.getState().setBundle(imported, {
+      storageKey: null,
+      storagePath: null,
+      storageTrust: "browser"
+    });
+
+    const state = useProjectStore.getState();
+    expect(state.bundle?.project.name).toBe("Imported Bundle");
+    expect(state.storageKey).toBeNull();
+    expect(state.storagePath).toBeNull();
+    expect(state.storageTrust).toBe("browser");
+    expect(state.isDirty).toBe(true);
+    expect(state.saveStatus).toBe("idle");
+    expect(state.lastSavedAt).toBeNull();
+    expect(storage.getItem?.("gph.active.project")).toBeNull();
   });
 
   it("does not silently restore a folder session as browser recovery", async () => {

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { dispatchCommand, envelopeFor, type AutomationAction, type AutomationCondition, type AutomationRule, type AutomationTrigger } from "@gph/core";
-import { InlineAlert } from "../../components";
+import { HelpTip, InlineAlert } from "../../components";
 import { useProjectStore } from "../../store/project-store";
 
 type ActionChoice = "setPriority" | "addLabel" | "removeLabel" | "moveToStatus" | "assignMilestone" | "createSubtask" | "generateDoc";
@@ -98,7 +98,12 @@ export function AutomationSettings() {
   return (
     <div className="col" style={{ gap: 16, maxWidth: 980 }}>
       <div className="settings-panel">
-        <h3>Automation rules</h3>
+        <h3>
+          Automation rules
+          <HelpTip label="Automation rules">
+            Automation previews use the same command dispatcher as saved rules, so a dry run should match what the rule will do later.
+          </HelpTip>
+        </h3>
         <p className="text-sm text-secondary" style={{ marginTop: 0 }}>
           Rules run through the same command dispatcher as normal UI actions.
         </p>

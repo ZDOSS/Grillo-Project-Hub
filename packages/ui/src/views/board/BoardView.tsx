@@ -122,6 +122,7 @@ export function BoardView({ view }: BoardViewProps) {
     firstColumnCreateStatusId ? { statusId: firstColumnCreateStatusId } : undefined
   );
   const isDefaultView = bundle.projectSettings.defaultViewId === view.id;
+  const visibleBoardCount = Array.from(itemsByStatus.values()).reduce((total, items) => total + items.length, 0);
 
   const saveView = () => {
     const name = viewName.trim();
@@ -228,6 +229,14 @@ export function BoardView({ view }: BoardViewProps) {
         {dropFeedback ? <InlineAlert tone="warning">{dropFeedback}</InlineAlert> : null}
         {viewMessage ? <InlineAlert tone="info">{viewMessage}</InlineAlert> : null}
       </ViewToolbar>
+      {visibleBoardCount >= 80 ? (
+        <div className="view-hint">
+          <InlineAlert tone="info">
+            <strong>Large board view</strong>
+            <span> Showing {visibleBoardCount} cards. Use filters or WIP limits to keep each lane scannable.</span>
+          </InlineAlert>
+        </div>
+      ) : null}
       <div className="board" role="region" aria-label={`${view.name} board`}>
         {view.columns.length === 0 ? (
           <EmptyState

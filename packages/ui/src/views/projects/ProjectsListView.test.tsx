@@ -93,6 +93,24 @@ describe("ProjectsListView", () => {
     expect(useProjectStore.getState().bundle?.project.name).toBe("My Project");
   });
 
+  it("uses richer first-project empty states and template previews", async () => {
+    (window as typeof window & { __gph_store?: unknown }).__gph_store = new InMemoryProjectStore();
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <ProjectsListView />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText("Create your first project")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Bug Tracker template" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Bug Tracker template" }));
+
+    expect(screen.getByText(/Included: severity workflow/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Bug Tracker template" })).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("persists new folder-backed PWA projects immediately on create", async () => {
     const saves: Array<{ key: string; json: string }> = [];
     const adapter: ProjectStoreAdapter = {

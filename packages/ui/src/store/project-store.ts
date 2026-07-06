@@ -11,6 +11,8 @@ import { exportProjectJson } from "@gph/core";
 
 const ACTIVE_PROJECT_KEY = "gph.active.project";
 
+export type SaveStatus = "idle" | "saving" | "saved" | "error";
+
 type SavedProjectSession = {
   storageKey: string;
   storagePath: string | null;
@@ -60,11 +62,16 @@ export type ProjectStoreState = {
   storagePath: string | null;
   storageTrust: StorageTrust;
   isDirty: boolean;
+  saveStatus: SaveStatus;
+  lastSavedAt: string | null;
+  saveError: string | null;
   /** Last applied source for the most recent command (used by activity view). */
   lastSource: CommandSource | null;
   setBundle: (bundle: ProjectBundle, opts?: { storageKey?: string | null; storagePath?: string | null; storageTrust?: StorageTrust }) => void;
   applyCommand: (payload: CommandPayload, source?: CommandSource, actorId?: string | null) => DispatchResult;
+  markSaving: () => void;
   markSaved: (storageKey: string, storagePath: string | null, trust: StorageTrust) => void;
+  markSaveFailed: (message: string) => void;
   markUnsaved: () => void;
   /** Serialize the current bundle (e.g. for export or save). */
   serialize: () => string;
@@ -77,17 +84,25 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
   storagePath: null,
   storageTrust: "unsaved",
   isDirty: false,
+  saveStatus: "idle",
+  lastSavedAt: null,
+  saveError: null,
   lastSource: null,
   setBundle: (bundle, opts) => {
-    const nextStorageKey = opts?.storageKey ?? get().storageKey ?? bundle.project.id;
-    const nextStoragePath = opts?.storagePath ?? get().storagePath;
+    const hasStorageKey = Object.prototype.hasOwnProperty.call(opts ?? {}, "storageKey");
+    const hasStoragePath = Object.prototype.hasOwnProperty.call(opts ?? {}, "storagePath");
+    const nextStorageKey = hasStorageKey ? opts?.storageKey ?? null : get().storageKey ?? bundle.project.id;
+    const nextStoragePath = hasStoragePath ? opts?.storagePath ?? null : get().storagePath;
     const nextStorageTrust = opts?.storageTrust ?? bundle.projectSettings.storageTrust ?? get().storageTrust;
     set({
       bundle: withRuntimeStorageTrust(bundle, nextStorageTrust),
       storageKey: nextStorageKey,
       storagePath: nextStoragePath,
       storageTrust: nextStorageTrust,
-      isDirty: false
+      isDirty: !nextStorageKey,
+      saveStatus: nextStorageKey ? "saved" : "idle",
+      lastSavedAt: null,
+      saveError: null
     });
     if (nextStorageKey) {
       saveProjectSession({
@@ -95,6 +110,8 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
         storagePath: nextStoragePath,
         storageTrust: nextStorageTrust
       });
+    } else {
+      saveProjectSession(null);
     }
   },
   applyCommand: (payload, source = "ui", actorId = null) => {
@@ -102,9 +119,10 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
     if (!cur) throw new Error("No project loaded");
     const env: CommandEnvelope = envelopeFor(payload, source, actorId);
     const r = dispatchCommand(cur, env);
-    set({ bundle: r.bundle, isDirty: true, lastSource: source });
+    set({ bundle: r.bundle, isDirty: true, saveStatus: "idle", saveError: null, lastSource: source });
     return r;
   },
+  markSaving: () => set({ saveStatus: "saving", saveError: null }),
   markSaved: (storageKey, storagePath, trust) => {
     const current = get().bundle;
     set({
@@ -112,18 +130,31 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
       storageKey,
       storagePath,
       storageTrust: trust,
-      isDirty: false
+      isDirty: false,
+      saveStatus: "saved",
+      lastSavedAt: new Date().toISOString(),
+      saveError: null
     });
     saveProjectSession({ storageKey, storagePath, storageTrust: trust });
   },
-  markUnsaved: () => set({ isDirty: true }),
+  markSaveFailed: (message) => set({ saveStatus: "error", saveError: message }),
+  markUnsaved: () => set({ isDirty: true, saveStatus: "idle", saveError: null }),
   serialize: () => {
     const b = get().bundle;
     if (!b) throw new Error("No project loaded");
     return exportProjectJson(b);
   },
   closeProject: () => {
-    set({ bundle: null, storageKey: null, storagePath: null, storageTrust: "unsaved", isDirty: false });
+    set({
+      bundle: null,
+      storageKey: null,
+      storagePath: null,
+      storageTrust: "unsaved",
+      isDirty: false,
+      saveStatus: "idle",
+      lastSavedAt: null,
+      saveError: null
+    });
     saveProjectSession(null);
   }
 }));
@@ -144,7 +175,7 @@ export async function restoreLastProjectSession(): Promise<boolean> {
     const imported = importProjectJson(loaded.json);
     validateProjectBundle(imported.bundle);
     useProjectStore.getState().setBundle(imported.bundle, {
-      storageKey: imported.bundle.project.id,
+      storageKey: loaded.metadata.key,
       storagePath: loaded.metadata.displayPath,
       storageTrust: loaded.metadata.trust
     });

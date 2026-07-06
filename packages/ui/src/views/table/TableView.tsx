@@ -16,11 +16,13 @@ import {
   CheckboxField,
   DataTable,
   EmptyState,
+  HelpTip,
   InlineAlert,
   MetadataBadge,
   SelectField,
   TextField,
   ViewToolbar,
+  useToast,
   type DataTableColumn
 } from "../../components";
 import { openCreateItem } from "../../commands/palette-bus";
@@ -105,6 +107,7 @@ export function TableView({ view }: { view?: TableViewDef }) {
   const [bulkStatusId, setBulkStatusId] = useState("");
   const [bulkPriorityId, setBulkPriorityId] = useState("__no-change");
   const [bulkAssigneeId, setBulkAssigneeId] = useState("__no-change");
+  const { notify } = useToast();
 
   useEffect(() => {
     const nextSort = view?.sort ?? DEFAULT_TABLE_SORT;
@@ -174,6 +177,7 @@ export function TableView({ view }: { view?: TableViewDef }) {
   const selectedLiveItems = selectedIds
     .map((id) => liveItemById.get(id))
     .filter((item): item is WorkItem => Boolean(item));
+  const hiddenSelectedCount = selectedLiveItems.length - selectedVisibleIds.length;
   const selectionLabel = selectedLiveItems.length > 0
     ? selectedVisibleIds.length === selectedLiveItems.length
       ? `${selectedLiveItems.length} selected`
@@ -223,6 +227,10 @@ export function TableView({ view }: { view?: TableViewDef }) {
     setBulkAssigneeId("__no-change");
   };
 
+  const clearHiddenSelection = () => {
+    setSelectedIds((current) => current.filter((id) => visibleRowIdSet.has(id)));
+  };
+
   const applyBulkChanges = () => {
     const patch: Record<string, unknown> = {};
     if (bulkStatusId) patch.statusId = bulkStatusId;
@@ -243,7 +251,9 @@ export function TableView({ view }: { view?: TableViewDef }) {
     for (const item of selectedLiveItems) {
       updateItem(item, patch);
     }
-    setViewMessage(`Updated ${selectedLiveItems.length} ${selectedLiveItems.length === 1 ? "item" : "items"}.`);
+    const message = `Updated ${selectedLiveItems.length} ${selectedLiveItems.length === 1 ? "item" : "items"}.`;
+    setViewMessage(message);
+    notify({ tone: "success", message });
     clearBulkSelection();
   };
 
@@ -563,6 +573,14 @@ export function TableView({ view }: { view?: TableViewDef }) {
           />
           <span>{selectionLabel}</span>
         </label>
+        <HelpTip label="Bulk table selection">
+          Bulk actions apply to every selected live item, including selected rows currently hidden by filters. Clear hidden selection if you only want visible rows.
+        </HelpTip>
+        {hiddenSelectedCount > 0 ? (
+          <Button size="sm" variant="ghost" onClick={clearHiddenSelection}>
+            Clear {hiddenSelectedCount} hidden
+          </Button>
+        ) : null}
         <SelectField
           label="Bulk status"
           value={bulkStatusId}
@@ -597,6 +615,9 @@ export function TableView({ view }: { view?: TableViewDef }) {
           Apply bulk changes
         </Button>
         <Button size="sm" variant="ghost" onClick={clearBulkSelection}>Clear selection</Button>
+        <span className="table-bulk-live text-xs text-muted" role="status" aria-live="polite">
+          {hiddenSelectedCount > 0 ? `${hiddenSelectedCount} selected item${hiddenSelectedCount === 1 ? "" : "s"} hidden by filters.` : ""}
+        </span>
       </div>
       <div className="table-column-picker" aria-label="Column visibility">
         {BASE_TABLE_COLUMNS.map((columnId) => (
@@ -608,6 +629,14 @@ export function TableView({ view }: { view?: TableViewDef }) {
           />
         ))}
       </div>
+      {rows.length >= 100 ? (
+        <div className="view-hint">
+          <InlineAlert tone="info">
+            <strong>Large table view</strong>
+            <span> Showing {rows.length} rows. Use filters or saved views to keep edits fast and easier to scan.</span>
+          </InlineAlert>
+        </div>
+      ) : null}
       <div className="table-wrap">
         <DataTable
           label="Work items table"

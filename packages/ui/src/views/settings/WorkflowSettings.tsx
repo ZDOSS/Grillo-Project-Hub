@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { PriorityDefinition, StatusDefinition, WorkItemTypeDefinition } from "@gph/core";
+import { HelpTip } from "../../components";
 import { useProjectStore } from "../../store/project-store";
 import { ColorSelect, EditIcon, SettingsPanelHeader, SettingsSectionCard } from "./settings-shared";
 
@@ -119,7 +120,14 @@ export function WorkflowSettings() {
 
       <SettingsSectionCard
         title="Work item types"
-        description="Types carry default status and priority choices into item creation flows."
+        description={(
+          <>
+            Types carry default status and priority choices into item creation flows.
+            <HelpTip label="Type defaults">
+              Defaults are used by create buttons before a view-specific filter overrides them, which keeps board/backlog/table creation predictable.
+            </HelpTip>
+          </>
+        )}
       >
         <div className="settings-grid settings-grid-add settings-grid-type-add">
           <input className="input" placeholder="Type name" value={typeName} onChange={(event) => setTypeName(event.target.value)} />

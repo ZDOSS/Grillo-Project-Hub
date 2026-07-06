@@ -151,4 +151,26 @@ describe("RoadmapView", () => {
       dueDate: null
     });
   });
+
+  it("shows a density hint when the roadmap has many dated items", () => {
+    const bundle = buildProjectFromTemplate("software-project", "Large Roadmap");
+    useProjectStore.setState({ bundle });
+    const apply = useProjectStore.getState().applyCommand;
+    for (let index = 0; index < 90; index += 1) {
+      apply({
+        type: "item.create",
+        projectId: bundle.project.id,
+        typeId: "task",
+        title: `Large roadmap item ${index + 1}`,
+        statusId: "ready",
+        startDate: "2026-07-01",
+        dueDate: "2026-07-05"
+      });
+    }
+
+    render(<MemoryRouter><RoadmapView /></MemoryRouter>);
+
+    expect(screen.getByText("Large roadmap view")).toBeInTheDocument();
+    expect(screen.getByText(/zoom and milestone lanes/i)).toBeInTheDocument();
+  });
 });

@@ -80,6 +80,10 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - `InMemoryProjectStore` is available for tests
 - external change detection uses the adapter's `externalRevision` counter and `WatchEvent` notifications
 - trust status is surfaced in the UI as a `Folder-backed` / `Browser-local` / `Unsaved` badge
+- the active UI store now tracks `saveStatus`, `lastSavedAt`, and `saveError` separately from `isDirty`; auto-save bridges call `markSaving()`, `markSaved()`, or `markSaveFailed()` so the header can report `Saved to folder/browser`, `Saving`, `Unsaved changes`, or `Save failed` without inferring that state from storage trust alone
+- `AppShell` now consumes adapter `watch()` events for the active project and shows an explicit external-change banner with `Reload from storage` and `Keep my changes`; reloading validates the bundle before replacing the store, rename events carry `event.newKey` through the reload path so the app does not keep saving to a stale file key, and keeping local changes marks the project dirty so auto-save can intentionally overwrite on the next save cycle
+- the shared shell wraps routes in `ToastProvider`; route code should use `useToast()` for short-lived feedback and keep blocking or recoverable errors in `InlineAlert`
+- the web shell now surfaces offline status and a captured `beforeinstallprompt` install action in the header, and emits one lightweight due-item/reminder notification per project/day/count combination
 - desktop storage now only writes to the filesystem when a folder path has actually been attached; otherwise the desktop shell behaves as browser-local storage on purpose instead of pretending to be folder-backed
 - recent-project reopen uses the active adapter's `load()` path rather than forcing JSON import; desktop recents restore the remembered folder path before loading
 - new project creation now saves through the active adapter before navigation, so folder-backed creates produce the initial `.pm-suite/<project-id>.pms.json` immediately instead of waiting for a later dirty auto-save
@@ -90,9 +94,10 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - the active project session is now persisted in `localStorage` (`gph.active.project`) and restored on startup through `restoreLastProjectSession()`, so reloads in both web and desktop shells reopen the last project instead of dropping the user into an empty shell
 - session restore now treats corrupt or invalid persisted bundles as stale state: failed import/validation clears `gph.active.project` instead of bubbling an unhandled rejection through the startup hook
 - session restore treats folder-backed active sessions as folder-backed only when the adapter exposes `loadFolderProject()`: if that folder-aware loader is missing or cannot read the project, it clears the active session and returns to the launcher/recent-project reconnect path instead of silently opening the browser-local recovery copy as browser mode
+- session restore and conflict reload treat adapter metadata as authoritative for the active storage key/path/trust; loaded metadata can replace the previous session key, which matters for renamed files and future alias-style adapters
 - the web runtime now installs the same `WebLocalStorageAdapter` instance into both `window.__gph_store` and `WebStorageAdapter.adapter`, preventing auto-save and startup restore from drifting onto different adapter instances if adapter-local state is added later
 - the desktop runtime now installs the same `DesktopStorageAdapter.adapter` instance into `window.__gph_store`; folder-backed desktop saves/loads/existence checks/deletes call `save_project`, `load_project`, `project_exists`, and `delete_project`
-- `useProjectStore.setBundle()` and `markSaved()` normalize `bundle.projectSettings.storageTrust` to the runtime storage trust, so overview/settings/header storage surfaces do not keep showing browser-local after a folder save or open
+- `useProjectStore.setBundle()` and `markSaved()` normalize `bundle.projectSettings.storageTrust` to the runtime storage trust, so overview/settings/header storage surfaces do not keep showing browser-local after a folder save or open; `setBundle({ storageKey: null })` is an explicit unsaved import/replace signal that clears the persisted active session instead of reusing the previous project key
 - folder/open/session paths treat adapter metadata as the source of truth for storage trust; this intentionally overrides stale `projectSettings.storageTrust` values inside older `.pms.json` files so folder-backed projects do not continue to display as browser-local after a direct folder open
 - PWA folder-backed saves write the `.pms.json` file and keep a browser-local recovery copy; after reload without an active folder handle or permission, plain `load()` returns that recovery copy as browser-local until the user reselects the folder
 - PWA folder-backed recent reopen is intentionally different from plain `load()`: `ProjectsListView` prompts/reconnects the browser folder picker, then uses `loadFolderProject()`; if a restored folder label produces a null folder load, the launcher prompts once more to refresh access, browser recovery fallback is only allowed when that reconnect is cancelled/rejected/unavailable, and a selected folder that lacks the recorded `.pms.json` must show the reconnect message for that `.pm-suite` path instead of silently opening stale browser recovery
@@ -573,6 +578,23 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - adding the missing table-level New item action so table users do not have to leave the surface to create matching work
   - hardening the command-palette keyboard regression to wait for the palette focus effect before asserting `aria-activedescendant` movement in the full parallel UI suite
   - adding focused regressions for folder-session restore, create-dialog milestone defaults, and board/backlog/table filter-aware creation
+- continued the product-confidence and discoverability polish pass by:
+  - adding shared `ToastProvider`/`useToast()` and `HelpTip` primitives under `packages/ui/src/components/feedback/`
+  - upgrading the app header from a coarse storage badge to a real save-state indicator backed by `useProjectStore` save status, last-save time, dirty state, and save failures
+  - wiring web and desktop auto-save bridges to surface saving and failure states instead of only logging failed saves
+  - consuming adapter watch events in `AppShell` to show a user-facing external-change resolution banner with reload/keep-local actions
+  - adding offline and install affordances to the web shell and a one-per-day/count due item/reminder toast
+  - replacing the launcher template select with template preview cards, richer first-project empty-state CTAs, and contextual storage/template help without changing the underlying create/open paths
+  - upgrading import/export settings with action cards, import/export summaries, clean print preview, FileReader fallback for uploaded bundles, and toast feedback
+  - adding contextual help around automation rules, custom fields, type defaults, storage trust, table bulk selection, and item relationships
+  - tightening table bulk feedback with toast/live-region support, hidden-selection clearing, and large-table hints; board and roadmap now show matching large-surface performance hints
+  - fixing the bug-tracker starter template so non-bug item types no longer retain invalid `inbox` defaults after the template swaps to bug-specific workflow statuses
+  - adding focused regressions for save/conflict/offline/install header state, template previews, import/export summaries, bulk/large-surface feedback, and the bug-tracker template validity guard
+- addressed the Greptile storage-state follow-up on the product-confidence PR by:
+  - preserving watcher `renamed` event `newKey` through `AppShell` reload so renamed folder files reopen under the new key
+  - making explicit `storageKey: null` in `useProjectStore.setBundle()` clear active-session persistence and show the imported bundle as unsaved instead of reusing the prior folder/browser key
+  - preserving adapter metadata keys during startup restore, matching conflict reload and folder-open behavior
+  - adding focused regressions in `AppShell.test.tsx` and `project-session.test.tsx` for rename reload and unsaved import/session clearing
 
 ## Open follow-on planning
 

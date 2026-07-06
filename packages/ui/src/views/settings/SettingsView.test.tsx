@@ -2,7 +2,7 @@ import { cleanup, render, screen, waitFor, within } from "@testing-library/react
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { MemoryRouter } from "react-router-dom";
-import { buildProjectFromTemplate } from "@gph/core";
+import { buildProjectFromTemplate, exportProjectJson } from "@gph/core";
 import { useProjectStore } from "../../store/project-store";
 import { ThemeProvider } from "../../theme/theme-provider";
 import { SettingsView } from "./SettingsView";
@@ -260,5 +260,30 @@ describe("SettingsView", () => {
     expect(bridgePanel).not.toHaveTextContent("@gph/bridge");
     expect(bridgePanel).not.toHaveTextContent("placeholder");
     expect(bridgePanel).not.toHaveTextContent("Paste the snippet");
+  });
+
+  it("summarizes import and export actions in the import/export panel", async () => {
+    render(
+      <ThemeProvider>
+        <MemoryRouter>
+          <SettingsView />
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    await userEvent.click(screen.getByRole("tab", { name: "Import & export" }));
+    const panel = screen.getByRole("tabpanel", { name: "Import & export" });
+
+    expect(within(panel).getByText("Portable JSON bundle")).toBeInTheDocument();
+    expect(within(panel).getByText("Clean print preview")).toBeInTheDocument();
+
+    const incoming = buildProjectFromTemplate("bug-tracker", "Imported Bug Tracker");
+    const file = new File([exportProjectJson(incoming)], "project.pms.json", { type: "application/json" });
+    await userEvent.upload(within(panel).getByLabelText("Import project bundle"), file);
+
+    await waitFor(() => {
+      expect(within(panel).getByText(/Imported Bug Tracker/i)).toBeInTheDocument();
+    });
+    expect(useProjectStore.getState().bundle?.project.name).toBe("Imported Bug Tracker");
   });
 });

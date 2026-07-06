@@ -287,4 +287,24 @@ describe("TableView", () => {
     expect(updated).toHaveLength(2);
     expect(updated.every((item) => item.statusId === "ready")).toBe(true);
   });
+
+  it("warns users when the visible table is large enough to need filtering", () => {
+    const bundle = buildProjectFromTemplate("simple-kanban", "Large Table");
+    useProjectStore.setState({ bundle });
+    const apply = useProjectStore.getState().applyCommand;
+    for (let index = 0; index < 105; index += 1) {
+      apply({
+        type: "item.create",
+        projectId: bundle.project.id,
+        typeId: "task",
+        title: `Large table item ${index + 1}`,
+        statusId: "ready"
+      });
+    }
+
+    render(<MemoryRouter><TableView /></MemoryRouter>);
+
+    expect(screen.getByText("Large table view")).toBeInTheDocument();
+    expect(screen.getByText(/filters or saved views/i)).toBeInTheDocument();
+  });
 });
