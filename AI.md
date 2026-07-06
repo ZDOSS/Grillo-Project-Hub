@@ -4,7 +4,7 @@ This file is the standing architecture and contributor-alignment ledger for the 
 
 ## Project state
 
-The repository now has a working MVP implementation that matches the planning in `docs/FullSpec.md`. The shared core, hybrid web/desktop shells, validated command surface, board/backlog/table/docs/roadmap/calendar/bugs/my work/search/settings views, PWA install, and desktop shell are wired up and tested.
+The repository now has a working MVP implementation that matches the planning in `docs/FullSpec.md`. The shared core, hybrid web/desktop shells, validated command surface, board/backlog/table/docs/roadmap/calendar/bugs/my work/search/settings views, local/self-hosted PWA install behavior, hosted-demo distribution mode, and desktop shell are wired up and tested.
 
 The product name is **Grillo Project Hub**, with **GPH** as the approved abbreviation.
 
@@ -26,7 +26,7 @@ The product name is **Grillo Project Hub**, with **GPH** as the approved abbrevi
 ```
 package.json                 # npm workspace
 tsconfig.base.json           # shared TS config
-apps/web                     # hosted PWA target (Vite + PWA plugin)
+apps/web                     # hosted demo and local web/PWA target (Vite + PWA plugin)
 apps/desktop                 # Tauri desktop shell (Vite + Rust commands)
 packages/core                # domain model, storage, commands, export/import, search, templates
 packages/ui                  # shared React components, views, theme, command palette
@@ -84,7 +84,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - `AppShell` now consumes adapter `watch()` events for the active project and shows an explicit external-change banner with `Reload from storage` and `Keep my changes`; reloading validates the bundle before replacing the store, rename events carry `event.newKey` through the reload path so the app does not keep saving to a stale file key, and keeping local changes marks the project dirty so auto-save can intentionally overwrite on the next save cycle
 - the shared shell wraps routes in `ToastProvider`; route code should use `useToast()` for short-lived feedback and keep blocking or recoverable errors in `InlineAlert`
 - the shared shell exposes explicit project actions next to the save-state indicator: `Save now` / `Retry save` routes through the active `ProjectStoreAdapter.save()` plus `markSaving()` / `markSaved()` / `markSaveFailed()`, records a launcher recent from successful browser/folder save metadata, `Switch project` navigates to `/projects`, and `Close project` returns to the launcher immediately only for clean saved projects; dirty projects and unsaved in-memory imports/demos must confirm `Close without saving` before `closeProject()` runs
-- the web shell now surfaces offline status and a captured `beforeinstallprompt` install action in the header, and emits one lightweight due-item/reminder notification per project/day/count combination
+- the web shell now surfaces offline status and emits one lightweight due-item/reminder notification per project/day/count combination; local/self-hosted web builds capture `beforeinstallprompt` and show `Install app`, while hosted-demo builds suppress that install prompt and show a `Run locally` GitHub setup CTA instead
 - desktop storage now only writes to the filesystem when a folder path has actually been attached; otherwise the desktop shell behaves as browser-local storage on purpose instead of pretending to be folder-backed
 - recent-project reopen uses the active adapter's `load()` path rather than forcing JSON import; desktop recents restore the remembered folder path before loading
 - new project creation now saves through the active adapter before navigation, so folder-backed creates produce the initial `.pm-suite/<project-id>.pms.json` immediately instead of waiting for a later dirty auto-save
@@ -140,10 +140,12 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 
 - both apps import the same `@gph/ui` AppShell, views, and command palette
 - project navigation metadata now lives in shared `packages/ui/src/nav-config.ts`, so AppShell navigation and Settings left-panel visibility both derive from one source of truth
-- the web app uses `@vitejs/plugin-pwa` for install/offline; the desktop app uses the Tauri runtime
+- the web app uses `@vitejs/plugin-pwa` for offline/local install support; the desktop app uses the Tauri runtime
 - the web app's storage adapter supports both browser-local saves and optional local-folder saves via the browser file-system picker when the runtime exposes that capability; the desktop adapter talks to a Rust filesystem command
 - in development, both apps run in the browser; the desktop app's storage adapter falls back to localStorage when `__TAURI__` is absent
-- the AppShell accepts an `appMode: "web" | "desktop"` prop for platform-specific header sizing
+- the AppShell accepts an `appMode: "web" | "desktop"` prop for platform-specific header sizing plus `appDistribution: "local" | "hosted-demo"` for distribution-specific header calls to action
+- `apps/web/src/distribution.ts` derives hosted-demo mode from the GitHub Pages base path `/Grillo-Project-Hub/`, from `VITE_GITHUB_PAGES=true`, or from an explicit `VITE_GPH_DISTRIBUTION=hosted-demo`; `VITE_GPH_DISTRIBUTION=local` is the override for self-hosted builds that use the Pages base path but should still offer local PWA install
+- hosted-demo mode must point users to the GitHub README `#run-locally` instructions rather than making the Pages sample look like the primary product install path; keep MCP/bridge language careful because the bridge runtime is not shipped yet
 - the shared workspace launcher now explains the real storage story per platform:
   - web/PWA: browser-local projects by default, optional local-folder saves when supported, plus JSON import/export
   - desktop: browser-local by default, optional manual folder path for new projects, and folder scanning/open for existing `.pm-suite` saves
@@ -635,13 +637,19 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - increasing board columns from a hard-coded 296px to the shared normal lane width
   - making Bug triage lanes use a wider minimum and horizontal overflow instead of compressing all three buckets into the available viewport
   - adding a CSS contract test for lane minimums and overflow behavior
+- clarified hosted-demo distribution and local setup by:
+  - adding `appDistribution` to `AppShell` so hosted GitHub Pages builds show a `Run locally` GitHub CTA instead of the browser `Install app` PWA prompt
+  - adding `apps/web/src/distribution.ts` to derive local vs hosted-demo mode from the Pages base path, `VITE_GITHUB_PAGES`, or an explicit `VITE_GPH_DISTRIBUTION` override
+  - keeping PWA install support available for local/self-hosted web builds where the browser emits `beforeinstallprompt`
+  - rewriting `Readme.md` around the real setup story: local-first use, hosted demo limitations, storage model, development commands, deployment, testing, and future release positioning
+  - adding focused AppShell and web distribution regressions so the hosted demo cannot quietly return to the misleading install CTA
 
 ## Open follow-on planning
 
 - UI/UX overhaul planning lives in `docs/superpowers/specs/2026-07-02-ui-ux-overhaul-design.md`, `docs/superpowers/plans/2026-07-02-ui-ux-overhaul-implementation-plan.md`, and the new `docs/plans/July 2026 plan.md`; the first implementation pass is now in code, and the July plan is the active priority order for deeper product-depth, workflow, and surface-by-surface improvements
 - a deeper roadmap interaction plan (multi-day bars, dependencies, swimlanes)
 - a security-first plugin runtime plan before any third-party plugin execution
-- a public-internet hosting plan (currently out of MVP scope; only trusted internal hosting is supported)
+- a public-internet hosting plan (currently out of MVP scope; GitHub Pages is a static hosted demo, and real work remains local/self-hosted until a richer trusted hosting story exists)
 - a sync-backend plan if richer collaboration is pursued
 
 The current `docs/FullSpec.md`, `docs/plans/2026-06-10-hybrid-day-one-implementation-plan.md`, and UI/UX overhaul planning package remain the product source of truth. The implementation in this repository implements the MVP slice of the original plan and now includes the first working UI/UX overhaul slice with shared primitives and migrated route surfaces.

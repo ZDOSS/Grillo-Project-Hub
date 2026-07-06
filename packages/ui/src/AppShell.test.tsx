@@ -659,4 +659,34 @@ describe("AppShell", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Install app" }));
     expect(prompt).toHaveBeenCalledOnce();
   });
+
+  it("replaces the install prompt with local setup guidance for hosted demos", () => {
+    const preventDefault = vi.fn();
+    const prompt = vi.fn(async () => undefined);
+
+    render(
+      <ThemeProvider>
+        <MemoryRouter initialEntries={["/projects"]}>
+          <AppShell appMode="web" appDistribution="hosted-demo">
+            <div>content</div>
+          </AppShell>
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    act(() => {
+      window.dispatchEvent(Object.assign(new Event("beforeinstallprompt"), {
+        preventDefault,
+        prompt,
+        userChoice: Promise.resolve({ outcome: "accepted" })
+      }));
+    });
+
+    expect(screen.queryByRole("button", { name: "Install app" })).not.toBeInTheDocument();
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(screen.getByRole("link", { name: "Run locally" })).toHaveAttribute(
+      "href",
+      "https://github.com/ZDOSS/Grillo-Project-Hub#run-locally"
+    );
+  });
 });
