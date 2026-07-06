@@ -114,6 +114,14 @@ export function RoadmapView() {
         </span>
         {rangeError ? <InlineAlert tone="danger">{rangeError}</InlineAlert> : null}
       </ViewToolbar>
+      {items.length >= 80 ? (
+        <div className="view-hint">
+          <InlineAlert tone="info">
+            <strong>Large roadmap view</strong>
+            <span> Showing {items.length} dated items. Use zoom and milestone lanes to focus planning changes.</span>
+          </InlineAlert>
+        </div>
+      ) : null}
       <div className="roadmap-grid" style={{ gridTemplateColumns: `220px repeat(${months}, 1fr)` }}>
         <div className="roadmap-row-lane">Item</div>
         {monthStarts.map((m) => (

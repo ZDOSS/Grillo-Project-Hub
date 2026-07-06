@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { HelpTip } from "../../components";
 import { useProjectStore } from "../../store/project-store";
 import { SettingsPanelHeader } from "./settings-shared";
 
@@ -17,7 +18,14 @@ export function CustomFieldsSettings() {
     <div className="settings-panel-stack">
       <SettingsPanelHeader
         title="Custom fields"
-        description="Define work metadata fields. Applicable fields are edited in item detail and can surface in table/backlog views."
+        description={(
+          <>
+            Define work metadata fields. Applicable fields are edited in item detail and can surface in table/backlog views.
+            <HelpTip label="Custom fields">
+              Keep fields specific and typed. Select and multi-select fields work best when teams need consistent reporting values.
+            </HelpTip>
+          </>
+        )}
       />
       <div className="row settings-inline-form">
         <input className="input" placeholder="Field name" value={name} onChange={(event) => setName(event.target.value)} />

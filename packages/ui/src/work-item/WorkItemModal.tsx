@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useProjectStore } from "../store/project-store";
 import { getBugData, setBugData, type WorkItem, type BugItemData, type Relationship, type Attachment, type Reminder } from "@gph/core";
-import { ConfirmDialog, InlineAlert, Modal } from "../components";
+import { ConfirmDialog, HelpTip, InlineAlert, Modal } from "../components";
 import { AttachmentPanel } from "./AttachmentPanel";
 import { CustomFieldsPanel } from "./CustomFieldsPanel";
 import { formatActivityEvent } from "./activity";
@@ -425,7 +425,12 @@ export function WorkItemModal() {
 
             {hasCustomFields ? (
               <div className="item-detail-section">
-                <h3>Custom fields</h3>
+                <div className="item-detail-section-heading">
+                  <h3>Custom fields</h3>
+                  <HelpTip label="Item custom fields">
+                    Only fields applicable to this item type are editable here. Hidden values are preserved if the item type changes later.
+                  </HelpTip>
+                </div>
                 <CustomFieldsPanel
                   fields={bundle.core.customFields}
                   item={item}
@@ -637,7 +642,12 @@ export function WorkItemModal() {
             </div>
 
             <div className="item-detail-section">
-              <h3>Relationships</h3>
+              <div className="item-detail-section-heading">
+                <h3>Relationships</h3>
+                <HelpTip label="Item relationships">
+                  Blocks and blocked-by affect dependency indicators. Related links are informational and do not create scheduling rules.
+                </HelpTip>
+              </div>
               <div className="relationship-layout">
                 <div className="relationship-groups">
                   <RelationshipGroup

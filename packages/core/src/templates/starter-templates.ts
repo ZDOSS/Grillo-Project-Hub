@@ -164,6 +164,8 @@ function buildBugTracker(name: string): ProjectBundle {
       itemTypes: bundle.core.itemTypes.map((type) => (
         type.id === "bug"
           ? { ...type, defaultStatusId: "new" }
+          : type.defaultStatusId === "inbox"
+          ? { ...type, defaultStatusId: "new" }
           : type
       )),
       items: [sample]

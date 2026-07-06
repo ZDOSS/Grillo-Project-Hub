@@ -11,10 +11,30 @@ import {
   type StorageTrust,
   type TemplateId
 } from "@gph/core";
+import { EmptyState, HelpTip } from "../../components";
 import { useProjectStore } from "../../store/project-store";
 import { useWorkspaceStore, type RecentProject } from "../../store/workspace-store";
 
 const DESKTOP_FOLDER_KEY = "gph.desktop.folder";
+
+const TEMPLATE_PREVIEWS: Record<TemplateId, { included: string[]; bestFor: string }> = {
+  "bug-tracker": {
+    bestFor: "Intake-heavy products that need severity, repro steps, and verification lanes.",
+    included: ["severity workflow", "bug triage board", "reproduction fields"]
+  },
+  "release-planner": {
+    bestFor: "Milestone-led teams that need roadmap, docs, and clean release checkpoints.",
+    included: ["milestones", "release docs", "roadmap planning"]
+  },
+  "simple-kanban": {
+    bestFor: "Small projects that need a quiet three-column board without extra process.",
+    included: ["three-column board", "starter tasks", "minimal sidebar"]
+  },
+  "software-project": {
+    bestFor: "Product and engineering work that needs board, backlog, table, bugs, docs, and roadmap.",
+    included: ["planning views", "sample docs", "milestones"]
+  }
+};
 
 type TauriLike = {
   invoke: (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
@@ -192,6 +212,9 @@ export function ProjectsListView() {
   const recordRecent = useWorkspaceStore((s) => s.recordRecent);
   const desktopRuntime = useMemo(() => isDesktopRuntime(), []);
   const browserFolderCapable = !desktopRuntime && Boolean(adapter?.chooseFolder);
+  const templates = useMemo(() => listTemplates(), []);
+  const selectedTemplate = templates.find((template) => template.id === templateId) ?? templates[0];
+  const selectedTemplatePreview = TEMPLATE_PREVIEWS[templateId];
 
   useEffect(() => {
     if (recents.length === 0) setShowNew(true);
@@ -347,10 +370,19 @@ export function ProjectsListView() {
             <span className="text-xs text-muted">{recents.length} recent</span>
           </div>
           {recents.length === 0 ? (
-            <div className="empty" style={{ minHeight: 180 }}>
-              <div className="empty-title">Nothing saved yet</div>
-              <div>{desktopRuntime ? "Create a new project or open a folder-backed one to start building your recent list." : "Create a project in browser storage or import a bundle to start working."}</div>
-            </div>
+            <EmptyState
+              title="Create your first project"
+              description={desktopRuntime
+                ? "Start with a template, connect a folder when you want real project files, or open an existing bundle."
+                : "Start with a template, choose a local folder when the browser allows it, or import a portable bundle."}
+              actions={(
+                <div className="row" style={{ justifyContent: "center", flexWrap: "wrap" }}>
+                  <button className="btn btn-primary" type="button" onClick={() => setShowNew(true)}>New project</button>
+                  <Link className="btn" to="/open">Open / import</Link>
+                  <Link className="btn btn-ghost" to="/demo">Demo</Link>
+                </div>
+              )}
+            />
           ) : (
             <div className="col" style={{ gap: 10 }}>
               {recents.map((r) => (
@@ -440,12 +472,38 @@ export function ProjectsListView() {
                   Name
                   <input className="input" value={newName} onChange={(e) => setNewName(e.target.value)} autoFocus />
                 </label>
-                <label className="label label-row">
-                  Template
-                  <select className="select" value={templateId} onChange={(e) => setTemplateId(e.target.value as TemplateId)}>
-                    {listTemplates().map((t) => <option key={t.id} value={t.id}>{t.name} — {t.description}</option>)}
-                  </select>
-                </label>
+                <div className="label">
+                  <span className="row" style={{ alignItems: "center" }}>
+                    Template
+                    <HelpTip label="Project templates">
+                      Templates only shape the starting views, sample data, and defaults. You can change statuses, types, fields, and views later.
+                    </HelpTip>
+                  </span>
+                  <div className="template-preview-grid" role="list" aria-label="Project templates">
+                    {templates.map((template) => {
+                      const preview = TEMPLATE_PREVIEWS[template.id];
+                      return (
+                        <button
+                          aria-label={`${template.name} template`}
+                          aria-pressed={template.id === templateId}
+                          className="template-preview-card"
+                          data-selected={template.id === templateId}
+                          key={template.id}
+                          onClick={() => setTemplateId(template.id)}
+                          type="button"
+                        >
+                          <strong>{template.name} template</strong>
+                          <span>{template.description}</span>
+                          <span className="text-xs text-muted">Best for: {preview.bestFor}</span>
+                          <span className="text-xs">Included: {preview.included.join(", ")}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="workspace-inline-note">
+                    <strong>{selectedTemplate.name}</strong>: {selectedTemplatePreview.bestFor}
+                  </div>
+                </div>
                 {desktopRuntime ? (
                   <label className="label">
                     Local folder path (optional)

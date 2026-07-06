@@ -1,8 +1,8 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
-import { buildProjectFromTemplate } from "@gph/core";
+import { buildProjectFromTemplate, exportProjectJson, type ProjectStoreAdapter, type WatchEvent } from "@gph/core";
 import { AppShell } from "./AppShell";
 import { ThemeProvider } from "./theme/theme-provider";
 import { useProjectStore } from "./store/project-store";
@@ -15,7 +15,19 @@ function LocationProbe() {
 describe("AppShell", () => {
   beforeEach(() => {
     cleanup();
-    useProjectStore.setState({ bundle: null });
+    vi.restoreAllMocks();
+    useProjectStore.setState({
+      bundle: null,
+      storageKey: null,
+      storagePath: null,
+      storageTrust: "unsaved",
+      isDirty: false,
+      lastSource: null,
+      saveStatus: "idle",
+      lastSavedAt: null,
+      saveError: null
+    });
+    delete (window as typeof window & { __gph_store?: unknown }).__gph_store;
   });
 
   it("renders the shared product frame", () => {
@@ -180,5 +192,169 @@ describe("AppShell", () => {
     } finally {
       window.removeEventListener("keydown", underlyingOverlayClose);
     }
+  });
+
+  it("shows save destination, last save time, and unsaved state in the header", async () => {
+    const bundle = buildProjectFromTemplate("software-project", "Saved Project");
+    useProjectStore.setState({
+      bundle: {
+        ...bundle,
+        projectSettings: { ...bundle.projectSettings, storageTrust: "folder" }
+      },
+      storageKey: bundle.project.id,
+      storagePath: `Client/.pm-suite/${bundle.project.id}.pms.json`,
+      storageTrust: "folder",
+      isDirty: false,
+      saveStatus: "saved",
+      lastSavedAt: new Date().toISOString(),
+      saveError: null
+    });
+
+    const { rerender } = render(
+      <ThemeProvider>
+        <MemoryRouter initialEntries={["/overview"]}>
+          <AppShell appMode="web">
+            <div>content</div>
+          </AppShell>
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    expect(screen.getByRole("status", { name: /saved to folder - just now/i })).toBeInTheDocument();
+
+    useProjectStore.setState({
+      ...useProjectStore.getState(),
+      isDirty: true,
+      saveStatus: "idle"
+    });
+    rerender(
+      <ThemeProvider>
+        <MemoryRouter initialEntries={["/overview"]}>
+          <AppShell appMode="web">
+            <div>content</div>
+          </AppShell>
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    expect(screen.getByRole("status", { name: /unsaved changes to folder/i })).toBeInTheDocument();
+  });
+
+  it("surfaces auto-save failures from the project store", () => {
+    const bundle = buildProjectFromTemplate("software-project", "Save Error Project");
+    useProjectStore.setState({
+      bundle,
+      storageKey: bundle.project.id,
+      storagePath: null,
+      storageTrust: "browser",
+      isDirty: true,
+      saveStatus: "error",
+      saveError: "Disk permission denied"
+    });
+
+    render(
+      <ThemeProvider>
+        <MemoryRouter initialEntries={["/overview"]}>
+          <AppShell appMode="web">
+            <div>content</div>
+          </AppShell>
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    expect(screen.getByRole("status", { name: /save failed/i })).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Disk permission denied");
+  });
+
+  it("offers explicit conflict actions when the active project changes externally", async () => {
+    const bundle = buildProjectFromTemplate("software-project", "Original Project");
+    const reloaded = {
+      ...bundle,
+      project: { ...bundle.project, name: "Reloaded Project" },
+      projectSettings: { ...bundle.projectSettings, storageTrust: "folder" as const }
+    };
+    let watchHandler: ((event: WatchEvent) => void) | null = null;
+    const adapter: ProjectStoreAdapter = {
+      capabilities: { folderBacked: true, fileWatch: true, attachments: true },
+      list: async () => [],
+      has: async () => true,
+      load: async (key) => ({
+        json: exportProjectJson(reloaded),
+        metadata: {
+          key: "folder-alias",
+          displayPath: "Client/.pm-suite/folder-alias.pms.json",
+          externalRevision: 2,
+          trust: "folder"
+        }
+      }),
+      save: async (key) => ({ key, displayPath: null, externalRevision: 1, trust: "browser" }),
+      delete: async () => {},
+      watch: (handler) => {
+        watchHandler = handler;
+        return () => undefined;
+      }
+    };
+    (window as typeof window & { __gph_store?: ProjectStoreAdapter }).__gph_store = adapter;
+    useProjectStore.setState({
+      bundle: {
+        ...bundle,
+        projectSettings: { ...bundle.projectSettings, storageTrust: "folder" }
+      },
+      storageKey: bundle.project.id,
+      storagePath: `Client/.pm-suite/${bundle.project.id}.pms.json`,
+      storageTrust: "folder"
+    });
+
+    render(
+      <ThemeProvider>
+        <MemoryRouter initialEntries={["/overview"]}>
+          <AppShell appMode="web">
+            <div>content</div>
+          </AppShell>
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    act(() => watchHandler?.({ type: "externalChange", key: bundle.project.id, newRevision: 2 }));
+
+    expect(await screen.findByText(/changed outside Grillo/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Reload from storage" }));
+
+    await waitFor(() => {
+      expect(useProjectStore.getState().bundle?.project.name).toBe("Reloaded Project");
+    });
+    expect(useProjectStore.getState().storageKey).toBe("folder-alias");
+    expect(useProjectStore.getState().storagePath).toBe("Client/.pm-suite/folder-alias.pms.json");
+    expect(screen.queryByText(/changed outside Grillo/i)).not.toBeInTheDocument();
+  });
+
+  it("shows offline and install affordances when the browser reports them", async () => {
+    vi.spyOn(window.navigator, "onLine", "get").mockReturnValue(false);
+    const bundle = buildProjectFromTemplate("software-project", "Offline Project");
+    useProjectStore.setState({ bundle, storageKey: bundle.project.id, storageTrust: "browser" });
+
+    render(
+      <ThemeProvider>
+        <MemoryRouter initialEntries={["/overview"]}>
+          <AppShell appMode="web">
+            <div>content</div>
+          </AppShell>
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    expect(screen.getByText("Offline")).toBeInTheDocument();
+
+    const prompt = vi.fn(async () => undefined);
+    act(() => {
+      window.dispatchEvent(Object.assign(new Event("beforeinstallprompt"), {
+        preventDefault: vi.fn(),
+        prompt,
+        userChoice: Promise.resolve({ outcome: "accepted" })
+      }));
+    });
+
+    await userEvent.click(await screen.findByRole("button", { name: "Install app" }));
+    expect(prompt).toHaveBeenCalledOnce();
   });
 });

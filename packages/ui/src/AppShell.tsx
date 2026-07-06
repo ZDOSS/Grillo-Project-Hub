@@ -1,8 +1,9 @@
-import { type MouseEventHandler, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type MouseEventHandler, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bug,
   CalendarDays,
   ChartGantt,
+  Download,
   FileText,
   FolderKanban,
   FolderOpen,
@@ -18,14 +19,16 @@ import {
   Table2,
   Trash2,
   UserRound,
+  WifiOff,
   X
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { importProjectJson, validateProjectBundle, type ProjectStoreAdapter, type WatchEvent } from "@gph/core";
 import { useProjectStore } from "./store/project-store";
 import { useTheme } from "./theme/theme-provider";
 import { CommandPalette, registerCoreCommands } from "./commands/CommandPalette";
 import { openPalette } from "./commands/palette-bus";
-import { Button, IconButton } from "./components";
+import { Button, HelpTip, IconButton, InlineAlert, ToastProvider, useToast } from "./components";
 import { PROJECT_NAV_ITEMS } from "./nav-config";
 import { hasRegisteredSavedRoute, savedViewsForBundle, viewRoute } from "./views/planning/view-helpers";
 
@@ -33,6 +36,22 @@ export type AppShellProps = {
   appMode: "web" | "desktop";
   children: ReactNode;
 };
+
+type InstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice?: Promise<{ outcome: "accepted" | "dismissed" }>;
+};
+
+type ExternalNotice = {
+  error?: string;
+  message: string;
+  revision?: number | null;
+};
+
+function activeAdapter(): ProjectStoreAdapter | null {
+  if (typeof window === "undefined") return null;
+  return ((window as typeof window & { __gph_store?: ProjectStoreAdapter }).__gph_store) ?? null;
+}
 
 // ── Shared shell icons ───────────────────────────────────────────────────────
 
@@ -95,15 +114,39 @@ const SECONDARY = [
 
 // ── Shell ────────────────────────────────────────────────────────────────────
 
-export function AppShell({ appMode, children }: AppShellProps) {
+export function AppShell(props: AppShellProps) {
+  return (
+    <ToastProvider>
+      <AppShellFrame {...props} />
+    </ToastProvider>
+  );
+}
+
+function AppShellFrame({ appMode, children }: AppShellProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const bundle = useProjectStore((s) => s.bundle);
+  const storageKey = useProjectStore((s) => s.storageKey);
+  const storagePath = useProjectStore((s) => s.storagePath);
+  const storageTrust = useProjectStore((s) => s.storageTrust);
+  const isDirty = useProjectStore((s) => s.isDirty);
+  const saveStatus = useProjectStore((s) => s.saveStatus);
+  const lastSavedAt = useProjectStore((s) => s.lastSavedAt);
+  const saveError = useProjectStore((s) => s.saveError);
+  const setBundle = useProjectStore((s) => s.setBundle);
+  const markUnsaved = useProjectStore((s) => s.markUnsaved);
   const { resolved, toggle } = useTheme();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [externalNotice, setExternalNotice] = useState<ExternalNotice | null>(null);
+  const [online, setOnline] = useState(() =>
+    typeof navigator === "undefined" ? true : navigator.onLine !== false
+  );
+  const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
   const mobileNavOpenRef = useRef(false);
   const mobileCloseRef = useRef<HTMLButtonElement>(null);
   const mobileTriggerRef = useRef<HTMLButtonElement>(null);
+  const dueToastKeyRef = useRef<string | null>(null);
+  const { notify } = useToast();
 
   const setMobileNavSheetOpen = (open: boolean) => {
     mobileNavOpenRef.current = open;
@@ -181,7 +224,122 @@ export function AppShell({ appMode, children }: AppShellProps) {
     };
   }, [toggle, navigate]);
 
-  const trust = bundle?.projectSettings.storageTrust ?? "unsaved";
+  useEffect(() => {
+    const onOnline = () => setOnline(true);
+    const onOffline = () => setOnline(false);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (appMode !== "web") return;
+    const onBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as InstallPromptEvent);
+    };
+    window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
+    return () => window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
+  }, [appMode]);
+
+  useEffect(() => {
+    if (!bundle || !storageKey) return;
+    const adapter = activeAdapter();
+    if (!adapter?.watch) return;
+    const describeEvent = (event: WatchEvent): ExternalNotice | null => {
+      if (event.type === "externalChange" && event.key === storageKey) {
+        return {
+          message: "This project changed outside Grillo.",
+          revision: event.newRevision
+        };
+      }
+      if (event.type === "deleted" && event.key === storageKey) {
+        return {
+          message: "The saved project file was removed or moved outside Grillo.",
+          revision: null
+        };
+      }
+      if (event.type === "renamed" && event.oldKey === storageKey) {
+        return {
+          message: "The saved project file was renamed outside Grillo.",
+          revision: null
+        };
+      }
+      return null;
+    };
+    return adapter.watch((event) => {
+      const notice = describeEvent(event);
+      if (notice) setExternalNotice(notice);
+    });
+  }, [bundle, storageKey]);
+
+  useEffect(() => {
+    if (!bundle) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const now = Date.now();
+    const dueItems = bundle.core.items.filter((item) =>
+      !item.archived &&
+      !item.trashedAt &&
+      item.dueDate != null &&
+      item.dueDate <= today
+    ).length;
+    const dueReminders = bundle.core.reminders.filter((reminder) =>
+      !reminder.archived &&
+      Date.parse(reminder.remindAt) <= now
+    ).length;
+    if (dueItems === 0 && dueReminders === 0) return;
+    const key = `${bundle.project.id}:${today}:${dueItems}:${dueReminders}`;
+    if (dueToastKeyRef.current === key) return;
+    dueToastKeyRef.current = key;
+    const parts = [
+      dueItems > 0 ? `${dueItems} due item${dueItems === 1 ? "" : "s"}` : null,
+      dueReminders > 0 ? `${dueReminders} due reminder${dueReminders === 1 ? "" : "s"}` : null
+    ].filter(Boolean);
+    notify({ tone: "info", message: parts.join(" and ") });
+  }, [bundle, notify]);
+
+  const reloadExternalProject = useCallback(async () => {
+    if (!storageKey) return;
+    const adapter = activeAdapter();
+    if (!adapter) {
+      setExternalNotice((current) => current ? { ...current, error: "No storage adapter is available." } : current);
+      return;
+    }
+    try {
+      const loaded = storageTrust === "folder" && adapter.loadFolderProject
+        ? await adapter.loadFolderProject(storageKey)
+        : await adapter.load(storageKey);
+      if (!loaded) {
+        throw new Error("The saved project could not be loaded from the current storage location.");
+      }
+      const imported = importProjectJson(loaded.json);
+      validateProjectBundle(imported.bundle);
+      setBundle(imported.bundle, {
+        storageKey: loaded.metadata.key,
+        storagePath: loaded.metadata.displayPath,
+        storageTrust: loaded.metadata.trust
+      });
+      setExternalNotice(null);
+    } catch (error) {
+      setExternalNotice((current) => current ? { ...current, error: (error as Error).message } : current);
+    }
+  }, [setBundle, storageKey, storageTrust]);
+
+  const keepLocalChanges = useCallback(() => {
+    markUnsaved();
+    setExternalNotice(null);
+  }, [markUnsaved]);
+
+  const promptInstall = useCallback(async () => {
+    if (!installPrompt) return;
+    await installPrompt.prompt();
+    setInstallPrompt(null);
+  }, [installPrompt]);
+
+  const trust = storageTrust;
   const hiddenViewIds = bundle?.projectSettings.hiddenViewIds ?? [];
   const visibleNavItems = useMemo(
     () => NAV_ITEMS.filter((item) => !hiddenViewIds.includes(item.id)),
@@ -222,20 +380,38 @@ export function AppShell({ appMode, children }: AppShellProps) {
           {bundle ? (
             <>
               <strong>{bundle.project.name}</strong>
-              <span className="storage-badge" data-trust={trust}>
-                <span className="storage-dot" />
-                {trust === "folder"
-                  ? "Folder"
-                  : trust === "browser"
-                  ? "Browser"
-                  : "Unsaved"}
-              </span>
+              <SaveStateIndicator
+                isDirty={isDirty}
+                lastSavedAt={lastSavedAt}
+                saveError={saveError}
+                saveStatus={saveStatus}
+                storagePath={storagePath}
+                trust={trust}
+              />
+              <HelpTip label="Storage trust">
+                Folder projects write a `.pms.json` file in your selected folder. Browser-local projects only live in this browser until exported.
+              </HelpTip>
             </>
           ) : (
             <span className="text-muted">No project open</span>
           )}
         </div>
         <div className="row" style={{ gap: 8 }}>
+          {!online ? (
+            <span className="storage-badge shell-connectivity-badge" data-trust="offline">
+              <WifiOff aria-hidden="true" size={14} />
+              Offline
+            </span>
+          ) : null}
+          {installPrompt ? (
+            <Button
+              size="sm"
+              icon={<Download aria-hidden="true" />}
+              onClick={() => void promptInstall()}
+            >
+              Install app
+            </Button>
+          ) : null}
           <Button
             size="sm"
             icon={<Search aria-hidden="true" />}
@@ -287,6 +463,28 @@ export function AppShell({ appMode, children }: AppShellProps) {
       ) : null}
 
       <main className="app-main">
+        {saveError ? (
+          <div className="shell-banner">
+            <InlineAlert tone="danger">Save failed: {saveError}</InlineAlert>
+          </div>
+        ) : null}
+        {externalNotice ? (
+          <div className="shell-banner">
+            <InlineAlert tone="warning">
+              <div className="shell-banner-content">
+                <span>
+                  {externalNotice.message}
+                  {externalNotice.revision != null ? ` Revision ${externalNotice.revision}.` : ""}
+                </span>
+                <span className="shell-banner-actions">
+                  <Button size="sm" onClick={() => void reloadExternalProject()}>Reload from storage</Button>
+                  <Button size="sm" variant="ghost" onClick={keepLocalChanges}>Keep my changes</Button>
+                </span>
+              </div>
+              {externalNotice.error ? <div className="text-xs">{externalNotice.error}</div> : null}
+            </InlineAlert>
+          </div>
+        ) : null}
         {isProjectRoute && bundle ? <ProjectViewTabs items={visibleNavItems} savedViews={savedPlanningViews} /> : null}
         <div className="view-content">{children}</div>
       </main>
@@ -294,6 +492,60 @@ export function AppShell({ appMode, children }: AppShellProps) {
       <CommandPalette />
     </div>
   );
+}
+
+function SaveStateIndicator({
+  isDirty,
+  lastSavedAt,
+  saveError,
+  saveStatus,
+  storagePath,
+  trust
+}: {
+  isDirty: boolean;
+  lastSavedAt: string | null;
+  saveError: string | null;
+  saveStatus: "idle" | "saving" | "saved" | "error";
+  storagePath: string | null;
+  trust: "folder" | "browser" | "unsaved";
+}) {
+  const destination = trust === "folder" ? "folder" : trust === "browser" ? "browser" : "unsaved project";
+  const label = saveStatus === "error" || saveError
+    ? `Save failed to ${destination}`
+    : saveStatus === "saving"
+      ? `Saving to ${destination}`
+      : isDirty
+        ? `Unsaved changes to ${destination}`
+        : trust === "unsaved"
+          ? "Not saved yet"
+          : `Saved to ${destination}${lastSavedAt ? ` - ${formatSaveAge(lastSavedAt)}` : ""}`;
+
+  return (
+    <span
+      aria-label={label}
+      className="save-state-indicator storage-badge"
+      data-status={saveStatus}
+      data-trust={trust}
+      role="status"
+      title={storagePath ?? label}
+    >
+      <span className="storage-dot" />
+      {label}
+    </span>
+  );
+}
+
+function formatSaveAge(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return "recently";
+  const diffSeconds = Math.max(0, Math.round((Date.now() - then) / 1000));
+  if (diffSeconds < 60) return "just now";
+  const diffMinutes = Math.round(diffSeconds / 60);
+  if (diffMinutes < 60) return `${diffMinutes} min ago`;
+  const diffHours = Math.round(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours} hr ago`;
+  const diffDays = Math.round(diffHours / 24);
+  return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
 }
 
 function ShellNavContent({
