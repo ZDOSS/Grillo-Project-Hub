@@ -30,7 +30,7 @@ import { useProjectStore } from "./store/project-store";
 import { useTheme } from "./theme/theme-provider";
 import { CommandPalette, registerCoreCommands } from "./commands/CommandPalette";
 import { openPalette } from "./commands/palette-bus";
-import { Button, HelpTip, IconButton, InlineAlert, ToastProvider, useToast } from "./components";
+import { Button, ConfirmDialog, HelpTip, IconButton, InlineAlert, ToastProvider, useToast } from "./components";
 import { PROJECT_NAV_ITEMS } from "./nav-config";
 import { hasRegisteredSavedRoute, savedViewsForBundle, viewRoute } from "./views/planning/view-helpers";
 
@@ -149,6 +149,7 @@ function AppShellFrame({ appMode, children }: AppShellProps) {
     typeof navigator === "undefined" ? true : navigator.onLine !== false
   );
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
+  const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
   const mobileNavOpenRef = useRef(false);
   const mobileCloseRef = useRef<HTMLButtonElement>(null);
   const mobileTriggerRef = useRef<HTMLButtonElement>(null);
@@ -370,10 +371,19 @@ function AppShellFrame({ appMode, children }: AppShellProps) {
     }
   }, [bundle, markSaveFailed, markSaved, markSaving, notify, storageKey, storageTrust]);
 
-  const closeCurrentProject = useCallback(() => {
+  const confirmCloseProject = useCallback(() => {
+    setCloseConfirmOpen(false);
     closeProject();
     navigate("/projects");
   }, [closeProject, navigate]);
+
+  const closeCurrentProject = useCallback(() => {
+    if (isDirty || storageTrust === "unsaved") {
+      setCloseConfirmOpen(true);
+      return;
+    }
+    confirmCloseProject();
+  }, [confirmCloseProject, isDirty, storageTrust]);
 
   const promptInstall = useCallback(async () => {
     if (!installPrompt) return;
@@ -553,6 +563,21 @@ function AppShellFrame({ appMode, children }: AppShellProps) {
         {isProjectRoute && bundle ? <ProjectViewTabs items={visibleNavItems} savedViews={savedPlanningViews} /> : null}
         <div className="view-content">{children}</div>
       </main>
+
+      {closeConfirmOpen ? (
+        <ConfirmDialog
+          confirmLabel="Close without saving"
+          destructive
+          message={
+            storageTrust === "unsaved"
+              ? "This project has not been saved yet. Closing it will discard the in-memory workspace unless you save it first."
+              : "This project has unsaved changes. Closing it will discard those changes unless you save first."
+          }
+          onCancel={() => setCloseConfirmOpen(false)}
+          onConfirm={confirmCloseProject}
+          title="Close project without saving?"
+        />
+      ) : null}
 
       <CommandPalette />
     </div>
