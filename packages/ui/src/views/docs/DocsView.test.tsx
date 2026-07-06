@@ -11,6 +11,27 @@ function LocationProbe() {
   return <div data-testid="location">{location.pathname}</div>;
 }
 
+function renderDocs(initialEntries: string[]) {
+  return render(
+    <MemoryRouter initialEntries={initialEntries}>
+      <Routes>
+        <Route
+          path="*"
+          element={
+            <>
+              <LocationProbe />
+              <Routes>
+                <Route path="/docs" element={<DocsView />} />
+                <Route path="/doc/:docId" element={<DocsView />} />
+              </Routes>
+            </>
+          }
+        />
+      </Routes>
+    </MemoryRouter>
+  );
+}
+
 describe("DocsView", () => {
   beforeEach(() => {
     cleanup();
@@ -62,7 +83,7 @@ describe("DocsView", () => {
 
     expect(screen.getByTestId("location")).toHaveTextContent(`/doc/${secondId}`);
     expect(screen.getByTestId("location").textContent).not.toBe("/docs");
-    expect(screen.getByDisplayValue("Second Doc")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Second Doc" })).toBeInTheDocument();
   });
 
   it("creates sections, creates a templated document, and moves it into a section", async () => {
@@ -81,7 +102,8 @@ describe("DocsView", () => {
     await userEvent.click(screen.getByRole("button", { name: "New document" }));
 
     expect(screen.getByDisplayValue("Decision Record")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Decision" })).toBeInTheDocument();
+    const editor = document.querySelector("textarea.textarea") as HTMLTextAreaElement | null;
+    expect(editor?.value).toContain("# Decision");
 
     const sectionOption = screen.getByRole("option", { name: "Decisions" }) as HTMLOptionElement;
     await userEvent.selectOptions(screen.getByLabelText("Document section"), sectionOption.value);
@@ -221,6 +243,133 @@ describe("DocsView", () => {
     expect(document.querySelector("textarea.textarea")).toHaveValue("Unsaved draft text");
   });
 
+  it("opens existing documents in view mode and does not leak edit mode across documents", async () => {
+    const bundle = useProjectStore.getState().bundle!;
+    const firstDoc = useProjectStore.getState().applyCommand({
+      type: "doc.create",
+      projectId: bundle.project.id,
+      title: "Planning Notes",
+      body: "Planning body"
+    }).bundle.core.documents.at(-1)!;
+    const secondDoc = useProjectStore.getState().applyCommand({
+      type: "doc.create",
+      projectId: bundle.project.id,
+      title: "Release Notes",
+      body: "Release body"
+    }).bundle.core.documents.at(-1)!;
+
+    renderDocs([`/doc/${firstDoc.id}`]);
+
+    expect(screen.getByRole("heading", { name: "Planning Notes" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Document title")).not.toBeInTheDocument();
+    expect(document.querySelector("textarea.textarea")).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+
+    expect(screen.getByLabelText("Document title")).toHaveValue("Planning Notes");
+    expect(document.querySelector("textarea.textarea")).toHaveValue("Planning body");
+
+    await userEvent.click(screen.getByRole("link", { name: "Release Notes" }));
+
+    expect(screen.getByTestId("location")).toHaveTextContent(`/doc/${secondDoc.id}`);
+    expect(screen.getByRole("heading", { name: "Release Notes" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Document title")).not.toBeInTheDocument();
+    expect(document.querySelector("textarea.textarea")).toBeNull();
+  });
+
+  it("uses explicit Save and Cancel actions for document edits", async () => {
+    const bundle = useProjectStore.getState().bundle!;
+    const doc = useProjectStore.getState().applyCommand({
+      type: "doc.create",
+      projectId: bundle.project.id,
+      title: "Original Title",
+      body: "Original body"
+    }).bundle.core.documents.at(-1)!;
+
+    renderDocs([`/doc/${doc.id}`]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    await userEvent.clear(screen.getByLabelText("Document title"));
+    await userEvent.type(screen.getByLabelText("Document title"), "Discarded Title");
+    const firstEditor = document.querySelector("textarea.textarea") as HTMLTextAreaElement;
+    await userEvent.clear(firstEditor);
+    await userEvent.type(firstEditor, "Discarded body");
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.getByRole("heading", { name: "Original Title" })).toBeInTheDocument();
+    expect(screen.queryByText("Discarded body")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    await userEvent.clear(screen.getByLabelText("Document title"));
+    await userEvent.type(screen.getByLabelText("Document title"), "Saved Title");
+    const secondEditor = document.querySelector("textarea.textarea") as HTMLTextAreaElement;
+    await userEvent.clear(secondEditor);
+    await userEvent.type(secondEditor, "Saved body");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(screen.getByRole("heading", { name: "Saved Title" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Document title")).not.toBeInTheDocument();
+    expect(document.querySelector("textarea.textarea")).toBeNull();
+    expect(screen.getByText("Saved body")).toBeInTheDocument();
+    expect(useProjectStore.getState().bundle!.core.documents.find((entry) => entry.id === doc.id)).toMatchObject({
+      title: "Saved Title",
+      body: "Saved body"
+    });
+  });
+
+  it("confirms before discarding unsaved edits when switching documents", async () => {
+    const bundle = useProjectStore.getState().bundle!;
+    const firstDoc = useProjectStore.getState().applyCommand({
+      type: "doc.create",
+      projectId: bundle.project.id,
+      title: "Draft Source",
+      body: "Original source"
+    }).bundle.core.documents.at(-1)!;
+    const secondDoc = useProjectStore.getState().applyCommand({
+      type: "doc.create",
+      projectId: bundle.project.id,
+      title: "Draft Target",
+      body: "Target body"
+    }).bundle.core.documents.at(-1)!;
+
+    renderDocs([`/doc/${firstDoc.id}`]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    const editor = document.querySelector("textarea.textarea") as HTMLTextAreaElement;
+    await userEvent.clear(editor);
+    await userEvent.type(editor, "Unsaved source draft");
+
+    await userEvent.click(screen.getByRole("link", { name: "Draft Target" }));
+
+    const discardDialog = screen.getByRole("dialog", { name: "Discard document edits?" });
+    expect(discardDialog).toBeInTheDocument();
+    expect(screen.getByTestId("location")).toHaveTextContent(`/doc/${firstDoc.id}`);
+
+    await userEvent.click(within(discardDialog).getByRole("button", { name: "Cancel" }));
+
+    expect(document.querySelector("textarea.textarea")).toHaveValue("Unsaved source draft");
+    expect(screen.queryByRole("dialog", { name: "Discard document edits?" })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("link", { name: "Draft Target" }));
+    const secondDiscardDialog = screen.getByRole("dialog", { name: "Discard document edits?" });
+    await userEvent.click(within(secondDiscardDialog).getByRole("button", { name: "Discard changes" }));
+
+    expect(screen.getByTestId("location")).toHaveTextContent(`/doc/${secondDoc.id}`);
+    expect(screen.getByRole("heading", { name: "Draft Target" })).toBeInTheDocument();
+    expect(document.querySelector("textarea.textarea")).toBeNull();
+  });
+
+  it("opens newly created documents in edit mode", async () => {
+    renderDocs(["/docs"]);
+
+    await userEvent.click(screen.getByRole("button", { name: "New document" }));
+
+    expect(screen.getByLabelText("Document title")).toHaveValue("Untitled");
+    expect(document.querySelector("textarea.textarea")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+  });
+
   it("navigates to another document after deleting the current document", async () => {
     const bundle = useProjectStore.getState().bundle!;
     const deleteMe = useProjectStore.getState().applyCommand({
@@ -257,7 +406,7 @@ describe("DocsView", () => {
     await userEvent.click(screen.getByRole("button", { name: "Move to trash" }));
 
     expect(screen.getAllByTestId("location").at(-1)).toHaveTextContent(`/doc/${keepMe.id}`);
-    expect(screen.getByDisplayValue("Keep Me")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Keep Me" })).toBeInTheDocument();
     expect(screen.queryByText("No documents")).not.toBeInTheDocument();
   });
 
@@ -295,7 +444,7 @@ describe("DocsView", () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByDisplayValue(activeDoc.title)).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: activeDoc.title })).toBeInTheDocument();
     expect(screen.getByTestId("location")).toHaveTextContent(`/doc/${activeDoc.id}`);
     expect(screen.queryByText("No documents")).not.toBeInTheDocument();
   });
@@ -347,6 +496,6 @@ describe("DocsView", () => {
     await userEvent.click(screen.getByRole("button", { name: "Move to trash" }));
 
     expect(screen.getAllByTestId("location").at(-1)).toHaveTextContent(`/doc/${keepMe.id}`);
-    expect(screen.getByDisplayValue("Visible After Hidden")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Visible After Hidden" })).toBeInTheDocument();
   });
 });

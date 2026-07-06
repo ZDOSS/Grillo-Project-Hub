@@ -85,17 +85,19 @@ test("calendar creates a dated work item from a day cell", async ({ page }) => {
   await expect(detail.getByLabel("Due")).toHaveValue(today);
 });
 
-test("docs workflow creates and previews a project note", async ({ page }) => {
+test("docs workflow creates and saves a project note", async ({ page }) => {
   await page.goto("/");
   await page.locator(".modal-footer button.btn-primary").click();
   await expect(page).toHaveURL(/\/overview/);
 
   await page.getByLabel("Workspace", { exact: true }).getByRole("link", { name: "Docs" }).click();
   await page.getByRole("button", { name: "New document" }).click();
+  await expect(page.getByLabel("Document title")).toHaveValue("Untitled");
   await page.getByLabel("Document title").fill("Release checklist");
-  await page.getByRole("button", { name: "Edit" }).click();
   await page.locator(".docs-editor textarea").fill("# Release checklist\n\n- Smoke the docs workflow");
-  await page.getByRole("button", { name: "Preview" }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
 
-  await expect(page.getByRole("heading", { name: "Release checklist" })).toBeVisible();
+  await expect(page.locator(".docs-title")).toHaveText("Release checklist");
+  await expect(page.locator(".docs-editor textarea")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Edit" })).toBeVisible();
 });
