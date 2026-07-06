@@ -83,12 +83,15 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - the active UI store now tracks `saveStatus`, `lastSavedAt`, and `saveError` separately from `isDirty`; auto-save bridges call `markSaving()`, `markSaved()`, or `markSaveFailed()` so the header can report `Saved to folder/browser`, `Saving`, `Unsaved changes`, or `Save failed` without inferring that state from storage trust alone
 - `AppShell` now consumes adapter `watch()` events for the active project and shows an explicit external-change banner with `Reload from storage` and `Keep my changes`; reloading validates the bundle before replacing the store, rename events carry `event.newKey` through the reload path so the app does not keep saving to a stale file key, and keeping local changes marks the project dirty so auto-save can intentionally overwrite on the next save cycle
 - the shared shell wraps routes in `ToastProvider`; route code should use `useToast()` for short-lived feedback and keep blocking or recoverable errors in `InlineAlert`
+- the shared shell exposes explicit project actions next to the save-state indicator: `Save now` / `Retry save` routes through the active `ProjectStoreAdapter.save()` plus `markSaving()` / `markSaved()` / `markSaveFailed()`, `Switch project` navigates to `/projects`, and `Close project` calls `closeProject()` before returning to the launcher
 - the web shell now surfaces offline status and a captured `beforeinstallprompt` install action in the header, and emits one lightweight due-item/reminder notification per project/day/count combination
 - desktop storage now only writes to the filesystem when a folder path has actually been attached; otherwise the desktop shell behaves as browser-local storage on purpose instead of pretending to be folder-backed
 - recent-project reopen uses the active adapter's `load()` path rather than forcing JSON import; desktop recents restore the remembered folder path before loading
 - new project creation now saves through the active adapter before navigation, so folder-backed creates produce the initial `.pm-suite/<project-id>.pms.json` immediately instead of waiting for a later dirty auto-save
 - launcher reopen paths now validate imported bundles before calling `setBundle()`, matching the startup restore and direct storage-load paths so corrupt saved data is rejected consistently instead of silently entering the UI store
 - the two UI JSON-import entry points now also perform an explicit `validateProjectBundle()` immediately before `setBundle()`, mirroring the reopen paths even though `importProjectJson()` already validates internally; this keeps the UI-side contract obvious and avoids review drift about where store writes are gated
+- direct JSON imports from `/open` and Settings are intentionally unsaved replacements until the user explicitly saves; they use `storageKey: null`, `storageTrust: "unsaved"`, do not create recent-project entries, and clear the persisted active session so importing over a folder project cannot keep future reloads pointed at the old folder key
+- demo projects are also in-memory unsaved projects and should not create recent-project entries; use a template create flow instead when the user wants a durable starter project
 - the desktop recent-project reopen path still depends on `DesktopAdapter.load()` reading the active folder from `localStorage` at call time; `ProjectsListView` now documents that ordering explicitly so later adapter refactors do not accidentally cache the folder too early
 - the browser adapter now repairs older browser-local saves whose metadata index is missing by falling back to the raw `localStorage` project blob and reconstructing the saved-project index entry on load
 - the active project session is now persisted in `localStorage` (`gph.active.project`) and restored on startup through `restoreLastProjectSession()`, so reloads in both web and desktop shells reopen the last project instead of dropping the user into an empty shell
@@ -595,6 +598,15 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - making explicit `storageKey: null` in `useProjectStore.setBundle()` clear active-session persistence and show the imported bundle as unsaved instead of reusing the prior folder/browser key
   - preserving adapter metadata keys during startup restore, matching conflict reload and folder-open behavior
   - adding focused regressions in `AppShell.test.tsx` and `project-session.test.tsx` for rename reload and unsaved import/session clearing
+- completed the 2026-07-06 project-flow completion milestone by:
+  - adding AppShell header actions for manual save/retry, switching to the project launcher, and closing the current project
+  - making `/open` JSON imports and demo project opens unsaved in-memory sessions that do not create false browser-saved recents
+  - adding a FileReader fallback for `/open` JSON imports, matching the Settings import path in environments without `File.text()`
+  - upgrading Settings import success feedback with review/open-project actions and explicit "use Save now" copy
+  - adding a primary Roadmap `New item` action that prefills the create dialog with the active anchor month
+  - adding Trash selection, bulk restore, and bulk confirmed permanent delete while preserving individual restore/delete flows
+  - surfacing enabled automation-rule dry-run previews inside the work-item modal using the same `automationRule.dryRun` dispatcher path as Settings
+  - adding focused UI regressions across AppShell, launcher/open, Roadmap, Trash, Settings import/export, and WorkItemModal for the new behavior
 
 ## Open follow-on planning
 

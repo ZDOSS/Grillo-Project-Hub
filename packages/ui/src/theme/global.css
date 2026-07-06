@@ -1301,6 +1301,16 @@
   flex-direction: column;
   gap: var(--space-2);
 }
+.trash-bulk-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-muted);
+}
 .trash-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1749,6 +1759,20 @@
   gap: var(--space-2);
   flex-wrap: wrap;
   margin-top: var(--space-3);
+}
+.automation-preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.automation-preview-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-muted);
 }
 .activity-entry {
   display: flex;
@@ -2407,6 +2431,12 @@
   border-color: var(--color-danger);
   color: var(--color-danger);
 }
+.shell-project-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
 .shell-connectivity-badge {
   gap: 6px;
   border-color: var(--color-warn);
@@ -2557,6 +2587,12 @@
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-sm);
   background: var(--color-bg-muted);
+}
+.import-export-imported-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
 }
 .view-hint {
   padding: var(--space-3) var(--space-4) 0;

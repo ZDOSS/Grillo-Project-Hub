@@ -285,5 +285,14 @@ describe("SettingsView", () => {
       expect(within(panel).getByText(/Imported Bug Tracker/i)).toBeInTheDocument();
     });
     expect(useProjectStore.getState().bundle?.project.name).toBe("Imported Bug Tracker");
+    expect(useProjectStore.getState()).toMatchObject({
+      storageKey: null,
+      storagePath: null,
+      storageTrust: "unsaved",
+      isDirty: true
+    });
+    expect(within(panel).getByRole("button", { name: "Review project" })).toBeInTheDocument();
+    expect(within(panel).getByRole("button", { name: "Open projects" })).toBeInTheDocument();
+    expect(within(panel).getByText(/Use Save now in the project header/i)).toBeInTheDocument();
   });
 });

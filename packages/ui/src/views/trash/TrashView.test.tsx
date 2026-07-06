@@ -95,6 +95,47 @@ describe("TrashView", () => {
     });
   });
 
+  it("bulk restores selected trash records", async () => {
+    const { docId, itemId } = seedTrashRecords();
+
+    render(<MemoryRouter><TrashView /></MemoryRouter>);
+
+    await userEvent.click(screen.getByRole("checkbox", { name: "Select Trashed task" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "Select Trashed doc" }));
+
+    expect(screen.getByText("2 selected")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Restore selected" }));
+
+    await waitFor(() => {
+      const current = useProjectStore.getState().bundle!;
+      expect(current.core.items.find((item) => item.id === itemId)?.trashedAt).toBeNull();
+      expect(current.core.documents.find((doc) => doc.id === docId)?.title).toBe("Trashed doc");
+      expect(current.core.trash.some((entry) => entry.recordId === itemId || entry.recordId === docId)).toBe(false);
+    });
+  });
+
+  it("bulk permanently deletes selected trash records after confirmation", async () => {
+    const { docId, itemId } = seedTrashRecords();
+
+    render(<MemoryRouter><TrashView /></MemoryRouter>);
+
+    await userEvent.click(screen.getByRole("checkbox", { name: "Select Trashed task" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "Select Trashed doc" }));
+    await userEvent.click(screen.getByRole("button", { name: "Delete selected..." }));
+
+    expect(screen.getByRole("dialog", { name: "Permanently delete 2 records" })).toBeInTheDocument();
+    expect(screen.getByText(/This permanently removes 2 supported trash records/i)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Delete permanently" }));
+
+    await waitFor(() => {
+      const current = useProjectStore.getState().bundle!;
+      expect(current.core.trash.some((entry) => entry.recordId === itemId || entry.recordId === docId)).toBe(false);
+      expect(current.core.items.some((item) => item.id === itemId)).toBe(false);
+      expect(current.core.documents.some((doc) => doc.id === docId)).toBe(false);
+    });
+  });
+
   it("clears the confirmation and surfaces feedback when permanent delete fails", async () => {
     seedTrashRecords();
     const originalApplyCommand = useProjectStore.getState().applyCommand;

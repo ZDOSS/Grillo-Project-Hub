@@ -436,6 +436,28 @@ describe("WorkItemModal", () => {
     expect(screen.getByText("No reminders")).toBeInTheDocument();
   });
 
+  it("previews saved automation rules that apply to the current item", () => {
+    const item = seedItem();
+    const bundle = useProjectStore.getState().bundle!;
+    const doneStatus = bundle.core.statuses.find((status) => status.id === "done")!;
+    useProjectStore.getState().applyCommand({
+      type: "automationRule.create",
+      projectId: bundle.project.id,
+      rule: {
+        name: "Move tasks when ready",
+        trigger: { type: "item.updated" },
+        conditions: [{ type: "type.isOneOf", typeIds: [item.typeId] }],
+        actions: [{ type: "moveToStatus", statusId: doneStatus.id }]
+      }
+    } as never);
+
+    renderModal(item.id);
+
+    expect(screen.getByRole("heading", { name: "Automation preview" })).toBeInTheDocument();
+    expect(screen.getByText("Move tasks when ready")).toBeInTheDocument();
+    expect(screen.getByText("Would move to Done.")).toBeInTheDocument();
+  });
+
   it("does not promote past reminders as the next scheduled reminder", () => {
     const item = seedItem();
     const projectId = useProjectStore.getState().bundle!.project.id;

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useProjectStore } from "../store/project-store";
-import { getBugData, setBugData, type WorkItem, type BugItemData, type Relationship, type Attachment, type Reminder } from "@gph/core";
+import { dispatchCommand, envelopeFor, getBugData, setBugData, type AutomationRule, type WorkItem, type BugItemData, type Relationship, type Attachment, type Reminder } from "@gph/core";
 import { ConfirmDialog, HelpTip, InlineAlert, Modal } from "../components";
 import { AttachmentPanel } from "./AttachmentPanel";
 import { CustomFieldsPanel } from "./CustomFieldsPanel";
@@ -14,6 +14,14 @@ const EMPTY_ITEMS: WorkItem[] = [];
 const EMPTY_RELATIONSHIPS: Relationship[] = [];
 const EMPTY_ATTACHMENTS: Attachment[] = [];
 const EMPTY_REMINDERS: Reminder[] = [];
+const EMPTY_AUTOMATION_RULES: AutomationRule[] = [];
+
+type AutomationPreviewOutput = {
+  matched: boolean;
+  ruleName: string;
+  actions: Array<{ type: string; summary: string }>;
+  reason?: string;
+};
 
 /**
  * Work-item detail route implementation.
@@ -77,6 +85,33 @@ export function WorkItemModal() {
     () => relationships.filter((relationship) => !relationship.archived),
     [relationships]
   );
+  const automationRules = useMemo(() => {
+    const rules = ((bundle?.modules["builtin.automation"]?.data as { rules?: AutomationRule[] } | undefined)?.rules) ?? EMPTY_AUTOMATION_RULES;
+    return rules.filter((rule) => rule.enabled);
+  }, [bundle?.modules]);
+  const automationPreviews = useMemo(() => {
+    if (!bundle || !item) return [];
+    return automationRules.map((rule) => {
+      try {
+        const result = dispatchCommand(
+          bundle,
+          envelopeFor({
+            type: "automationRule.dryRun",
+            projectId: bundle.project.id,
+            ruleId: rule.id,
+            itemId: item.id
+          }, "ui", null)
+        );
+        return { rule, preview: result.output as AutomationPreviewOutput, error: null };
+      } catch (error) {
+        return {
+          rule,
+          preview: null,
+          error: error instanceof Error ? error.message : "Could not preview this automation rule."
+        };
+      }
+    });
+  }, [automationRules, bundle, item]);
   const itemAttachments = useMemo(
     () =>
       (bundle?.core.attachments ?? EMPTY_ATTACHMENTS).filter(
@@ -422,6 +457,42 @@ export function WorkItemModal() {
                 )}
               </div>
             </div>
+
+            {automationPreviews.length > 0 ? (
+              <div className="item-detail-section">
+                <div className="item-detail-section-heading">
+                  <h3>Automation preview</h3>
+                  <HelpTip label="Automation preview">
+                    These dry runs use the same command dispatcher as Settings previews and show what enabled rules would do to this item.
+                  </HelpTip>
+                </div>
+                <div className="automation-preview-list">
+                  {automationPreviews.map(({ error, preview, rule }) => (
+                    <div className="automation-preview-card" key={rule.id}>
+                      <div className="row" style={{ justifyContent: "space-between", gap: 8 }}>
+                        <strong>{rule.name}</strong>
+                        <span className={`tag ${preview?.matched ? "tag-ok" : "tag-warn"}`}>
+                          {preview?.matched ? "Applies" : "No match"}
+                        </span>
+                      </div>
+                      {error ? (
+                        <InlineAlert tone="danger">{error}</InlineAlert>
+                      ) : preview?.matched ? (
+                        <div className="col" style={{ gap: 4 }}>
+                          {preview.actions.map((action) => (
+                            <span className="text-sm text-secondary" key={`${rule.id}-${action.type}-${action.summary}`}>
+                              {action.summary}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-sm text-secondary">{preview?.reason ?? "The selected item does not match this rule."}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
 
             {hasCustomFields ? (
               <div className="item-detail-section">

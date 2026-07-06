@@ -3,12 +3,15 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { buildProjectFromTemplate } from "@gph/core";
+import { closeCreateItem } from "../../commands/palette-bus";
 import { useProjectStore } from "../../store/project-store";
+import { CreateItemDialog } from "../../work-item";
 import { RoadmapView } from "./RoadmapView";
 
 describe("RoadmapView", () => {
   beforeEach(() => {
     cleanup();
+    closeCreateItem();
     useProjectStore.setState({ bundle: null });
   });
 
@@ -172,5 +175,33 @@ describe("RoadmapView", () => {
 
     expect(screen.getByText("Large roadmap view")).toBeInTheDocument();
     expect(screen.getByText(/zoom and milestone lanes/i)).toBeInTheDocument();
+  });
+
+  it("opens the create item dialog from the roadmap with the anchor date prefilled", async () => {
+    const bundle = buildProjectFromTemplate("software-project", "Roadmap Create");
+    useProjectStore.setState({ bundle });
+
+    render(
+      <MemoryRouter>
+        <RoadmapView />
+        <CreateItemDialog />
+      </MemoryRouter>
+    );
+
+    fireEvent.change(screen.getByLabelText("Anchor"), {
+      target: { value: "2026-09" }
+    });
+    await userEvent.click(screen.getByRole("button", { name: "New item" }));
+
+    expect(screen.getByRole("dialog", { name: "Create work item" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Start date")).toHaveValue("2026-09-01");
+
+    await userEvent.type(screen.getByLabelText("Title"), "Plan launch window");
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    const created = useProjectStore.getState().bundle?.core.items.find((item) =>
+      item.title === "Plan launch window"
+    );
+    expect(created?.startDate).toBe("2026-09-01");
   });
 });
