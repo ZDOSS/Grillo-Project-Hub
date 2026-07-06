@@ -359,6 +359,86 @@ describe("DocsView", () => {
     expect(document.querySelector("textarea.textarea")).toBeNull();
   });
 
+  it("confirms before creating a new document over unsaved edits", async () => {
+    const bundle = useProjectStore.getState().bundle!;
+    const doc = useProjectStore.getState().applyCommand({
+      type: "doc.create",
+      projectId: bundle.project.id,
+      title: "Current Draft",
+      body: "Original body"
+    }).bundle.core.documents.at(-1)!;
+    const docCountBefore = useProjectStore.getState().bundle!.core.documents.length;
+
+    renderDocs([`/doc/${doc.id}`]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    const editor = document.querySelector("textarea.textarea") as HTMLTextAreaElement;
+    await userEvent.clear(editor);
+    await userEvent.type(editor, "Unsaved new-doc draft");
+
+    await userEvent.click(screen.getByRole("button", { name: "New document" }));
+
+    const discardDialog = screen.getByRole("dialog", { name: "Discard document edits?" });
+    expect(discardDialog).toBeInTheDocument();
+    expect(screen.getByTestId("location")).toHaveTextContent(`/doc/${doc.id}`);
+
+    await userEvent.click(within(discardDialog).getByRole("button", { name: "Cancel" }));
+
+    expect(useProjectStore.getState().bundle!.core.documents).toHaveLength(docCountBefore);
+    expect(document.querySelector("textarea.textarea")).toHaveValue("Unsaved new-doc draft");
+
+    await userEvent.click(screen.getByRole("button", { name: "New document" }));
+    const secondDiscardDialog = screen.getByRole("dialog", { name: "Discard document edits?" });
+    await userEvent.click(within(secondDiscardDialog).getByRole("button", { name: "Discard changes" }));
+
+    const documents = useProjectStore.getState().bundle!.core.documents;
+    const createdDoc = documents.at(-1)!;
+    expect(documents).toHaveLength(docCountBefore + 1);
+    expect(screen.getByTestId("location")).toHaveTextContent(`/doc/${createdDoc.id}`);
+    expect(screen.getByLabelText("Document title")).toHaveValue("Untitled");
+  });
+
+  it("confirms before following right-rail doc links with unsaved edits", async () => {
+    const bundle = useProjectStore.getState().bundle!;
+    const targetDoc = useProjectStore.getState().applyCommand({
+      type: "doc.create",
+      projectId: bundle.project.id,
+      title: "Context Target",
+      body: "Target body"
+    }).bundle.core.documents.at(-1)!;
+    const sourceDoc = useProjectStore.getState().applyCommand({
+      type: "doc.create",
+      projectId: bundle.project.id,
+      title: "Context Source",
+      body: `See [[doc:${targetDoc.id}|Context target link]]`
+    }).bundle.core.documents.at(-1)!;
+
+    renderDocs([`/doc/${sourceDoc.id}`]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    const editor = document.querySelector("textarea.textarea") as HTMLTextAreaElement;
+    await userEvent.clear(editor);
+    await userEvent.type(editor, "Unsaved context draft");
+
+    const contextRail = screen.getByRole("complementary", { name: "Document context" });
+    await userEvent.click(within(contextRail).getByRole("link", { name: "Context target link" }));
+
+    const discardDialog = screen.getByRole("dialog", { name: "Discard document edits?" });
+    expect(discardDialog).toBeInTheDocument();
+    expect(screen.getByTestId("location")).toHaveTextContent(`/doc/${sourceDoc.id}`);
+
+    await userEvent.click(within(discardDialog).getByRole("button", { name: "Cancel" }));
+
+    expect(document.querySelector("textarea.textarea")).toHaveValue("Unsaved context draft");
+
+    await userEvent.click(within(contextRail).getByRole("link", { name: "Context target link" }));
+    const secondDiscardDialog = screen.getByRole("dialog", { name: "Discard document edits?" });
+    await userEvent.click(within(secondDiscardDialog).getByRole("button", { name: "Discard changes" }));
+
+    expect(screen.getByTestId("location")).toHaveTextContent(`/doc/${targetDoc.id}`);
+    expect(screen.getByRole("heading", { name: "Context Target" })).toBeInTheDocument();
+  });
+
   it("opens newly created documents in edit mode", async () => {
     renderDocs(["/docs"]);
 

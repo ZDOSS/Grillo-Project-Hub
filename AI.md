@@ -240,7 +240,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - docs now have command-backed knowledge sections through `docFolder.create` and `docFolder.update`; documents still store only `folderId`, `doc.move` remains the document placement command, and folder parent updates reject cycles before bundle validation
 - document templates live in `DOCUMENT_TEMPLATES` / `createDocumentFromTemplate()` in `packages/core/src/domain/document.ts`; `doc.create` accepts an optional `templateId` for decision records, release notes, bug context, and project briefs while still supporting blank docs, and omitted/blank non-template titles create an `Untitled` document so the public payload type matches runtime behavior
 - the Docs view is now a three-part knowledge workspace: the sidebar creates/searches docs and sections, the editor owns an explicit view/edit session, and the right context rail derives linked work, referenced docs, and backlinks from `parseDocLinks()` / `deriveBacklinks()` instead of storing duplicate relationship state
-- docs editing is intentionally per-document and explicit: existing docs open in view mode with title/body read-only, new docs/templates open in edit mode, `Edit` makes the title and Markdown body editable together, `Save` dispatches `doc.update` and exits edit mode, `Cancel` discards the local draft, and sidebar document navigation prompts before discarding unsaved edits instead of leaking edit mode across documents
+- docs editing is intentionally per-document and explicit: existing docs open in view mode with title/body read-only, new docs/templates open in edit mode, `Edit` makes the title and Markdown body editable together, `Save` dispatches `doc.update` and exits edit mode, `Cancel` discards the local draft, and document-surface navigation prompts before discarding unsaved edits instead of leaking edit mode across documents
 - DocsView recovers stale `/doc/:id` routes by replacing them with the first active document route when the requested document is archived/deleted and active docs still exist, preventing a populated docs workspace from rendering as empty
 - Markdown export groups active docs by active folder section and puts docs without an active section under `Unfiled`, so section organization is visible outside the app while JSON remains the lossless project handoff; archived-only doc collections do not emit an empty `## Docs` heading
 - docs view local editor state now resyncs when the selected document changes, which fixes the "stuck on getting started" behavior where clicking another doc changed selection without updating the editor/preview pane
@@ -287,7 +287,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - inline member removal confirmation in Settings
   - docs preview routing via `data-route`
   - docs editor draft preservation when the same document refreshes externally
-  - docs explicit edit sessions for existing/new documents, save/cancel behavior, and dirty document-switch confirmation
+  - docs explicit edit sessions for existing/new documents, save/cancel behavior, and dirty navigation confirmation across sidebar, new-doc, and context-link paths
   - startup session restore from persisted active-project metadata
   - stale-session cleanup when persisted startup data is corrupt
   - template-specific hidden-view defaults and bug-template-safe bug creation
@@ -623,6 +623,11 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - replacing the old preview/edit tab behavior with one per-document edit session where `Edit` enables title and body together, `Save` commits through `doc.update` and exits edit mode, and `Cancel` resets the local draft and exits edit mode
   - routing doc-tree navigation through a dirty-draft guard so switching documents cannot silently carry global edit state forward or discard unsaved text without an explicit confirmation
   - adding DocsView regression coverage for view-first existing docs, edit-first new docs, save/cancel semantics, and dirty document-switch confirmation
+- addressed the Greptile dirty-navigation follow-up on the docs edit-session PR by:
+  - extending the dirty-draft confirmation from sidebar doc links to `New document`, rendered Markdown preview internal links, and right-rail linked-work/referenced-doc/backlink rows
+  - deferring `doc.create` until after the user confirms discarding an unsaved draft, so canceling the dialog does not create an orphan untitled document
+  - centralizing Docs route navigation through `requestRouteNavigation()` while preserving normal modified-click browser behavior for context and preview links
+  - adding DocsView regressions for dirty new-document creation and dirty right-rail doc navigation
 
 ## Open follow-on planning
 
