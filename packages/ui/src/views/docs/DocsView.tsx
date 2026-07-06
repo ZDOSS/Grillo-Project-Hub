@@ -1,6 +1,6 @@
-import { type ChangeEvent, type MouseEvent, useEffect, useMemo, useState } from "react";
+import { type ChangeEvent, type MouseEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import { FileText, Folder as FolderIcon, Plus, Search } from "lucide-react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import DOMPurify, { type Config as DOMPurifyConfig } from "dompurify";
 import {
   DOCUMENT_TEMPLATES,
@@ -14,6 +14,15 @@ import {
 import { Button, ConfirmDialog, EmptyState } from "../../components";
 import { useProjectStore } from "../../store/project-store";
 
+type RouteNavigationOptions = {
+  replace?: boolean;
+  state?: unknown;
+};
+
+type PendingDocsNavigation =
+  | { kind: "route"; route: string; options?: RouteNavigationOptions }
+  | { kind: "createDocument" };
+
 /**
  * Docs view with a knowledge-oriented workspace.
  *
@@ -25,11 +34,14 @@ import { useProjectStore } from "../../store/project-store";
 export function DocsView() {
   const bundle = useProjectStore((s) => s.bundle);
   const applyCommand = useProjectStore((s) => s.applyCommand);
+  const location = useLocation();
   const navigate = useNavigate();
   const { docId } = useParams<{ docId?: string }>();
   const [searchQuery, setSearchQuery] = useState("");
   const [templateId, setTemplateId] = useState<DocTemplateId | "">("");
   const [newSectionName, setNewSectionName] = useState("");
+  const [editorDirty, setEditorDirty] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState<PendingDocsNavigation | null>(null);
 
   const activeDocs = useMemo(() => (bundle?.core.documents ?? []).filter((doc) => !doc.archived), [bundle?.core.documents]);
   const activeFolders = useMemo(() => (bundle?.core.folders ?? []).filter((folder) => !folder.archived), [bundle?.core.folders]);
@@ -55,13 +67,21 @@ export function DocsView() {
 
   if (!bundle) return null;
 
-  const createDocument = () => {
+  const createDocumentNow = () => {
     const payload = templateId
       ? { type: "doc.create" as const, projectId: bundle.project.id, templateId }
       : { type: "doc.create" as const, projectId: bundle.project.id, title: "Untitled" };
     const result = applyCommand(payload);
     const newId = result.bundle.core.documents[result.bundle.core.documents.length - 1].id;
-    navigate(`/doc/${newId}`);
+    navigate(`/doc/${newId}`, { state: { editDocId: newId } });
+  };
+
+  const requestCreateDocument = () => {
+    if (editorDirty) {
+      setPendingNavigation({ kind: "createDocument" });
+      return;
+    }
+    createDocumentNow();
   };
 
   const createSection = () => {
@@ -71,12 +91,28 @@ export function DocsView() {
     setNewSectionName("");
   };
 
+  const requestRouteNavigation = (route: string, options?: RouteNavigationOptions) => {
+    if (route === `/doc/${current?.id}`) return;
+    if (editorDirty) {
+      setPendingNavigation({ kind: "route", route, options });
+      return;
+    }
+    navigate(route, options);
+  };
+
+  const requestDocNavigation = (targetDocId: string) => {
+    requestRouteNavigation(`/doc/${targetDocId}`);
+  };
+
+  const routeState = location.state as { editDocId?: string } | null;
+  const startEditingCurrent = Boolean(current && routeState?.editDocId === current.id);
+
   return (
     <div className="docs-layout">
       <aside className="docs-sidebar" aria-label="Docs">
         <div className="row-between docs-sidebar-heading">
           <strong>Docs</strong>
-          <Button size="sm" variant="primary" onClick={createDocument}>
+          <Button size="sm" variant="primary" onClick={requestCreateDocument}>
             <Plus aria-hidden="true" size={16} />
             New document
           </Button>
@@ -124,23 +160,56 @@ export function DocsView() {
           docs={filteredDocs}
           folders={activeFolders}
           currentDocId={current?.id ?? null}
+          onNavigateDoc={requestDocNavigation}
           searchQuery={searchQuery}
         />
       </aside>
 
       <main className="docs-content">
         {current ? (
-          <DocEditor doc={current} folders={activeFolders} />
+          <DocEditor
+            doc={current}
+            folders={activeFolders}
+            onDirtyChange={setEditorDirty}
+            onNavigateRoute={requestRouteNavigation}
+            startEditing={startEditingCurrent}
+          />
         ) : (
           <EmptyState
             title="No documents"
             description="Create your first doc to capture decisions, release notes, bug context, and project briefs."
-            actions={<Button variant="primary" onClick={createDocument}>New document</Button>}
+            actions={<Button variant="primary" onClick={requestCreateDocument}>New document</Button>}
           />
         )}
       </main>
 
-      <DocsContext doc={current} docs={activeDocs} items={bundle.core.items} backlinks={backlinks} />
+      <DocsContext
+        doc={current}
+        docs={activeDocs}
+        items={bundle.core.items}
+        backlinks={backlinks}
+        onNavigateRoute={requestRouteNavigation}
+      />
+
+      {pendingNavigation ? (
+        <ConfirmDialog
+          title="Discard document edits?"
+          message="This document has unsaved edits. Save before switching documents, or discard the draft changes."
+          destructive
+          confirmLabel="Discard changes"
+          onCancel={() => setPendingNavigation(null)}
+          onConfirm={() => {
+            const pending = pendingNavigation;
+            setPendingNavigation(null);
+            setEditorDirty(false);
+            if (pending.kind === "createDocument") {
+              createDocumentNow();
+              return;
+            }
+            navigate(pending.route, pending.options);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -149,11 +218,13 @@ function DocTree({
   docs,
   folders,
   currentDocId,
+  onNavigateDoc,
   searchQuery
 }: {
   docs: Document[];
   folders: Folder[];
   currentDocId: string | null;
+  onNavigateDoc: (docId: string) => void;
   searchQuery: string;
 }) {
   const unfiledDocs = docs.filter((doc) => doc.folderId == null || !folders.some((folder) => folder.id === doc.folderId));
@@ -179,7 +250,12 @@ function DocTree({
               <span>{folder.name}</span>
             </div>
             {folderDocs.length === 0 ? <div className="docs-empty-list">No docs in this section.</div> : folderDocs.map((doc) => (
-              <DocTreeLink key={doc.id} doc={doc} currentDocId={currentDocId} />
+              <DocTreeLink
+                key={doc.id}
+                doc={doc}
+                currentDocId={currentDocId}
+                onNavigateDoc={onNavigateDoc}
+              />
             ))}
           </section>
         );
@@ -189,7 +265,12 @@ function DocTree({
         <section className="docs-tree-section" aria-label="Unfiled">
           {folders.length > 0 && <div className="docs-tree-section-title">Unfiled</div>}
           {unfiledDocs.map((doc) => (
-            <DocTreeLink key={doc.id} doc={doc} currentDocId={currentDocId} />
+            <DocTreeLink
+              key={doc.id}
+              doc={doc}
+              currentDocId={currentDocId}
+              onNavigateDoc={onNavigateDoc}
+            />
           ))}
         </section>
       )}
@@ -197,33 +278,87 @@ function DocTree({
   );
 }
 
-function DocTreeLink({ doc, currentDocId }: { doc: Document; currentDocId: string | null }) {
+function DocTreeLink({
+  doc,
+  currentDocId,
+  onNavigateDoc
+}: {
+  doc: Document;
+  currentDocId: string | null;
+  onNavigateDoc: (docId: string) => void;
+}) {
   return (
-    <Link key={doc.id} to={`/doc/${doc.id}`} className="doc-tree-node" aria-current={doc.id === currentDocId}>
+    <Link
+      key={doc.id}
+      to={`/doc/${doc.id}`}
+      className="doc-tree-node"
+      aria-current={doc.id === currentDocId}
+      onClick={(event) => {
+        if (doc.id === currentDocId) return;
+        event.preventDefault();
+        onNavigateDoc(doc.id);
+      }}
+    >
       <FileText aria-hidden="true" size={14} />
       <span>{doc.title}</span>
     </Link>
   );
 }
 
-function DocEditor({ doc, folders }: { doc: Document; folders: Folder[] }) {
+function DocEditor({
+  doc,
+  folders,
+  onDirtyChange,
+  onNavigateRoute,
+  startEditing
+}: {
+  doc: Document;
+  folders: Folder[];
+  onDirtyChange: (dirty: boolean) => void;
+  onNavigateRoute: (route: string) => void;
+  startEditing: boolean;
+}) {
   const bundle = useProjectStore((s) => s.bundle);
   const applyCommand = useProjectStore((s) => s.applyCommand);
   const navigate = useNavigate();
   const [title, setTitle] = useState(doc.title);
   const [body, setBody] = useState(doc.body);
-  const [tab, setTab] = useState<"edit" | "preview">("preview");
+  const [isEditing, setIsEditing] = useState(startEditing);
   const [deletePending, setDeletePending] = useState(false);
+  const isDirty = title !== doc.title || body !== doc.body;
 
   useEffect(() => {
     setTitle(doc.title);
     setBody(doc.body);
-  }, [doc.id]);
+    setIsEditing(startEditing);
+    onDirtyChange(false);
+  }, [doc.id, onDirtyChange, startEditing]);
+
+  useEffect(() => {
+    if (isEditing) return;
+    setTitle(doc.title);
+    setBody(doc.body);
+  }, [doc.body, doc.title, isEditing]);
+
+  useEffect(() => {
+    onDirtyChange(isEditing && isDirty);
+  }, [isDirty, isEditing, onDirtyChange]);
 
   if (!bundle) return null;
 
   const save = () => {
-    applyCommand({ type: "doc.update", projectId: bundle.project.id, docId: doc.id, patch: { title, body } });
+    if (isDirty) {
+      applyCommand({ type: "doc.update", projectId: bundle.project.id, docId: doc.id, patch: { title, body } });
+    }
+    setIsEditing(false);
+    onDirtyChange(false);
+  };
+
+  const cancel = () => {
+    setTitle(doc.title);
+    setBody(doc.body);
+    setIsEditing(false);
+    onDirtyChange(false);
   };
 
   const moveSection = (event: ChangeEvent<HTMLSelectElement>) => {
@@ -236,30 +371,40 @@ function DocEditor({ doc, folders }: { doc: Document; folders: Folder[] }) {
   };
 
   const handlePreviewClick = (event: MouseEvent<HTMLDivElement>) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     const target = event.target as HTMLElement | null;
     const anchor = target?.closest("a[data-route]") as HTMLAnchorElement | null;
     if (!anchor) return;
     const route = anchor.dataset.route;
     if (!route?.startsWith("/")) return;
     event.preventDefault();
-    navigate(route);
+    onNavigateRoute(route);
   };
 
   return (
     <>
       <div className="col docs-editor" style={{ gap: 12 }}>
-        <input
-          aria-label="Document title"
-          className="input"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          onBlur={save}
-          style={{ fontSize: "var(--font-size-2xl)", fontWeight: 700, border: 0, padding: 0 }}
-        />
+        {isEditing ? (
+          <input
+            aria-label="Document title"
+            className="input"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            style={{ fontSize: "var(--font-size-2xl)", fontWeight: 700, border: 0, padding: 0 }}
+          />
+        ) : (
+          <h1 className="docs-title">{title || "Untitled"}</h1>
+        )}
         <div className="docs-editor-toolbar">
           <div className="row">
-            <button className={`btn btn-sm ${tab === "edit" ? "btn-primary" : ""}`} onClick={() => setTab("edit")}>Edit</button>
-            <button className={`btn btn-sm ${tab === "preview" ? "btn-primary" : ""}`} onClick={() => { save(); setTab("preview"); }}>Preview</button>
+            {isEditing ? (
+              <>
+                <Button size="sm" variant="primary" onClick={save}>Save</Button>
+                <Button size="sm" variant="ghost" onClick={cancel}>Cancel</Button>
+              </>
+            ) : (
+              <Button size="sm" onClick={() => setIsEditing(true)}>Edit</Button>
+            )}
           </div>
           <label className="docs-section-select">
             Document section
@@ -274,12 +419,11 @@ function DocEditor({ doc, folders }: { doc: Document; folders: Folder[] }) {
           <span className="spacer" />
           <Button size="sm" variant="danger" onClick={() => setDeletePending(true)}>Delete</Button>
         </div>
-        {tab === "edit" ? (
+        {isEditing ? (
           <textarea
             className="textarea"
             value={body}
             onChange={(e) => setBody(e.target.value)}
-            onBlur={save}
             style={{ flex: 1, minHeight: 400 }}
           />
         ) : (
@@ -313,12 +457,14 @@ function DocsContext({
   doc,
   docs,
   items,
-  backlinks
+  backlinks,
+  onNavigateRoute
 }: {
   doc: Document | null;
   docs: Document[];
   items: WorkItem[];
   backlinks: Document[];
+  onNavigateRoute: (route: string) => void;
 }) {
   const links = useMemo(() => (doc ? parseDocLinks(doc.body) : []), [doc]);
   const linkedItems = links
@@ -344,10 +490,15 @@ function DocsContext({
           <div className="docs-context-list">
             {linkedItems.map(({ link, item }) =>
               item ? (
-                <Link key={`${link.refId}-${link.order}`} to={`/item/${item.id}`} className="docs-context-row">
+                <DocsContextLink
+                  key={`${link.refId}-${link.order}`}
+                  to={`/item/${item.id}`}
+                  className="docs-context-row"
+                  onNavigateRoute={onNavigateRoute}
+                >
                   <span>{link.label === link.refId ? item.title : link.label}</span>
                   <span className="text-xs text-muted">{item.statusId}</span>
-                </Link>
+                </DocsContextLink>
               ) : (
                 <div key={`${link.refId}-${link.order}`} className="docs-context-row docs-context-row-muted">
                   Missing item: {link.refId}
@@ -366,9 +517,14 @@ function DocsContext({
           <div className="docs-context-list">
             {referencedDocs.map(({ link, doc }) =>
               doc ? (
-                <Link key={`${link.refId}-${link.order}`} to={`/doc/${doc.id}`} className="docs-context-row">
+                <DocsContextLink
+                  key={`${link.refId}-${link.order}`}
+                  to={`/doc/${doc.id}`}
+                  className="docs-context-row"
+                  onNavigateRoute={onNavigateRoute}
+                >
                   {link.label === link.refId ? doc.title : link.label}
-                </Link>
+                </DocsContextLink>
               ) : (
                 <div key={`${link.refId}-${link.order}`} className="docs-context-row docs-context-row-muted">
                   Missing doc: {link.refId}
@@ -386,14 +542,45 @@ function DocsContext({
         ) : (
           <div className="docs-context-list">
             {backlinks.map((backlink) => (
-              <Link key={backlink.id} to={`/doc/${backlink.id}`} className="docs-context-row">
+              <DocsContextLink
+                key={backlink.id}
+                to={`/doc/${backlink.id}`}
+                className="docs-context-row"
+                onNavigateRoute={onNavigateRoute}
+              >
                 {backlink.title}
-              </Link>
+              </DocsContextLink>
             ))}
           </div>
         )}
       </section>
     </aside>
+  );
+}
+
+function DocsContextLink({
+  children,
+  className,
+  onNavigateRoute,
+  to
+}: {
+  children: ReactNode;
+  className: string;
+  onNavigateRoute: (route: string) => void;
+  to: string;
+}) {
+  return (
+    <Link
+      to={to}
+      className={className}
+      onClick={(event) => {
+        if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        onNavigateRoute(to);
+      }}
+    >
+      {children}
+    </Link>
   );
 }
 
