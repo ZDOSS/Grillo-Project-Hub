@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { exportProjectCsv, exportProjectJson, exportProjectMarkdown, importProjectJson, validateProjectBundle } from "@gph/core";
 import { HelpTip, InlineAlert, useToast } from "../../components";
 import { useProjectStore } from "../../store/project-store";
@@ -10,6 +11,7 @@ export function ImportExportSettings() {
   const [importSummary, setImportSummary] = useState<string | null>(null);
   const [exportSummary, setExportSummary] = useState<string | null>(null);
   const { notify } = useToast();
+  const navigate = useNavigate();
 
   if (!bundle) return null;
 
@@ -113,7 +115,7 @@ export function ImportExportSettings() {
               try {
                 const result = importProjectJson(text);
                 validateProjectBundle(result.bundle);
-                useProjectStore.getState().setBundle(result.bundle, { storageKey: null, storagePath: null, storageTrust: "browser" });
+                useProjectStore.getState().setBundle(result.bundle, { storageKey: null, storagePath: null, storageTrust: "unsaved" });
                 const itemCount = result.bundle.core.items.filter((item) => !item.trashedAt && !item.archived).length;
                 const docCount = result.bundle.core.documents.filter((document) => !document.archived).length;
                 const summary = `Imported ${result.bundle.project.name}: ${itemCount} active work items, ${docCount} docs.`;
@@ -126,7 +128,17 @@ export function ImportExportSettings() {
           />
         </label>
         {importError ? <InlineAlert tone="danger">{importError}</InlineAlert> : null}
-        {importSummary ? <InlineAlert tone="success">{importSummary}</InlineAlert> : null}
+        {importSummary ? (
+          <InlineAlert tone="success">
+            <div className="import-export-imported-summary">
+              <span>{importSummary} Use Save now in the project header to persist it.</span>
+              <div className="row">
+                <button className="btn btn-sm btn-primary" onClick={() => navigate("/overview")}>Review project</button>
+                <button className="btn btn-sm" onClick={() => navigate("/projects")}>Open projects</button>
+              </div>
+            </div>
+          </InlineAlert>
+        ) : null}
       </section>
     </div>
   );

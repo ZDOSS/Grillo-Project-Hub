@@ -2,10 +2,11 @@ import { act, cleanup, render, screen, waitFor, within } from "@testing-library/
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
-import { buildProjectFromTemplate, exportProjectJson, type ProjectStoreAdapter, type WatchEvent } from "@gph/core";
+import { buildProjectFromTemplate, exportProjectJson, importProjectJson, type ProjectStoreAdapter, type WatchEvent } from "@gph/core";
 import { AppShell } from "./AppShell";
 import { ThemeProvider } from "./theme/theme-provider";
 import { useProjectStore } from "./store/project-store";
+import { useWorkspaceStore } from "./store/workspace-store";
 
 function LocationProbe() {
   const location = useLocation();
@@ -27,6 +28,7 @@ describe("AppShell", () => {
       lastSavedAt: null,
       saveError: null
     });
+    useWorkspaceStore.setState({ localMemberId: null, recents: [] });
     delete (window as typeof window & { __gph_store?: unknown }).__gph_store;
   });
 
@@ -264,6 +266,239 @@ describe("AppShell", () => {
 
     expect(screen.getByRole("status", { name: /save failed/i })).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent("Disk permission denied");
+  });
+
+  it("lets users manually save, switch projects, and close the current project from the header", async () => {
+    const bundle = buildProjectFromTemplate("software-project", "Unsaved Import");
+    const save = vi.fn(async (key: string, json: string) => ({
+      key,
+      displayPath: null,
+      externalRevision: 1,
+      trust: "browser" as const
+    }));
+    const adapter: ProjectStoreAdapter = {
+      capabilities: { folderBacked: false, fileWatch: false, attachments: true },
+      list: async () => [],
+      has: async () => false,
+      load: async () => null,
+      save,
+      delete: async () => {}
+    };
+    (window as typeof window & { __gph_store?: ProjectStoreAdapter }).__gph_store = adapter;
+    useProjectStore.setState({
+      bundle,
+      storageKey: null,
+      storagePath: null,
+      storageTrust: "unsaved",
+      isDirty: true,
+      saveStatus: "idle",
+      lastSavedAt: null,
+      saveError: null
+    });
+
+    render(
+      <ThemeProvider>
+        <MemoryRouter initialEntries={["/overview"]}>
+          <AppShell appMode="web">
+            <Routes>
+              <Route path="/overview" element={<LocationProbe />} />
+              <Route path="/projects" element={<LocationProbe />} />
+            </Routes>
+          </AppShell>
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Save now" }));
+
+    await waitFor(() => {
+      expect(save).toHaveBeenCalledOnce();
+    });
+    expect(save).toHaveBeenCalledWith(bundle.project.id, expect.any(String), null);
+    expect(useProjectStore.getState()).toMatchObject({
+      storageKey: bundle.project.id,
+      storageTrust: "browser",
+      isDirty: false,
+      saveStatus: "saved"
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "Switch project" }));
+    expect(screen.getByTestId("location")).toHaveTextContent("/projects");
+
+    await userEvent.click(screen.getByRole("button", { name: "Close project" }));
+    expect(useProjectStore.getState().bundle).toBeNull();
+    expect(screen.getByTestId("location")).toHaveTextContent("/projects");
+  });
+
+  it("requires confirmation before closing a dirty project", async () => {
+    const bundle = buildProjectFromTemplate("software-project", "Dirty Project");
+    useProjectStore.setState({
+      bundle,
+      storageKey: bundle.project.id,
+      storagePath: null,
+      storageTrust: "browser",
+      isDirty: true,
+      saveStatus: "idle",
+      lastSavedAt: null,
+      saveError: null
+    });
+
+    render(
+      <ThemeProvider>
+        <MemoryRouter initialEntries={["/overview"]}>
+          <AppShell appMode="web">
+            <Routes>
+              <Route path="/overview" element={<LocationProbe />} />
+              <Route path="/projects" element={<LocationProbe />} />
+            </Routes>
+          </AppShell>
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Close project" }));
+
+    expect(screen.getByRole("dialog", { name: "Close project without saving?" })).toBeInTheDocument();
+    expect(useProjectStore.getState().bundle).not.toBeNull();
+    expect(screen.getByTestId("location")).toHaveTextContent("/overview");
+
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog", { name: "Close project without saving?" })).not.toBeInTheDocument();
+    expect(useProjectStore.getState().bundle).not.toBeNull();
+    expect(screen.getByTestId("location")).toHaveTextContent("/overview");
+
+    await userEvent.click(screen.getByRole("button", { name: "Close project" }));
+    await userEvent.click(screen.getByRole("button", { name: "Close without saving" }));
+
+    expect(useProjectStore.getState().bundle).toBeNull();
+    expect(screen.getByTestId("location")).toHaveTextContent("/projects");
+  });
+
+  it("requires confirmation before closing an unsaved in-memory project", async () => {
+    const bundle = buildProjectFromTemplate("software-project", "Imported Project");
+    useProjectStore.setState({
+      bundle,
+      storageKey: null,
+      storagePath: null,
+      storageTrust: "unsaved",
+      isDirty: false,
+      saveStatus: "idle",
+      lastSavedAt: null,
+      saveError: null
+    });
+
+    render(
+      <ThemeProvider>
+        <MemoryRouter initialEntries={["/overview"]}>
+          <AppShell appMode="web">
+            <Routes>
+              <Route path="/overview" element={<LocationProbe />} />
+              <Route path="/projects" element={<LocationProbe />} />
+            </Routes>
+          </AppShell>
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Close project" }));
+
+    expect(screen.getByRole("dialog", { name: "Close project without saving?" })).toHaveTextContent(
+      "This project has not been saved yet."
+    );
+    expect(useProjectStore.getState().bundle).not.toBeNull();
+    expect(screen.getByTestId("location")).toHaveTextContent("/overview");
+  });
+
+  it("writes manual save payloads with the adapter destination trust", async () => {
+    const bundle = buildProjectFromTemplate("software-project", "Folder Import");
+    const save = vi.fn(async (key: string) => ({
+      key,
+      displayPath: `Client/.pm-suite/${key}.pms.json`,
+      externalRevision: 1,
+      trust: "folder" as const
+    }));
+    const adapter: ProjectStoreAdapter = {
+      capabilities: { folderBacked: true, fileWatch: false, attachments: true },
+      list: async () => [],
+      has: async () => false,
+      load: async () => null,
+      save,
+      delete: async () => {},
+      getCurrentFolderDisplay: async () => "Client"
+    };
+    (window as typeof window & { __gph_store?: ProjectStoreAdapter }).__gph_store = adapter;
+    useProjectStore.getState().setBundle(bundle, {
+      storageKey: null,
+      storagePath: null,
+      storageTrust: "unsaved"
+    });
+
+    render(
+      <ThemeProvider>
+        <MemoryRouter initialEntries={["/overview"]}>
+          <AppShell appMode="web">
+            <div>content</div>
+          </AppShell>
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Save now" }));
+
+    await waitFor(() => {
+      expect(save).toHaveBeenCalledOnce();
+    });
+    const savedJson = save.mock.calls[0][1];
+    expect(importProjectJson(savedJson).bundle.projectSettings.storageTrust).toBe("folder");
+    expect(useProjectStore.getState().storageTrust).toBe("folder");
+  });
+
+  it("records a launcher recent when manually saving an unsaved project", async () => {
+    const bundle = buildProjectFromTemplate("software-project", "Imported Project");
+    const save = vi.fn(async (key: string) => ({
+      key,
+      displayPath: null,
+      externalRevision: 1,
+      trust: "browser" as const
+    }));
+    const adapter: ProjectStoreAdapter = {
+      capabilities: { folderBacked: false, fileWatch: false, attachments: true },
+      list: async () => [],
+      has: async () => false,
+      load: async () => null,
+      save,
+      delete: async () => {}
+    };
+    (window as typeof window & { __gph_store?: ProjectStoreAdapter }).__gph_store = adapter;
+    useProjectStore.getState().setBundle(bundle, {
+      storageKey: null,
+      storagePath: null,
+      storageTrust: "unsaved"
+    });
+
+    render(
+      <ThemeProvider>
+        <MemoryRouter initialEntries={["/overview"]}>
+          <AppShell appMode="web">
+            <div>content</div>
+          </AppShell>
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Save now" }));
+
+    await waitFor(() => {
+      expect(useWorkspaceStore.getState().recents).toEqual([
+        expect.objectContaining({
+          key: bundle.project.id,
+          name: "Imported Project",
+          storagePath: null,
+          trust: "browser"
+        })
+      ]);
+    });
   });
 
   it("offers explicit conflict actions when the active project changes externally", async () => {

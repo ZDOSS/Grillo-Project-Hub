@@ -94,6 +94,16 @@ function isAbortError(error: unknown): boolean {
   return typeof error === "object" && error !== null && "name" in error && (error as { name?: string }).name === "AbortError";
 }
 
+function readProjectFileText(file: File): Promise<string> {
+  if (typeof file.text === "function") return file.text();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error ?? new Error("Could not read project file."));
+    reader.readAsText(file);
+  });
+}
+
 type FolderReconnectResult = "selected" | "unavailable";
 
 async function openSavedProject(
@@ -573,11 +583,10 @@ export function OpenProjectView() {
     setBusy(true);
     setOpenError(null);
     try {
-      const text = await file.text();
+      const text = await readProjectFileText(file);
       const r = importProjectJson(text);
       validateProjectBundle(r.bundle);
-      setBundle(r.bundle, { storageKey: r.bundle.project.id, storagePath: null, storageTrust: "browser" });
-      recordRecent({ key: r.bundle.project.id, name: r.bundle.project.name, storagePath: null, trust: "browser", lastOpenedAt: new Date().toISOString() });
+      setBundle(r.bundle, { storageKey: null, storagePath: null, storageTrust: "unsaved" });
       navigate("/overview");
     } catch (e) {
       setOpenError(`Open failed: ${(e as Error).message}`);
@@ -754,12 +763,10 @@ export function OpenProjectView() {
 
 export function DemoFolderView() {
   const setBundle = useProjectStore((s) => s.setBundle);
-  const recordRecent = useWorkspaceStore((s) => s.recordRecent);
   const navigate = useNavigate();
   const onDemo = () => {
     const bundle = buildProjectFromTemplate("software-project", "Demo Project");
-    setBundle(bundle, { storageKey: bundle.project.id, storagePath: null, storageTrust: "browser" });
-    recordRecent({ key: bundle.project.id, name: bundle.project.name, storagePath: null, trust: "browser", lastOpenedAt: new Date().toISOString() });
+    setBundle(bundle, { storageKey: null, storagePath: null, storageTrust: "unsaved" });
     navigate("/overview");
   };
   return (

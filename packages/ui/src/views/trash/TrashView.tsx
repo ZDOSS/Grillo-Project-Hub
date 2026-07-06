@@ -1,10 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Attachment, Document, TrashRecord, WorkItem } from "@gph/core";
 import { ConfirmDialog, EmptyState, InlineAlert } from "../../components";
 import { useProjectStore } from "../../store/project-store";
 
 type TrashAction = {
-  record: TrashRecord;
+  records: TrashRecord[];
   title: string;
 } | null;
 
@@ -13,52 +13,80 @@ export function TrashView() {
   const applyCommand = useProjectStore((state) => state.applyCommand);
   const [pendingDelete, setPendingDelete] = useState<TrashAction>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
 
   const rows = useMemo(() => {
     if (!bundle) return [];
     return [...bundle.core.trash]
       .sort((a, b) => b.trashedAt.localeCompare(a.trashedAt))
       .map((record) => ({
+        key: trashRecordKey(record),
         record,
         detail: describeTrashRecord(record, bundle.core.items)
       }));
   }, [bundle]);
 
+  useEffect(() => {
+    const rowKeys = new Set(rows.map((row) => row.key));
+    setSelectedKeys((current) => {
+      const next = current.filter((key) => rowKeys.has(key));
+      return next.length === current.length ? current : next;
+    });
+  }, [rows]);
+
   if (!bundle) return null;
 
-  const restore = (record: TrashRecord) => {
+  const selectedRows = rows.filter((row) => selectedKeys.includes(row.key));
+  const supportedSelectedRows = selectedRows.filter((row) => row.detail.supported);
+  const selectedCount = supportedSelectedRows.length;
+
+  const toggleSelection = (key: string) => {
+    setSelectedKeys((current) =>
+      current.includes(key)
+        ? current.filter((entry) => entry !== key)
+        : [...current, key]
+    );
+  };
+
+  const restoreRecords = (records: TrashRecord[]) => {
     setActionError(null);
     try {
-      switch (record.recordType) {
-        case "workItem":
-          applyCommand({ type: "item.restore", projectId: bundle.project.id, itemId: record.recordId });
-          break;
-        case "document":
-          applyCommand({ type: "doc.restore", projectId: bundle.project.id, docId: record.recordId });
-          break;
-        case "attachment":
-          applyCommand({ type: "attachment.restore", projectId: bundle.project.id, attachmentId: record.recordId });
-          break;
+      for (const record of records) {
+        switch (record.recordType) {
+          case "workItem":
+            applyCommand({ type: "item.restore", projectId: bundle.project.id, itemId: record.recordId });
+            break;
+          case "document":
+            applyCommand({ type: "doc.restore", projectId: bundle.project.id, docId: record.recordId });
+            break;
+          case "attachment":
+            applyCommand({ type: "attachment.restore", projectId: bundle.project.id, attachmentId: record.recordId });
+            break;
+        }
       }
+      setSelectedKeys((current) => current.filter((key) => !records.some((record) => trashRecordKey(record) === key)));
     } catch (error) {
       setActionError(errorMessage(error));
     }
   };
 
-  const permanentlyDelete = (record: TrashRecord) => {
+  const permanentlyDeleteRecords = (records: TrashRecord[]) => {
     setActionError(null);
     try {
-      switch (record.recordType) {
-        case "workItem":
-          applyCommand({ type: "item.permanentlyDelete", projectId: bundle.project.id, itemId: record.recordId });
-          break;
-        case "document":
-          applyCommand({ type: "doc.permanentlyDelete", projectId: bundle.project.id, docId: record.recordId });
-          break;
-        case "attachment":
-          applyCommand({ type: "attachment.permanentlyDelete", projectId: bundle.project.id, attachmentId: record.recordId });
-          break;
+      for (const record of records) {
+        switch (record.recordType) {
+          case "workItem":
+            applyCommand({ type: "item.permanentlyDelete", projectId: bundle.project.id, itemId: record.recordId });
+            break;
+          case "document":
+            applyCommand({ type: "doc.permanentlyDelete", projectId: bundle.project.id, docId: record.recordId });
+            break;
+          case "attachment":
+            applyCommand({ type: "attachment.permanentlyDelete", projectId: bundle.project.id, attachmentId: record.recordId });
+            break;
+        }
       }
+      setSelectedKeys((current) => current.filter((key) => !records.some((record) => trashRecordKey(record) === key)));
     } catch (error) {
       setActionError(errorMessage(error));
     } finally {
@@ -86,11 +114,47 @@ export function TrashView() {
           description="Deleted work items, documents, and attachments will appear here before permanent removal."
         />
       ) : (
-        <div className="trash-list" aria-label="Trash records">
-          {rows.map(({ detail, record }) => (
+        <>
+          <div className="trash-bulk-toolbar" aria-label="Bulk trash actions">
+            <span className="text-sm text-secondary">
+              {selectedCount > 0 ? `${selectedCount} selected` : "Select records to restore or delete together."}
+            </span>
+            <button
+              className="btn btn-sm"
+              disabled={selectedCount === 0}
+              onClick={() => restoreRecords(supportedSelectedRows.map((row) => row.record))}
+            >
+              Restore selected
+            </button>
+            <button
+              className="btn btn-sm btn-danger"
+              disabled={selectedCount === 0}
+              onClick={() => setPendingDelete({
+                records: supportedSelectedRows.map((row) => row.record),
+                title: selectedCount === 1
+                  ? supportedSelectedRows[0].detail.title
+                  : `Permanently delete ${selectedCount} records`
+              })}
+            >
+              Delete selected...
+            </button>
+            {selectedKeys.length > 0 ? (
+              <button className="btn btn-sm btn-ghost" onClick={() => setSelectedKeys([])}>Clear selection</button>
+            ) : null}
+          </div>
+          <div className="trash-list" aria-label="Trash records">
+          {rows.map(({ detail, key, record }) => (
             <article key={`${record.recordType}:${record.recordId}:${record.trashedAt}`} className="trash-card">
               <div className="trash-card-main">
                 <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                  {detail.supported ? (
+                    <input
+                      aria-label={`Select ${detail.title}`}
+                      checked={selectedKeys.includes(key)}
+                      onChange={() => toggleSelection(key)}
+                      type="checkbox"
+                    />
+                  ) : null}
                   <span className="tag">{detail.typeLabel}</span>
                   <strong>{detail.title}</strong>
                 </div>
@@ -101,7 +165,7 @@ export function TrashView() {
               </div>
               <div className="trash-card-actions">
                 {detail.supported ? (
-                  <button className="btn btn-sm" onClick={() => restore(record)}>
+                  <button className="btn btn-sm" onClick={() => restoreRecords([record])}>
                     Restore {detail.title}
                   </button>
                 ) : (
@@ -110,7 +174,7 @@ export function TrashView() {
                 {detail.supported ? (
                   <button
                     className="btn btn-sm btn-danger"
-                    onClick={() => setPendingDelete({ record, title: detail.title })}
+                    onClick={() => setPendingDelete({ records: [record], title: detail.title })}
                   >
                     Permanently delete {detail.title}
                   </button>
@@ -118,17 +182,18 @@ export function TrashView() {
               </div>
             </article>
           ))}
-        </div>
+          </div>
+        </>
       )}
 
       {pendingDelete ? (
         <ConfirmDialog
           destructive
-          title={`Permanently delete ${pendingDelete.title}`}
-          message={permanentDeleteMessage(pendingDelete.record)}
+          title={pendingDelete.records.length === 1 ? `Permanently delete ${pendingDelete.title}` : pendingDelete.title}
+          message={permanentDeleteMessage(pendingDelete.records)}
           confirmLabel="Delete permanently"
           onCancel={() => setPendingDelete(null)}
-          onConfirm={() => permanentlyDelete(pendingDelete.record)}
+          onConfirm={() => permanentlyDeleteRecords(pendingDelete.records)}
         />
       ) : null}
     </div>
@@ -137,6 +202,10 @@ export function TrashView() {
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Trash action failed";
+}
+
+function trashRecordKey(record: TrashRecord): string {
+  return `${record.recordType}:${record.recordId}:${record.trashedAt}`;
 }
 
 function describeTrashRecord(record: TrashRecord, activeItems: WorkItem[]) {
@@ -187,7 +256,11 @@ function documentFromTrashPayload(payload: unknown): Document {
   return payload as Document;
 }
 
-function permanentDeleteMessage(record: TrashRecord): string {
+function permanentDeleteMessage(records: TrashRecord[]): string {
+  if (records.length > 1) {
+    return `This permanently removes ${records.length} supported trash records. Work items may also remove linked comments, relationships, reminders, attachments, and document links. This cannot be undone.`;
+  }
+  const record = records[0];
   switch (record.recordType) {
     case "workItem":
       return "This removes the work item permanently, including comments, relationships, reminders, attachments, and document links. This cannot be undone.";

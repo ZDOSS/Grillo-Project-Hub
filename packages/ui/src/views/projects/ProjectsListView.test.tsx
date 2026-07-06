@@ -641,4 +641,37 @@ describe("ProjectsListView", () => {
     expect(useProjectStore.getState().storageTrust).toBe("folder");
     expect(useProjectStore.getState().bundle?.projectSettings.storageTrust).toBe("folder");
   });
+
+  it("opens imported JSON bundles as unsaved until the user explicitly saves them", async () => {
+    const bundle = buildProjectFromTemplate("software-project", "Portable Import");
+    const adapter = new InMemoryProjectStore();
+    (window as typeof window & { __gph_store?: unknown }).__gph_store = adapter;
+
+    render(
+      <MemoryRouter initialEntries={["/open"]}>
+        <Routes>
+          <Route path="/open" element={<OpenProjectView />} />
+          <Route path="/overview" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    const file = new File([exportProjectJson(bundle)], "portable-import.pms.json", {
+      type: "application/json"
+    });
+    const input = document.querySelector("input[type='file']") as HTMLInputElement;
+    await userEvent.upload(input, file);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/overview");
+    });
+    expect(useProjectStore.getState()).toMatchObject({
+      storageKey: null,
+      storagePath: null,
+      storageTrust: "unsaved",
+      isDirty: true
+    });
+    expect(useWorkspaceStore.getState().recents).toEqual([]);
+    expect(await adapter.load(bundle.project.id)).toBeNull();
+  });
 });

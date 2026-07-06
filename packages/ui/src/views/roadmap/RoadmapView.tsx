@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { Plus } from "lucide-react";
 import {
   isDateOnlyOrderValid,
   milestoneProgress,
@@ -7,7 +8,8 @@ import {
   type Milestone,
   type WorkItem
 } from "@gph/core";
-import { InlineAlert, MetadataBadge, SelectField, TextField, ViewToolbar } from "../../components";
+import { Button, InlineAlert, MetadataBadge, SelectField, TextField, ViewToolbar } from "../../components";
+import { openCreateItem } from "../../commands/palette-bus";
 import { useProjectStore } from "../../store/project-store";
 
 /**
@@ -91,9 +93,21 @@ export function RoadmapView() {
     });
   };
 
+  const createFromRoadmap = () => {
+    openCreateItem({ startDate: `${anchor.slice(0, 7)}-01` });
+  };
+
   return (
     <div className="roadmap">
       <ViewToolbar>
+        <Button
+          icon={<Plus aria-hidden="true" />}
+          onClick={createFromRoadmap}
+          size="sm"
+          variant="primary"
+        >
+          New item
+        </Button>
         <SelectField
           label="Zoom"
           value={zoom}

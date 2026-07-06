@@ -10,9 +10,11 @@ import {
   KanbanSquare,
   LayoutDashboard,
   ListTodo,
+  LogOut,
   Menu,
   Moon,
   Play,
+  Save,
   Search,
   Settings,
   Sun,
@@ -23,13 +25,14 @@ import {
   X
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { importProjectJson, validateProjectBundle, type ProjectStoreAdapter, type WatchEvent } from "@gph/core";
+import { exportProjectJson, importProjectJson, validateProjectBundle, type ProjectBundle, type ProjectStoreAdapter, type StorageTrust, type WatchEvent } from "@gph/core";
 import { useProjectStore } from "./store/project-store";
 import { useTheme } from "./theme/theme-provider";
 import { CommandPalette, registerCoreCommands } from "./commands/CommandPalette";
 import { openPalette } from "./commands/palette-bus";
-import { Button, HelpTip, IconButton, InlineAlert, ToastProvider, useToast } from "./components";
+import { Button, ConfirmDialog, HelpTip, IconButton, InlineAlert, ToastProvider, useToast } from "./components";
 import { PROJECT_NAV_ITEMS } from "./nav-config";
+import { useWorkspaceStore } from "./store/workspace-store";
 import { hasRegisteredSavedRoute, savedViewsForBundle, viewRoute } from "./views/planning/view-helpers";
 
 export type AppShellProps = {
@@ -135,7 +138,12 @@ function AppShellFrame({ appMode, children }: AppShellProps) {
   const lastSavedAt = useProjectStore((s) => s.lastSavedAt);
   const saveError = useProjectStore((s) => s.saveError);
   const setBundle = useProjectStore((s) => s.setBundle);
+  const markSaving = useProjectStore((s) => s.markSaving);
+  const markSaved = useProjectStore((s) => s.markSaved);
+  const markSaveFailed = useProjectStore((s) => s.markSaveFailed);
   const markUnsaved = useProjectStore((s) => s.markUnsaved);
+  const closeProject = useProjectStore((s) => s.closeProject);
+  const recordRecent = useWorkspaceStore((s) => s.recordRecent);
   const { resolved, toggle } = useTheme();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [externalNotice, setExternalNotice] = useState<ExternalNotice | null>(null);
@@ -143,6 +151,7 @@ function AppShellFrame({ appMode, children }: AppShellProps) {
     typeof navigator === "undefined" ? true : navigator.onLine !== false
   );
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
+  const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
   const mobileNavOpenRef = useRef(false);
   const mobileCloseRef = useRef<HTMLButtonElement>(null);
   const mobileTriggerRef = useRef<HTMLButtonElement>(null);
@@ -338,6 +347,55 @@ function AppShellFrame({ appMode, children }: AppShellProps) {
     setExternalNotice(null);
   }, [markUnsaved]);
 
+  const saveCurrentProject = useCallback(async () => {
+    if (!bundle) return;
+    const adapter = activeAdapter();
+    if (!adapter) {
+      const message = "No storage adapter is available.";
+      markSaveFailed(message);
+      notify({ tone: "danger", message });
+      return;
+    }
+      markSaving();
+    try {
+      const key = storageKey ?? bundle.project.id;
+      const targetTrust = await trustForManualSave(adapter, storageTrust);
+      const metadata = await adapter.save(key, exportProjectJson(withRuntimeStorageTrust(bundle, targetTrust)), null);
+      markSaved(metadata.key, metadata.displayPath, metadata.trust);
+      if (metadata.trust !== "unsaved") {
+        recordRecent({
+          key: metadata.key,
+          name: bundle.project.name,
+          storagePath: metadata.displayPath,
+          trust: metadata.trust,
+          lastOpenedAt: new Date().toISOString()
+        });
+      }
+      notify({
+        tone: "success",
+        message: `Saved ${bundle.project.name} to ${metadata.trust === "folder" ? "folder" : "browser storage"}.`
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Save failed.";
+      markSaveFailed(message);
+      notify({ tone: "danger", message: `Save failed: ${message}` });
+    }
+  }, [bundle, markSaveFailed, markSaved, markSaving, notify, recordRecent, storageKey, storageTrust]);
+
+  const confirmCloseProject = useCallback(() => {
+    setCloseConfirmOpen(false);
+    closeProject();
+    navigate("/projects");
+  }, [closeProject, navigate]);
+
+  const closeCurrentProject = useCallback(() => {
+    if (isDirty || storageTrust === "unsaved") {
+      setCloseConfirmOpen(true);
+      return;
+    }
+    confirmCloseProject();
+  }, [confirmCloseProject, isDirty, storageTrust]);
+
   const promptInstall = useCallback(async () => {
     if (!installPrompt) return;
     await installPrompt.prompt();
@@ -396,6 +454,29 @@ function AppShellFrame({ appMode, children }: AppShellProps) {
               <HelpTip label="Storage trust">
                 Folder projects write a `.pms.json` file in your selected folder. Browser-local projects only live in this browser until exported.
               </HelpTip>
+              <span className="shell-project-actions">
+                <Button
+                  icon={<Save aria-hidden="true" />}
+                  loading={saveStatus === "saving"}
+                  loadingLabel="Saving..."
+                  onClick={() => void saveCurrentProject()}
+                  size="sm"
+                  variant={saveStatus === "error" ? "danger" : "primary"}
+                >
+                  {saveStatus === "error" ? "Retry save" : "Save now"}
+                </Button>
+                <Button
+                  icon={<FolderKanban aria-hidden="true" />}
+                  onClick={() => navigate("/projects")}
+                  size="sm"
+                  variant="ghost"
+                >
+                  Switch project
+                </Button>
+                <IconButton aria-label="Close project" onClick={closeCurrentProject}>
+                  <LogOut aria-hidden="true" />
+                </IconButton>
+              </span>
             </>
           ) : (
             <span className="text-muted">No project open</span>
@@ -494,6 +575,21 @@ function AppShellFrame({ appMode, children }: AppShellProps) {
         <div className="view-content">{children}</div>
       </main>
 
+      {closeConfirmOpen ? (
+        <ConfirmDialog
+          confirmLabel="Close without saving"
+          destructive
+          message={
+            storageTrust === "unsaved"
+              ? "This project has not been saved yet. Closing it will discard the in-memory workspace unless you save it first."
+              : "This project has unsaved changes. Closing it will discard those changes unless you save first."
+          }
+          onCancel={() => setCloseConfirmOpen(false)}
+          onConfirm={confirmCloseProject}
+          title="Close project without saving?"
+        />
+      ) : null}
+
       <CommandPalette />
     </div>
   );
@@ -538,6 +634,29 @@ function SaveStateIndicator({
       {label}
     </span>
   );
+}
+
+async function trustForManualSave(
+  adapter: ProjectStoreAdapter,
+  currentTrust: StorageTrust
+): Promise<StorageTrust> {
+  if (currentTrust === "folder" || currentTrust === "browser") return currentTrust;
+  try {
+    const folder = await adapter.getCurrentFolderDisplay?.();
+    return folder ? "folder" : "browser";
+  } catch {
+    return "browser";
+  }
+}
+
+function withRuntimeStorageTrust(bundle: ProjectBundle, storageTrust: StorageTrust): ProjectBundle {
+  return {
+    ...bundle,
+    projectSettings: {
+      ...bundle.projectSettings,
+      storageTrust
+    }
+  };
 }
 
 function formatSaveAge(iso: string): string {
