@@ -253,6 +253,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - bug triage now exposes a visible `New bug` action in the intake column, maps software-project `inbox` bugs into Intake, opens the shared create dialog with the correct intake status preselected, and limits Intake's planned-status fallback so custom workflows can still populate Ready; `buildBugTriageColumns()` is shared with overview so accepted Ready bugs do not reappear as intake pressure
 - bug triage cards are now `<article>` surfaces with an internal item link and real form controls, not whole-card links, so triage buttons/selects are valid and testable; accept/decline/assign dispatch `item.update`, decline resolves to an existing canceled status or completed fallback before dispatching, snooze dispatches `reminder.create`, and duplicate linking opens a picker modal before dispatching `relationship.create` with `relatesTo`
 - bug triage toolbar now includes severity and priority filters, cards can edit severity/priority plus plugin-owned source/context data stored under `moduleData.bug`, and the optional Workflow setting blocks Accept/Decline out of intake until a bug has either severity or priority
+- lane-style work surfaces use shared width tokens from `tokens.css`: `--work-lane-min` for normal board columns and `--work-lane-wide-min` for dense triage lanes. Bug triage uses a three-column grid with `minmax(var(--work-lane-wide-min), 1fr)` plus horizontal overflow so cards do not squeeze below a readable width; board columns use `--work-lane-min` instead of a route-local pixel width.
 - automation settings can create, dry-run preview, enable/disable, and delete rules; the first builder supports item-created/updated/status/due-date/milestone triggers plus set-field, add/remove-label, move-status, assign-milestone, create-subtask, and generate-doc actions
 - automation rule execution is a side-effect layer after the originating item command succeeds: each action still dispatches through the validated command surface with source `automation`, but action validation failures are captured on `automation.executed.data.failedActionCount` / `failures` instead of throwing back through the user's item command
 - My Work now has a `New assigned item` action that preselects the current local member as assignee, so work created from that filtered view remains visible in the same workflow after creation
@@ -288,6 +289,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - docs preview routing via `data-route`
   - docs editor draft preservation when the same document refreshes externally
   - docs explicit edit sessions for existing/new documents, save/cancel behavior, and dirty navigation confirmation across sidebar, new-doc, and context-link paths
+  - lane layout CSS contracts that keep bug triage and board buckets at readable minimum widths
   - startup session restore from persisted active-project metadata
   - stale-session cleanup when persisted startup data is corrupt
   - template-specific hidden-view defaults and bug-template-safe bug creation
@@ -628,6 +630,11 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - deferring `doc.create` until after the user confirms discarding an unsaved draft, so canceling the dialog does not create an orphan untitled document
   - centralizing Docs route navigation through `requestRouteNavigation()` while preserving normal modified-click browser behavior for context and preview links
   - adding DocsView regressions for dirty new-document creation and dirty right-rail doc navigation
+- fixed lane bucket readability by:
+  - adding shared `--work-lane-min` and `--work-lane-wide-min` layout tokens
+  - increasing board columns from a hard-coded 296px to the shared normal lane width
+  - making Bug triage lanes use a wider minimum and horizontal overflow instead of compressing all three buckets into the available viewport
+  - adding a CSS contract test for lane minimums and overflow behavior
 
 ## Open follow-on planning
 

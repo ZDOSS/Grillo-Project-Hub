@@ -85,6 +85,8 @@
   --header-height: 48px;
   --modal-max-width: 720px;
   --drawer-width: 540px;
+  --work-lane-min: 360px;
+  --work-lane-wide-min: 440px;
 }
 
 [data-theme="dark"] {
