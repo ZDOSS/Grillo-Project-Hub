@@ -328,6 +328,73 @@ describe("AppShell", () => {
     expect(screen.queryByText(/changed outside Grillo/i)).not.toBeInTheDocument();
   });
 
+  it("reloads renamed external projects from the watcher new key", async () => {
+    const bundle = buildProjectFromTemplate("software-project", "Original Project");
+    const renamedBundle = {
+      ...bundle,
+      project: { ...bundle.project, name: "Renamed Project" },
+      projectSettings: { ...bundle.projectSettings, storageTrust: "folder" as const }
+    };
+    let watchHandler: ((event: WatchEvent) => void) | null = null;
+    const loadFolderProject = vi.fn(async (key: string) => {
+      if (key !== "renamed-project") return null;
+      return {
+        json: exportProjectJson(renamedBundle),
+        metadata: {
+          key,
+          displayPath: "Client/.pm-suite/renamed-project.pms.json",
+          externalRevision: 3,
+          trust: "folder" as const
+        }
+      };
+    });
+    const adapter: ProjectStoreAdapter = {
+      capabilities: { folderBacked: true, fileWatch: true, attachments: true },
+      list: async () => [],
+      has: async () => true,
+      load: async () => null,
+      loadFolderProject,
+      save: async (key) => ({ key, displayPath: null, externalRevision: 1, trust: "browser" }),
+      delete: async () => {},
+      watch: (handler) => {
+        watchHandler = handler;
+        return () => undefined;
+      }
+    };
+    (window as typeof window & { __gph_store?: ProjectStoreAdapter }).__gph_store = adapter;
+    useProjectStore.setState({
+      bundle: {
+        ...bundle,
+        projectSettings: { ...bundle.projectSettings, storageTrust: "folder" }
+      },
+      storageKey: bundle.project.id,
+      storagePath: `Client/.pm-suite/${bundle.project.id}.pms.json`,
+      storageTrust: "folder"
+    });
+
+    render(
+      <ThemeProvider>
+        <MemoryRouter initialEntries={["/overview"]}>
+          <AppShell appMode="web">
+            <div>content</div>
+          </AppShell>
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    act(() => watchHandler?.({ type: "renamed", oldKey: bundle.project.id, newKey: "renamed-project" }));
+
+    expect(await screen.findByText(/renamed outside Grillo/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Reload from storage" }));
+
+    await waitFor(() => {
+      expect(useProjectStore.getState().bundle?.project.name).toBe("Renamed Project");
+    });
+    expect(loadFolderProject).toHaveBeenCalledWith("renamed-project");
+    expect(useProjectStore.getState().storageKey).toBe("renamed-project");
+    expect(useProjectStore.getState().storagePath).toBe("Client/.pm-suite/renamed-project.pms.json");
+  });
+
   it("shows offline and install affordances when the browser reports them", async () => {
     vi.spyOn(window.navigator, "onLine", "get").mockReturnValue(false);
     const bundle = buildProjectFromTemplate("software-project", "Offline Project");

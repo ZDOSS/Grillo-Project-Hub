@@ -46,6 +46,7 @@ type ExternalNotice = {
   error?: string;
   message: string;
   revision?: number | null;
+  targetKey?: string | null;
 };
 
 function activeAdapter(): ProjectStoreAdapter | null {
@@ -253,19 +254,22 @@ function AppShellFrame({ appMode, children }: AppShellProps) {
       if (event.type === "externalChange" && event.key === storageKey) {
         return {
           message: "This project changed outside Grillo.",
-          revision: event.newRevision
+          revision: event.newRevision,
+          targetKey: event.key
         };
       }
       if (event.type === "deleted" && event.key === storageKey) {
         return {
           message: "The saved project file was removed or moved outside Grillo.",
-          revision: null
+          revision: null,
+          targetKey: null
         };
       }
       if (event.type === "renamed" && event.oldKey === storageKey) {
         return {
           message: "The saved project file was renamed outside Grillo.",
-          revision: null
+          revision: null,
+          targetKey: event.newKey
         };
       }
       return null;
@@ -302,7 +306,8 @@ function AppShellFrame({ appMode, children }: AppShellProps) {
   }, [bundle, notify]);
 
   const reloadExternalProject = useCallback(async () => {
-    if (!storageKey) return;
+    const reloadKey = externalNotice?.targetKey ?? storageKey;
+    if (!reloadKey) return;
     const adapter = activeAdapter();
     if (!adapter) {
       setExternalNotice((current) => current ? { ...current, error: "No storage adapter is available." } : current);
@@ -310,8 +315,8 @@ function AppShellFrame({ appMode, children }: AppShellProps) {
     }
     try {
       const loaded = storageTrust === "folder" && adapter.loadFolderProject
-        ? await adapter.loadFolderProject(storageKey)
-        : await adapter.load(storageKey);
+        ? await adapter.loadFolderProject(reloadKey)
+        : await adapter.load(reloadKey);
       if (!loaded) {
         throw new Error("The saved project could not be loaded from the current storage location.");
       }
@@ -326,7 +331,7 @@ function AppShellFrame({ appMode, children }: AppShellProps) {
     } catch (error) {
       setExternalNotice((current) => current ? { ...current, error: (error as Error).message } : current);
     }
-  }, [setBundle, storageKey, storageTrust]);
+  }, [externalNotice?.targetKey, setBundle, storageKey, storageTrust]);
 
   const keepLocalChanges = useCallback(() => {
     markUnsaved();

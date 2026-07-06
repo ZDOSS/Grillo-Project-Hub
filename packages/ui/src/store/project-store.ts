@@ -89,15 +89,17 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
   saveError: null,
   lastSource: null,
   setBundle: (bundle, opts) => {
-    const nextStorageKey = opts?.storageKey ?? get().storageKey ?? bundle.project.id;
-    const nextStoragePath = opts?.storagePath ?? get().storagePath;
+    const hasStorageKey = Object.prototype.hasOwnProperty.call(opts ?? {}, "storageKey");
+    const hasStoragePath = Object.prototype.hasOwnProperty.call(opts ?? {}, "storagePath");
+    const nextStorageKey = hasStorageKey ? opts?.storageKey ?? null : get().storageKey ?? bundle.project.id;
+    const nextStoragePath = hasStoragePath ? opts?.storagePath ?? null : get().storagePath;
     const nextStorageTrust = opts?.storageTrust ?? bundle.projectSettings.storageTrust ?? get().storageTrust;
     set({
       bundle: withRuntimeStorageTrust(bundle, nextStorageTrust),
       storageKey: nextStorageKey,
       storagePath: nextStoragePath,
       storageTrust: nextStorageTrust,
-      isDirty: false,
+      isDirty: !nextStorageKey,
       saveStatus: nextStorageKey ? "saved" : "idle",
       lastSavedAt: null,
       saveError: null
@@ -108,6 +110,8 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
         storagePath: nextStoragePath,
         storageTrust: nextStorageTrust
       });
+    } else {
+      saveProjectSession(null);
     }
   },
   applyCommand: (payload, source = "ui", actorId = null) => {
@@ -171,7 +175,7 @@ export async function restoreLastProjectSession(): Promise<boolean> {
     const imported = importProjectJson(loaded.json);
     validateProjectBundle(imported.bundle);
     useProjectStore.getState().setBundle(imported.bundle, {
-      storageKey: imported.bundle.project.id,
+      storageKey: loaded.metadata.key,
       storagePath: loaded.metadata.displayPath,
       storageTrust: loaded.metadata.trust
     });
