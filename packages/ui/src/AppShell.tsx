@@ -250,10 +250,12 @@ function AppShellFrame({ appMode, appDistribution = "local", children }: AppShel
   }, []);
 
   useEffect(() => {
-    if (appMode !== "web" || appDistribution === "hosted-demo") return;
+    if (appMode !== "web") return;
     const onBeforeInstallPrompt = (event: Event) => {
       event.preventDefault();
-      setInstallPrompt(event as InstallPromptEvent);
+      if (appDistribution !== "hosted-demo") {
+        setInstallPrompt(event as InstallPromptEvent);
+      }
     };
     window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
     return () => window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);

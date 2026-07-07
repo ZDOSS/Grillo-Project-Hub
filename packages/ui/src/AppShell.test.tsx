@@ -683,7 +683,7 @@ describe("AppShell", () => {
     });
 
     expect(screen.queryByRole("button", { name: "Install app" })).not.toBeInTheDocument();
-    expect(preventDefault).not.toHaveBeenCalled();
+    expect(preventDefault).toHaveBeenCalledOnce();
     expect(screen.getByRole("link", { name: "Run locally" })).toHaveAttribute(
       "href",
       "https://github.com/ZDOSS/Grillo-Project-Hub#run-locally"

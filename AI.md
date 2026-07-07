@@ -643,6 +643,9 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - keeping PWA install support available for local/self-hosted web builds where the browser emits `beforeinstallprompt`
   - rewriting `Readme.md` around the real setup story: local-first use, hosted demo limitations, storage model, development commands, deployment, testing, and future release positioning
   - adding focused AppShell and web distribution regressions so the hosted demo cannot quietly return to the misleading install CTA
+- addressed the Greptile hosted-demo install follow-up by:
+  - keeping the web `beforeinstallprompt` listener active for hosted-demo builds so it still calls `preventDefault()` and suppresses the browser-native install prompt
+  - only storing the captured install prompt for local/self-hosted builds, preserving the `Install app` button there while hosted-demo mode continues to show `Run locally`
 
 ## Open follow-on planning
 
