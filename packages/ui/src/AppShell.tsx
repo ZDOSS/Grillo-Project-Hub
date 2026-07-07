@@ -4,6 +4,7 @@ import {
   CalendarDays,
   ChartGantt,
   Download,
+  ExternalLink,
   FileText,
   FolderKanban,
   FolderOpen,
@@ -37,6 +38,7 @@ import { hasRegisteredSavedRoute, savedViewsForBundle, viewRoute } from "./views
 
 export type AppShellProps = {
   appMode: "web" | "desktop";
+  appDistribution?: "local" | "hosted-demo";
   children: ReactNode;
 };
 
@@ -51,6 +53,8 @@ type ExternalNotice = {
   revision?: number | null;
   targetKey?: string | null;
 };
+
+const LOCAL_SETUP_URL = "https://github.com/ZDOSS/Grillo-Project-Hub#run-locally";
 
 function activeAdapter(): ProjectStoreAdapter | null {
   if (typeof window === "undefined") return null;
@@ -126,7 +130,7 @@ export function AppShell(props: AppShellProps) {
   );
 }
 
-function AppShellFrame({ appMode, children }: AppShellProps) {
+function AppShellFrame({ appMode, appDistribution = "local", children }: AppShellProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const bundle = useProjectStore((s) => s.bundle);
@@ -249,11 +253,13 @@ function AppShellFrame({ appMode, children }: AppShellProps) {
     if (appMode !== "web") return;
     const onBeforeInstallPrompt = (event: Event) => {
       event.preventDefault();
-      setInstallPrompt(event as InstallPromptEvent);
+      if (appDistribution !== "hosted-demo") {
+        setInstallPrompt(event as InstallPromptEvent);
+      }
     };
     window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
     return () => window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
-  }, [appMode]);
+  }, [appDistribution, appMode]);
 
   useEffect(() => {
     if (!bundle || !storageKey) return;
@@ -489,7 +495,20 @@ function AppShellFrame({ appMode, children }: AppShellProps) {
               Offline
             </span>
           ) : null}
-          {installPrompt ? (
+          {appDistribution === "hosted-demo" ? (
+            <a
+              className="btn btn-sm shell-setup-link"
+              href={LOCAL_SETUP_URL}
+              rel="noreferrer"
+              target="_blank"
+              title="Open local setup instructions on GitHub"
+            >
+              <span className="btn-icon" aria-hidden="true">
+                <ExternalLink aria-hidden="true" />
+              </span>
+              <span className="btn-label">Run locally</span>
+            </a>
+          ) : installPrompt ? (
             <Button
               size="sm"
               icon={<Download aria-hidden="true" />}

@@ -20,8 +20,13 @@ import {
 import { WebStorageAdapter } from "./platform/storage/web-storage";
 import { useAutoSave } from "./platform/auto-save";
 import { registerServiceWorker } from "./platform/pwa/register-sw";
+import { resolveWebAppDistribution } from "./distribution";
 
 const root = document.getElementById("root")!;
+const appDistribution = resolveWebAppDistribution({
+  baseUrl: import.meta.env.BASE_URL,
+  configuredDistribution: import.meta.env.VITE_GPH_DISTRIBUTION ?? import.meta.env.VITE_GITHUB_PAGES
+});
 
 // Initialize the in-memory+localStorage bridge for browser persistence.
 WebStorageAdapter.install();
@@ -32,7 +37,7 @@ function App() {
   return (
     <ThemeProvider>
       <BrowserRouter basename={import.meta.env.BASE_URL}>
-        <AppShell appMode="web">
+        <AppShell appMode="web" appDistribution={appDistribution}>
           <Routes>
             <Route path="/" element={<ProjectsListView />} />
             <Route path="/projects" element={<ProjectsListView />} />
