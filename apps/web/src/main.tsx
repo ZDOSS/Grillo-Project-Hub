@@ -19,7 +19,6 @@ import {
 } from "@gph/ui";
 import { WebStorageAdapter } from "./platform/storage/web-storage";
 import { useAutoSave } from "./platform/auto-save";
-import { registerServiceWorker } from "./platform/pwa/register-sw";
 import { resolveWebAppDistribution } from "./distribution";
 
 const root = document.getElementById("root")!;
@@ -50,8 +49,6 @@ function App() {
     </ThemeProvider>
   );
 }
-
-registerServiceWorker();
 
 createRoot(root).render(
   <StrictMode>

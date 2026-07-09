@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   buildProjectFromTemplate,
+  buildDemoProject,
   exportProjectJson,
   importProjectJson,
   listTemplates,
@@ -170,7 +171,8 @@ async function openSavedProject(
   setBundle(imported.bundle, {
     storageKey: imported.bundle.project.id,
     storagePath: loaded.metadata.displayPath,
-    storageTrust: loaded.metadata.trust
+    storageTrust: loaded.metadata.trust,
+    externalRevision: loaded.metadata.externalRevision
   });
   recordRecent({
     key: imported.bundle.project.id,
@@ -247,6 +249,16 @@ export function ProjectsListView() {
     }
   };
 
+  const useBrowserStorage = async () => {
+    setWorkspaceError(null);
+    try {
+      await adapter?.clearFolder?.();
+      setBrowserFolderLabel("");
+    } catch (error) {
+      setWorkspaceError(`Could not clear the selected folder: ${(error as Error).message}`);
+    }
+  };
+
   const create = async () => {
     const activeAdapter = getActiveAdapter();
     if (!activeAdapter) {
@@ -266,12 +278,13 @@ export function ProjectsListView() {
         buildProjectFromTemplate(templateId, newName.trim() || "Untitled"),
         intendedTrust
       );
-      const metadata = await activeAdapter.save(bundle.project.id, exportProjectJson(bundle), null);
+      const metadata = await activeAdapter.save(bundle.project.id, exportProjectJson(bundle), null, intendedTrust);
       const savedBundle = withStorageTrust(bundle, metadata.trust);
       setBundle(savedBundle, {
         storageKey: savedBundle.project.id,
         storagePath: metadata.displayPath,
-        storageTrust: metadata.trust
+        storageTrust: metadata.trust,
+        externalRevision: metadata.externalRevision
       });
       recordRecent({
         key: savedBundle.project.id,
@@ -457,7 +470,7 @@ export function ProjectsListView() {
             <div className="workspace-source">
               <strong>Portable JSON bundles</strong>
               <p className="text-sm text-secondary" style={{ margin: 0 }}>
-                Import a `project.pms.json` bundle from disk when you need to recover, migrate, or share a project snapshot.
+                Import a <code>project.pms.json</code> bundle from disk when you need to recover, migrate, or share a project snapshot.
               </p>
             </div>
             <div className="workspace-source">
@@ -539,6 +552,11 @@ export function ProjectsListView() {
                       <button className="btn btn-sm" type="button" onClick={() => void chooseBrowserFolder()}>
                         {browserFolderLabel ? "Change folder" : "Choose folder"}
                       </button>
+                      {browserFolderLabel && adapter?.clearFolder ? (
+                        <button className="btn btn-sm" type="button" onClick={() => void useBrowserStorage()}>
+                          Use browser storage
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 ) : (
@@ -642,7 +660,8 @@ export function OpenProjectView() {
       setBundle(openedBundle, {
         storageKey: imported.bundle.project.id,
         storagePath: loaded.metadata.displayPath,
-        storageTrust: loaded.metadata.trust
+        storageTrust: loaded.metadata.trust,
+        externalRevision: loaded.metadata.externalRevision
       });
       recordRecent({
         key: imported.bundle.project.id,
@@ -765,7 +784,7 @@ export function DemoFolderView() {
   const setBundle = useProjectStore((s) => s.setBundle);
   const navigate = useNavigate();
   const onDemo = () => {
-    const bundle = buildProjectFromTemplate("software-project", "Demo Project");
+    const bundle = buildDemoProject();
     setBundle(bundle, { storageKey: null, storagePath: null, storageTrust: "unsaved" });
     navigate("/overview");
   };

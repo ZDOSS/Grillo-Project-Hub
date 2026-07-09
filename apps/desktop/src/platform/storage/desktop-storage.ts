@@ -6,7 +6,13 @@
  * and watching external changes. Everything else stays in TypeScript.
  */
 
-import type { ProjectStoreAdapter, StorageMetadata, WatchEvent } from "@gph/core";
+import {
+  contentRevision,
+  type PersistedStorageTrust,
+  type ProjectStoreAdapter,
+  type StorageMetadata,
+  type WatchEvent
+} from "@gph/core";
 
 const NAMESPACE = "gph.desktop.project.";
 const INDEX_KEY = "gph.desktop.index";
@@ -52,10 +58,10 @@ class DesktopAdapter implements ProjectStoreAdapter {
     const meta = this.listSync().find((m) => m.key === key);
     const folder = getFolder();
     const folderBackedPath = meta?.displayPath ?? (folder ? projectPath(folder, key) : null);
-    if (tauri && folderBackedPath) {
+    if (tauri && folderBackedPath && (meta?.trust === "folder" || !meta)) {
       try {
         const json = await tauri.invoke("load_project", { path: folderBackedPath }) as string;
-        return { json, metadata: { key, displayPath: folderBackedPath, externalRevision: meta?.externalRevision ?? null, trust: "folder" } };
+        return { json, metadata: { key, displayPath: folderBackedPath, externalRevision: contentRevision(json), trust: "folder" } };
       } catch {
         return null;
       }
@@ -63,24 +69,50 @@ class DesktopAdapter implements ProjectStoreAdapter {
     if (typeof localStorage === "undefined") return null;
     const raw = localStorage.getItem(NAMESPACE + key);
     if (!raw) return null;
-    return { json: raw, metadata: { key, displayPath: null, externalRevision: null, trust: "browser" } };
+    return { json: raw, metadata: { key, displayPath: null, externalRevision: contentRevision(raw), trust: "browser" } };
   }
   async loadFolderProject(key: string): Promise<{ json: string; metadata: StorageMetadata } | null> {
-    return this.load(key);
-  }
-  async save(key: string, json: string, expectedRevision?: number | null): Promise<StorageMetadata> {
-    if (expectedRevision != null) {
-      const existing = this.listSync().find((m) => m.key === key);
-      if (existing && existing.externalRevision != null && existing.externalRevision !== expectedRevision) {
-        throw new Error("External change detected; refusing to save without explicit conflict resolution");
-      }
-    }
     const tauri = getTauri();
     const folder = getFolder();
-    if (tauri && folder) {
+    if (!tauri || !folder) return null;
+    const path = projectPath(folder, key);
+    try {
+      const json = await tauri.invoke("load_project", { path }) as string;
+      return { json, metadata: { key, displayPath: path, externalRevision: contentRevision(json), trust: "folder" } };
+    } catch {
+      return null;
+    }
+  }
+  async save(
+    key: string,
+    json: string,
+    expectedRevision?: number | null,
+    targetTrust?: PersistedStorageTrust
+  ): Promise<StorageMetadata> {
+    const existing = this.listSync().find((m) => m.key === key);
+    const tauri = getTauri();
+    const folder = getFolder();
+    const resolvedTrust: PersistedStorageTrust = targetTrust
+      ?? (existing?.trust === "browser" ? "browser" : tauri && folder ? "folder" : "browser");
+    if (resolvedTrust === "folder" && (!tauri || !folder)) {
+      throw new Error("Folder access is unavailable. Reconnect the project folder before saving.");
+    }
+    const revision = contentRevision(json);
+    if (resolvedTrust === "folder" && tauri && folder) {
       const path = projectPath(folder, key);
+      if (expectedRevision != null) {
+        let current: string;
+        try {
+          current = await tauri.invoke("load_project", { path }) as string;
+        } catch {
+          throw new Error("External change detected; the project file is no longer available");
+        }
+        if (contentRevision(current) !== expectedRevision) {
+          throw new Error("External change detected; refusing to save without explicit conflict resolution");
+        }
+      }
       await tauri.invoke("save_project", { path, contents: json });
-      const meta: StorageMetadata = { key, displayPath: path, externalRevision: this.nextRevisionFor(key), trust: "folder" };
+      const meta: StorageMetadata = { key, displayPath: path, externalRevision: revision, trust: "folder" };
       if (typeof localStorage !== "undefined") {
         const next = [meta, ...this.listSync().filter((m) => m.key !== key)];
         localStorage.setItem(INDEX_KEY, JSON.stringify(next));
@@ -88,8 +120,12 @@ class DesktopAdapter implements ProjectStoreAdapter {
       return meta;
     }
     if (typeof localStorage === "undefined") throw new Error("Storage unavailable");
+    const current = localStorage.getItem(NAMESPACE + key);
+    if (expectedRevision != null && (current == null || contentRevision(current) !== expectedRevision)) {
+      throw new Error("External change detected; refusing to save without explicit conflict resolution");
+    }
     localStorage.setItem(NAMESPACE + key, json);
-    const meta: StorageMetadata = { key, displayPath: null, externalRevision: this.nextRevisionFor(key), trust: "browser" };
+    const meta: StorageMetadata = { key, displayPath: null, externalRevision: revision, trust: "browser" };
     const next = [meta, ...this.listSync().filter((m) => m.key !== key)];
     localStorage.setItem(INDEX_KEY, JSON.stringify(next));
     return meta;
@@ -109,26 +145,50 @@ class DesktopAdapter implements ProjectStoreAdapter {
     localStorage.removeItem(NAMESPACE + key);
     localStorage.setItem(INDEX_KEY, JSON.stringify(this.listSync().filter((m) => m.key !== key)));
   }
-  watch(handler: (event: WatchEvent) => void): () => void {
+  watch(key: string, handler: (event: WatchEvent) => void): () => void {
     const tauri = getTauri();
     if (!tauri) return () => undefined;
+    const metadata = this.listSync().find((entry) => entry.key === key);
+    if (metadata?.trust !== "folder" || !metadata.displayPath) return () => undefined;
     let disposed = false;
     let unlisten: (() => void) | null = null;
     tauri.event.listen("gph://external-change", (e) => {
-      const payload = e.payload as { key: string; newRevision?: number };
-      if (payload?.key) handler({ type: "externalChange", key: payload.key, newRevision: payload.newRevision ?? this.nextRevisionFor(payload.key) });
+      const payload = e.payload as WatchEvent;
+      if (!payload || disposed) return;
+      this.applyWatchMetadata(payload);
+      handler(payload);
     }).then((u) => {
       if (disposed) u();
       else unlisten = u;
     });
+    void tauri.invoke("watch_project", { path: metadata.displayPath, key });
     return () => {
       disposed = true;
       unlisten?.();
+      void tauri.invoke("stop_project_watch");
     };
   }
-  private nextRevisionFor(key: string): number {
-    const existing = this.listSync().find((m) => m.key === key);
-    return (existing?.externalRevision ?? 0) + 1;
+  private applyWatchMetadata(event: WatchEvent): void {
+    if (typeof localStorage === "undefined") return;
+    const current = this.listSync();
+    if (event.type === "externalChange") {
+      localStorage.setItem(INDEX_KEY, JSON.stringify(current.map((entry) => (
+        entry.key === event.key ? { ...entry, externalRevision: event.newRevision } : entry
+      ))));
+      return;
+    }
+    if (event.type === "renamed") {
+      localStorage.setItem(INDEX_KEY, JSON.stringify(current.map((entry) => (
+        entry.key === event.oldKey
+          ? {
+              ...entry,
+              key: event.newKey,
+              displayPath: entry.displayPath?.replace(/[^/\\]+\.pms\.json$/, `${event.newKey}.pms.json`) ?? null,
+              externalRevision: event.newRevision
+            }
+          : entry
+      ))));
+    }
   }
   private listSync(): StorageMetadata[] {
     if (typeof localStorage === "undefined") return [];

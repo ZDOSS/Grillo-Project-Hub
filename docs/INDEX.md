@@ -1,5 +1,7 @@
 # Grillo Project Hub Research Pack
 
+> Status: `FullSpec.md` and the files under `specs/` describe product direction. The dated files under `plans/` and `superpowers/plans/` are historical execution plans; unchecked boxes there do not override the current implementation ledger in `AI.md` or the active July plan.
+
 This folder is a first-pass research and specification package for a free, open source, hybrid day-one project management suite that sits somewhere between Trello, GitHub Issues/Projects, Taiga, and lightweight Jira usage.
 
 The working assumptions used for this draft:
@@ -43,4 +45,4 @@ Suggested reading order:
 12. Phased implementation plan
 13. UI/UX overhaul design and implementation plan
 
-The remaining planning work now includes executing the full working UI/UX overhaul plan: a shared UI foundation, surface-by-surface migration, and workflow completion pass on top of the schema, command, screen, and interaction specs.
+Current implementation status and contributor constraints live in `AI.md`. Use the July plan for completed milestone history and create a new dated plan for future work instead of treating older unchecked execution scripts as the live backlog.

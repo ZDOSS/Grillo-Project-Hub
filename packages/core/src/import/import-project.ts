@@ -56,7 +56,14 @@ export function importProjectJson(raw: string, options: ImportOptions = {}): Imp
           name: options.name ?? bundle.project.name,
           revision: 0
         },
-        core: { ...bundle.core, events: [] }
+        core: {
+          ...bundle.core,
+          items: bundle.core.items.map((item) => ({
+            ...item,
+            projectId: options.projectId ?? bundle.project.id
+          })),
+          events: []
+        }
       },
       warnings
     };
@@ -80,6 +87,16 @@ export function importProjectJson(raw: string, options: ImportOptions = {}): Imp
   collect(bundle.core.relationships.map((r) => r.id));
   collect(bundle.core.folders.map((f) => f.id));
   collect(bundle.core.customFields.map((c) => c.id));
+  for (const item of bundle.core.items) {
+    collect(item.checklist.map((entry) => entry.id));
+    collect(item.comments.map((comment) => comment.id));
+  }
+  const sourceKanban = bundle.modules["builtin.kanban"];
+  const sourceViews = ((sourceKanban?.data as { views?: Record<string, View> } | undefined)?.views) ?? {};
+  collect(Object.values(sourceViews).map((view) => view.id));
+  for (const view of Object.values(sourceViews)) {
+    if (view.type === "board") collect(view.columns.map((column) => column.id));
+  }
 
   const remap = (id: string | null | undefined): string | null => {
     if (id === null || id === undefined) return id ?? null;
@@ -103,7 +120,12 @@ export function importProjectJson(raw: string, options: ImportOptions = {}): Imp
     },
     core: {
       ...bundle.core,
-      items: bundle.core.items.map((i) => remapItem(i, remap, remapArr)),
+      items: bundle.core.items.map((i) => remapItem(
+        i,
+        options.projectId ?? bundle.project.id,
+        remap,
+        remapArr
+      )),
       documents: bundle.core.documents.map((d) => remapDocument(d, remap)),
       folders: bundle.core.folders.map((f) => remapFolder(f, remap)),
       milestones: bundle.core.milestones.map((m) => ({ ...m, id: `${prefix}${m.id}` })),
@@ -146,11 +168,7 @@ export function importProjectJson(raw: string, options: ImportOptions = {}): Imp
     modules: remapModules(bundle.modules, prefix, remap),
     projectSettings: {
       ...bundle.projectSettings,
-      defaultViewId: bundle.projectSettings.defaultViewId
-        ? (oldIds.has(bundle.projectSettings.defaultViewId)
-            ? `${prefix}${bundle.projectSettings.defaultViewId}`
-            : bundle.projectSettings.defaultViewId)
-        : null
+      defaultViewId: remap(bundle.projectSettings.defaultViewId)
     }
   };
 
@@ -163,12 +181,14 @@ export function importProjectJson(raw: string, options: ImportOptions = {}): Imp
 
 function remapItem(
   i: WorkItem,
+  projectId: string,
   remap: (id: string | null | undefined) => string | null,
   remapArr: (ids: string[] | null | undefined) => string[]
 ): WorkItem {
   return {
     ...i,
     id: remap(i.id) ?? i.id,
+    projectId,
     typeId: (remap(i.typeId) ?? i.typeId) as WorkItem["typeId"],
     statusId: (remap(i.statusId) ?? i.statusId) as WorkItem["statusId"],
     priorityId: (remap(i.priorityId ?? null) ?? null) as WorkItem["priorityId"],
@@ -176,12 +196,30 @@ function remapItem(
     reporterId: (remap(i.reporterId ?? null) ?? null) as WorkItem["reporterId"],
     labelIds: remapArr(i.labelIds) as WorkItem["labelIds"],
     milestoneId: (remap(i.milestoneId ?? null) ?? null) as WorkItem["milestoneId"],
-    parentId: (remap(i.parentId ?? null) ?? null) as WorkItem["parentId"]
+    parentId: (remap(i.parentId ?? null) ?? null) as WorkItem["parentId"],
+    checklist: i.checklist.map((entry) => ({
+      ...entry,
+      id: remap(entry.id) ?? entry.id
+    })),
+    comments: i.comments.map((comment) => ({
+      ...comment,
+      id: remap(comment.id) ?? comment.id,
+      authorId: (remap(comment.authorId) ?? null) as typeof comment.authorId,
+      parentCommentId: (remap(comment.parentCommentId) ?? null) as typeof comment.parentCommentId
+    }))
   };
 }
 
 function remapDocument(d: Document, remap: (id: string | null | undefined) => string | null): Document {
-  return { ...d, id: remap(d.id) ?? d.id, folderId: (remap(d.folderId ?? null) ?? null) as Document["folderId"] };
+  return {
+    ...d,
+    id: remap(d.id) ?? d.id,
+    folderId: (remap(d.folderId ?? null) ?? null) as Document["folderId"],
+    body: d.body.replace(
+      /(\[\[(?:doc|item|attachment):)([a-zA-Z0-9_-]+)/g,
+      (_match, prefixText: string, id: string) => `${prefixText}${remap(id) ?? id}`
+    )
+  };
 }
 
 function remapFolder(f: Folder, remap: (id: string | null | undefined) => string | null): Folder {
@@ -228,6 +266,7 @@ function remapView(view: View, prefix: string, remap: (id: string | null | undef
         id: common.id as BoardView["id"],
         columns: view.columns.map((c) => ({
           ...c,
+          id: `${prefix}${c.id}`,
           statusIds: c.statusIds.map(remap) as BoardView["columns"][number]["statusIds"],
           defaultDropStatusId: (remap(c.defaultDropStatusId) ?? c.defaultDropStatusId) as BoardView["columns"][number]["defaultDropStatusId"]
         }))

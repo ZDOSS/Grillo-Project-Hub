@@ -47,6 +47,7 @@ Grillo is past the skeleton stage. The current app includes:
 - Overview, board, backlog, table, roadmap, calendar, docs, bug triage, my work, search, trash, and settings surfaces.
 - Explicit save-state UI in the project header, including save destination, dirty state, save failures, manual save/retry, switch project, and guarded close-project actions.
 - Folder-backed browser saves through File System Access where supported, browser-local recovery copies, and direct folder reopen flows for `.pm-suite` projects.
+- Explicit per-project browser/folder save targets plus content-fingerprint stale-write protection; selecting a folder for one project does not silently move another project.
 - Tauri desktop storage command wiring for folder-backed save/load/existence/delete flows.
 - Shared UI primitives for buttons, forms, surfaces, modals, dialogs, tables, empty states, inline alerts, toasts, help tips, and work item cards/rows.
 - Modal-style work item detail with comments, checklist/subtasks, relationships, custom fields, attachments, reminders, activity, automation previews, archive/trash/delete, and a pinned action footer.
@@ -55,6 +56,7 @@ Grillo is past the skeleton stage. The current app includes:
 - Automation rules with command-backed create/update/delete/enable/disable, dry-run previews, item-event triggers, and audited action failures.
 - JSON, Markdown, and CSV import/export, plus clean print preview.
 - Light/dark/system themes, responsive shell navigation, offline status, and local/self-hosted PWA install support when the browser exposes it.
+- A realistic, non-persistent demo workspace with active and completed work, bug intake, comments, members, dates, milestones, and linked docs.
 
 ## Storage model
 
@@ -67,6 +69,7 @@ Important behavior:
 - Reopening folder-backed recents asks for folder access and refuses to silently open stale browser recovery when the selected folder is missing the recorded project file.
 - Imported JSON and demo projects are unsaved in-memory sessions until the user explicitly saves them.
 - Removing a folder-backed recent only removes the shortcut. It does not delete the filesystem project.
+- Desktop folder projects monitor their active `.pms.json` file and offer reload/keep-local choices after external edits, deletes, or renames.
 
 ## Development commands
 

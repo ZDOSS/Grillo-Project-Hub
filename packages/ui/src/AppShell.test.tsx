@@ -314,7 +314,7 @@ describe("AppShell", () => {
     await waitFor(() => {
       expect(save).toHaveBeenCalledOnce();
     });
-    expect(save).toHaveBeenCalledWith(bundle.project.id, expect.any(String), null);
+    expect(save).toHaveBeenCalledWith(bundle.project.id, expect.any(String), null, "browser");
     expect(useProjectStore.getState()).toMatchObject({
       storageKey: bundle.project.id,
       storageTrust: "browser",
@@ -410,13 +410,13 @@ describe("AppShell", () => {
     expect(screen.getByTestId("location")).toHaveTextContent("/overview");
   });
 
-  it("writes manual save payloads with the adapter destination trust", async () => {
+  it("keeps an unsaved import browser-local even when a folder was selected earlier", async () => {
     const bundle = buildProjectFromTemplate("software-project", "Folder Import");
     const save = vi.fn(async (key: string) => ({
       key,
-      displayPath: `Client/.pm-suite/${key}.pms.json`,
+      displayPath: null,
       externalRevision: 1,
-      trust: "folder" as const
+      trust: "browser" as const
     }));
     const adapter: ProjectStoreAdapter = {
       capabilities: { folderBacked: true, fileWatch: false, attachments: true },
@@ -450,8 +450,9 @@ describe("AppShell", () => {
       expect(save).toHaveBeenCalledOnce();
     });
     const savedJson = save.mock.calls[0][1];
-    expect(importProjectJson(savedJson).bundle.projectSettings.storageTrust).toBe("folder");
-    expect(useProjectStore.getState().storageTrust).toBe("folder");
+    expect(save).toHaveBeenCalledWith(bundle.project.id, expect.any(String), null, "browser");
+    expect(importProjectJson(savedJson).bundle.projectSettings.storageTrust).toBe("browser");
+    expect(useProjectStore.getState().storageTrust).toBe("browser");
   });
 
   it("records a launcher recent when manually saving an unsaved project", async () => {
@@ -524,7 +525,7 @@ describe("AppShell", () => {
       }),
       save: async (key) => ({ key, displayPath: null, externalRevision: 1, trust: "browser" }),
       delete: async () => {},
-      watch: (handler) => {
+      watch: (_key, handler) => {
         watchHandler = handler;
         return () => undefined;
       }
@@ -591,7 +592,7 @@ describe("AppShell", () => {
       loadFolderProject,
       save: async (key) => ({ key, displayPath: null, externalRevision: 1, trust: "browser" }),
       delete: async () => {},
-      watch: (handler) => {
+      watch: (_key, handler) => {
         watchHandler = handler;
         return () => undefined;
       }
@@ -617,7 +618,12 @@ describe("AppShell", () => {
       </ThemeProvider>
     );
 
-    act(() => watchHandler?.({ type: "renamed", oldKey: bundle.project.id, newKey: "renamed-project" }));
+    act(() => watchHandler?.({
+      type: "renamed",
+      oldKey: bundle.project.id,
+      newKey: "renamed-project",
+      newRevision: 3
+    }));
 
     expect(await screen.findByText(/renamed outside Grillo/i)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Reload from storage" }));

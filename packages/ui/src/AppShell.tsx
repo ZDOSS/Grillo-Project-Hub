@@ -15,6 +15,7 @@ import {
   Menu,
   Moon,
   Play,
+  Plus,
   Save,
   Search,
   Settings,
@@ -137,6 +138,7 @@ function AppShellFrame({ appMode, appDistribution = "local", children }: AppShel
   const storageKey = useProjectStore((s) => s.storageKey);
   const storagePath = useProjectStore((s) => s.storagePath);
   const storageTrust = useProjectStore((s) => s.storageTrust);
+  const externalRevision = useProjectStore((s) => s.externalRevision);
   const isDirty = useProjectStore((s) => s.isDirty);
   const saveStatus = useProjectStore((s) => s.saveStatus);
   const lastSavedAt = useProjectStore((s) => s.lastSavedAt);
@@ -283,13 +285,13 @@ function AppShellFrame({ appMode, appDistribution = "local", children }: AppShel
       if (event.type === "renamed" && event.oldKey === storageKey) {
         return {
           message: "The saved project file was renamed outside Grillo.",
-          revision: null,
+          revision: event.newRevision,
           targetKey: event.newKey
         };
       }
       return null;
     };
-    return adapter.watch((event) => {
+    return adapter.watch(storageKey, (event) => {
       const notice = describeEvent(event);
       if (notice) setExternalNotice(notice);
     });
@@ -340,7 +342,8 @@ function AppShellFrame({ appMode, appDistribution = "local", children }: AppShel
       setBundle(imported.bundle, {
         storageKey: loaded.metadata.key,
         storagePath: loaded.metadata.displayPath,
-        storageTrust: loaded.metadata.trust
+        storageTrust: loaded.metadata.trust,
+        externalRevision: loaded.metadata.externalRevision
       });
       setExternalNotice(null);
     } catch (error) {
@@ -349,9 +352,9 @@ function AppShellFrame({ appMode, appDistribution = "local", children }: AppShel
   }, [externalNotice?.targetKey, setBundle, storageKey, storageTrust]);
 
   const keepLocalChanges = useCallback(() => {
-    markUnsaved();
+    markUnsaved(externalNotice?.revision);
     setExternalNotice(null);
-  }, [markUnsaved]);
+  }, [externalNotice?.revision, markUnsaved]);
 
   const saveCurrentProject = useCallback(async () => {
     if (!bundle) return;
@@ -366,8 +369,13 @@ function AppShellFrame({ appMode, appDistribution = "local", children }: AppShel
     try {
       const key = storageKey ?? bundle.project.id;
       const targetTrust = await trustForManualSave(adapter, storageTrust);
-      const metadata = await adapter.save(key, exportProjectJson(withRuntimeStorageTrust(bundle, targetTrust)), null);
-      markSaved(metadata.key, metadata.displayPath, metadata.trust);
+      const metadata = await adapter.save(
+        key,
+        exportProjectJson(withRuntimeStorageTrust(bundle, targetTrust)),
+        externalRevision,
+        targetTrust
+      );
+      markSaved(metadata.key, metadata.displayPath, metadata.trust, metadata.externalRevision);
       if (metadata.trust !== "unsaved") {
         recordRecent({
           key: metadata.key,
@@ -386,7 +394,7 @@ function AppShellFrame({ appMode, appDistribution = "local", children }: AppShel
       markSaveFailed(message);
       notify({ tone: "danger", message: `Save failed: ${message}` });
     }
-  }, [bundle, markSaveFailed, markSaved, markSaving, notify, recordRecent, storageKey, storageTrust]);
+  }, [bundle, externalRevision, markSaveFailed, markSaved, markSaving, notify, recordRecent, storageKey, storageTrust]);
 
   const confirmCloseProject = useCallback(() => {
     setCloseConfirmOpen(false);
@@ -462,6 +470,8 @@ function AppShellFrame({ appMode, appDistribution = "local", children }: AppShel
               </HelpTip>
               <span className="shell-project-actions">
                 <Button
+                  aria-label={saveStatus === "error" ? "Retry save" : "Save now"}
+                  className="shell-save-action"
                   icon={<Save aria-hidden="true" />}
                   loading={saveStatus === "saving"}
                   loadingLabel="Saving..."
@@ -472,6 +482,8 @@ function AppShellFrame({ appMode, appDistribution = "local", children }: AppShel
                   {saveStatus === "error" ? "Retry save" : "Save now"}
                 </Button>
                 <Button
+                  aria-label="Switch project"
+                  className="shell-switch-action"
                   icon={<FolderKanban aria-hidden="true" />}
                   onClick={() => navigate("/projects")}
                   size="sm"
@@ -518,6 +530,8 @@ function AppShellFrame({ appMode, appDistribution = "local", children }: AppShel
             </Button>
           ) : null}
           <Button
+            aria-label="Search commands"
+            className="shell-command-action"
             size="sm"
             icon={<Search aria-hidden="true" />}
             onClick={() => openPalette()}
@@ -656,16 +670,11 @@ function SaveStateIndicator({
 }
 
 async function trustForManualSave(
-  adapter: ProjectStoreAdapter,
+  _adapter: ProjectStoreAdapter,
   currentTrust: StorageTrust
-): Promise<StorageTrust> {
+): Promise<Exclude<StorageTrust, "unsaved">> {
   if (currentTrust === "folder" || currentTrust === "browser") return currentTrust;
-  try {
-    const folder = await adapter.getCurrentFolderDisplay?.();
-    return folder ? "folder" : "browser";
-  } catch {
-    return "browser";
-  }
+  return "browser";
 }
 
 function withRuntimeStorageTrust(bundle: ProjectBundle, storageTrust: StorageTrust): ProjectBundle {
@@ -807,6 +816,14 @@ function ProjectViewTabs({ items, savedViews }: { items: typeof NAV_ITEMS; saved
           </Link>
         );
       })}
+      <Link
+        to="/settings?section=views"
+        role="tab"
+        className="viewbar-tab viewbar-tab-add"
+      >
+        <Plus aria-hidden="true" size={14} />
+        Add view
+      </Link>
     </div>
   );
 }

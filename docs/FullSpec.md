@@ -240,6 +240,8 @@ The product should be implemented with a strong testing discipline, preferably T
 
 ### Hosted PWA mode
 
+Current distribution note: the GitHub Pages deployment is intentionally positioned as a hosted demo. Install prompts remain enabled for local/self-hosted builds, while the Pages header directs durable-use users to local setup until packaged releases or a production-hosted install path are ready.
+
 Characteristics:
 
 - deployable to GitHub Pages or similar static hosting

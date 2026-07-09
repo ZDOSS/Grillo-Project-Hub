@@ -61,18 +61,29 @@ export type ProjectStoreState = {
   storageKey: string | null;
   storagePath: string | null;
   storageTrust: StorageTrust;
+  externalRevision: number | null;
   isDirty: boolean;
   saveStatus: SaveStatus;
   lastSavedAt: string | null;
   saveError: string | null;
   /** Last applied source for the most recent command (used by activity view). */
   lastSource: CommandSource | null;
-  setBundle: (bundle: ProjectBundle, opts?: { storageKey?: string | null; storagePath?: string | null; storageTrust?: StorageTrust }) => void;
+  setBundle: (bundle: ProjectBundle, opts?: {
+    storageKey?: string | null;
+    storagePath?: string | null;
+    storageTrust?: StorageTrust;
+    externalRevision?: number | null;
+  }) => void;
   applyCommand: (payload: CommandPayload, source?: CommandSource, actorId?: string | null) => DispatchResult;
   markSaving: () => void;
-  markSaved: (storageKey: string, storagePath: string | null, trust: StorageTrust) => void;
+  markSaved: (
+    storageKey: string,
+    storagePath: string | null,
+    trust: StorageTrust,
+    externalRevision: number | null
+  ) => void;
   markSaveFailed: (message: string) => void;
-  markUnsaved: () => void;
+  markUnsaved: (externalRevision?: number | null) => void;
   /** Serialize the current bundle (e.g. for export or save). */
   serialize: () => string;
   closeProject: () => void;
@@ -83,6 +94,7 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
   storageKey: null,
   storagePath: null,
   storageTrust: "unsaved",
+  externalRevision: null,
   isDirty: false,
   saveStatus: "idle",
   lastSavedAt: null,
@@ -91,14 +103,17 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
   setBundle: (bundle, opts) => {
     const hasStorageKey = Object.prototype.hasOwnProperty.call(opts ?? {}, "storageKey");
     const hasStoragePath = Object.prototype.hasOwnProperty.call(opts ?? {}, "storagePath");
+    const hasExternalRevision = Object.prototype.hasOwnProperty.call(opts ?? {}, "externalRevision");
     const nextStorageKey = hasStorageKey ? opts?.storageKey ?? null : get().storageKey ?? bundle.project.id;
     const nextStoragePath = hasStoragePath ? opts?.storagePath ?? null : get().storagePath;
     const nextStorageTrust = opts?.storageTrust ?? bundle.projectSettings.storageTrust ?? get().storageTrust;
+    const nextExternalRevision = hasExternalRevision ? opts?.externalRevision ?? null : null;
     set({
       bundle: withRuntimeStorageTrust(bundle, nextStorageTrust),
       storageKey: nextStorageKey,
       storagePath: nextStoragePath,
       storageTrust: nextStorageTrust,
+      externalRevision: nextExternalRevision,
       isDirty: !nextStorageKey,
       saveStatus: nextStorageKey ? "saved" : "idle",
       lastSavedAt: null,
@@ -123,13 +138,14 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
     return r;
   },
   markSaving: () => set({ saveStatus: "saving", saveError: null }),
-  markSaved: (storageKey, storagePath, trust) => {
+  markSaved: (storageKey, storagePath, trust, externalRevision) => {
     const current = get().bundle;
     set({
       bundle: current ? withRuntimeStorageTrust(current, trust) : current,
       storageKey,
       storagePath,
       storageTrust: trust,
+      externalRevision,
       isDirty: false,
       saveStatus: "saved",
       lastSavedAt: new Date().toISOString(),
@@ -138,7 +154,12 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
     saveProjectSession({ storageKey, storagePath, storageTrust: trust });
   },
   markSaveFailed: (message) => set({ saveStatus: "error", saveError: message }),
-  markUnsaved: () => set({ isDirty: true, saveStatus: "idle", saveError: null }),
+  markUnsaved: (externalRevision) => set((state) => ({
+    externalRevision: externalRevision === undefined ? state.externalRevision : externalRevision,
+    isDirty: true,
+    saveStatus: "idle",
+    saveError: null
+  })),
   serialize: () => {
     const b = get().bundle;
     if (!b) throw new Error("No project loaded");
@@ -150,6 +171,7 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
       storageKey: null,
       storagePath: null,
       storageTrust: "unsaved",
+      externalRevision: null,
       isDirty: false,
       saveStatus: "idle",
       lastSavedAt: null,
@@ -177,7 +199,8 @@ export async function restoreLastProjectSession(): Promise<boolean> {
     useProjectStore.getState().setBundle(imported.bundle, {
       storageKey: loaded.metadata.key,
       storagePath: loaded.metadata.displayPath,
-      storageTrust: loaded.metadata.trust
+      storageTrust: loaded.metadata.trust,
+      externalRevision: loaded.metadata.externalRevision
     });
     return true;
   } catch {

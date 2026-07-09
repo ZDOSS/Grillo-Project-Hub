@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { contentRevision } from "@gph/core";
 import { DesktopStorageAdapter } from "./desktop-storage";
 
-function installTauriMock() {
+function installTauriMock(loadProjectJson = "{\"ok\":true}") {
   const invoke = vi.fn(async (cmd: string) => {
-    if (cmd === "load_project") return "{\"ok\":true}";
+    if (cmd === "load_project") return loadProjectJson;
     if (cmd === "project_exists") return true;
     return null;
   });
@@ -11,7 +12,7 @@ function installTauriMock() {
     configurable: true,
     value: {
       invoke,
-      event: { listen: vi.fn() }
+      event: { listen: vi.fn(async () => () => undefined) }
     }
   });
   return invoke;
@@ -70,5 +71,47 @@ describe("DesktopStorageAdapter", () => {
     expect(invoke).toHaveBeenCalledWith("delete_project", {
       path: "C:\\Projects\\Demo/.pm-suite/project_1.pms.json"
     });
+  });
+
+  it("keeps an explicitly browser-local project out of the configured desktop folder", async () => {
+    const invoke = installTauriMock();
+    localStorage.setItem("gph.desktop.folder", "C:\\Projects\\Demo");
+
+    const saved = await DesktopStorageAdapter.adapter.save(
+      "project_browser",
+      "{\"name\":\"Browser\"}",
+      null,
+      "browser"
+    );
+
+    expect(saved.trust).toBe("browser");
+    expect(localStorage.getItem("gph.desktop.project.project_browser")).not.toBeNull();
+    expect(invoke).not.toHaveBeenCalledWith("save_project", expect.anything());
+  });
+
+  it("rejects stale folder writes by comparing the current file contents", async () => {
+    const externalJson = "{\"name\":\"Changed elsewhere\"}";
+    installTauriMock(externalJson);
+    localStorage.setItem("gph.desktop.folder", "C:\\Projects\\Demo");
+
+    await expect(DesktopStorageAdapter.adapter.save(
+      "project_1",
+      "{\"name\":\"Local draft\"}",
+      contentRevision("{\"name\":\"Original\"}"),
+      "folder"
+    )).rejects.toThrow(/External change detected/);
+  });
+
+  it("rejects a stale folder write when the previously loaded file was deleted", async () => {
+    const invoke = installTauriMock();
+    invoke.mockRejectedValueOnce(new Error("not found"));
+    localStorage.setItem("gph.desktop.folder", "C:\\Projects\\Demo");
+
+    await expect(DesktopStorageAdapter.adapter.save(
+      "project_1",
+      "{\"name\":\"Local draft\"}",
+      contentRevision("{\"name\":\"Original\"}"),
+      "folder"
+    )).rejects.toThrow(/no longer available/);
   });
 });

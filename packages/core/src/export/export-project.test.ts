@@ -75,6 +75,14 @@ describe("import", () => {
     expect(r.bundle.project.revision).toBe(0);
   });
 
+  it("updates item ownership when the project ID changes without re-keying entities", () => {
+    const project = createProjectBundle({ name: "Demo" });
+    const r = importProjectJson(exportProjectJson(project), { projectId: "project_imported" });
+
+    expect(r.bundle.project.id).toBe("project_imported");
+    expect(r.bundle.core.items.every((item) => item.projectId === "project_imported")).toBe(true);
+  });
+
   it("rejects invalid JSON", () => {
     expect(() => importProjectJson("{not-json")).toThrow();
   });
@@ -136,26 +144,50 @@ describe("import", () => {
       dueDate: null,
       createdAt: "2024-01-01T00:00:00.000Z",
       updatedAt: "2024-01-01T00:00:00.000Z",
-      checklist: [],
-      comments: []
+      checklist: [{ id: "check_x", text: "Verify import", completed: false, order: 1024 }],
+      comments: [{
+        id: "comment_x",
+        authorId: null,
+        body: "Keep this context",
+        createdAt: "2024-01-01T00:00:00.000Z",
+        updatedAt: "2024-01-01T00:00:00.000Z",
+        parentCommentId: null
+      }]
     };
     const child = {
       ...parent,
       id: "child_x",
       title: "Child",
-      parentId: "parent_x"
+      parentId: "parent_x",
+      checklist: [],
+      comments: []
     };
     parsed.core.items = [parent, child];
     parsed.core.relationships = [
       { id: "rel_x", type: "blocks", sourceItemId: "parent_x", targetItemId: "child_x" }
     ];
-    const r = importProjectJson(JSON.stringify(parsed), { idPrefix: "imp_" });
+    parsed.core.documents = [{
+      id: "doc_x",
+      title: "Imported context",
+      body: "See [[item:parent_x]] and [[doc:doc_x]].",
+      folderId: null,
+      createdAt: "2024-01-01T00:00:00.000Z",
+      updatedAt: "2024-01-01T00:00:00.000Z",
+      archived: false
+    }];
+    const originalDefaultViewId = parsed.projectSettings.defaultViewId;
+    const r = importProjectJson(JSON.stringify(parsed), {
+      idPrefix: "imp_",
+      projectId: "project_imported"
+    });
 
     const findItem = (id: string) => r.bundle.core.items.find((i) => i.id === id);
     const parentAfter = findItem("imp_parent_x");
     const childAfter = findItem("imp_child_x");
     expect(parentAfter).toBeDefined();
     expect(childAfter).toBeDefined();
+    expect(parentAfter!.projectId).toBe("project_imported");
+    expect(childAfter!.projectId).toBe("project_imported");
     expect(childAfter!.parentId).toBe("imp_parent_x");
     expect(childAfter!.statusId).toBe(`imp_${firstStatus.id}`);
     expect(childAfter!.typeId).toBe(`imp_${firstType.id}`);
@@ -166,6 +198,11 @@ describe("import", () => {
     expect(r.bundle.core.relationships[0].id).toBe("imp_rel_x");
     expect(r.bundle.project.defaultTypeId).toBe(`imp_${firstType.id}`);
     expect(r.bundle.project.defaultInitialStatusId).toBe(`imp_${firstStatus.id}`);
+    expect(parentAfter!.checklist[0].id).toBe("imp_check_x");
+    expect(parentAfter!.comments[0].id).toBe("imp_comment_x");
+    expect(r.bundle.core.documents[0].body).toContain("[[item:imp_parent_x]]");
+    expect(r.bundle.core.documents[0].body).toContain("[[doc:imp_doc_x]]");
+    expect(r.bundle.projectSettings.defaultViewId).toBe(`imp_${originalDefaultViewId}`);
     // View column defaultDropStatusId is also remapped
     const kanban = r.bundle.modules["builtin.kanban"];
     const views = (kanban.data as { views?: Record<string, { type: string; columns?: { defaultDropStatusId: string; statusIds: string[] }[] }> }).views ?? {};

@@ -145,12 +145,15 @@ a.btn {
 /* ---- App shell ---- */
 .app-shell {
   display: grid;
-  grid-template-columns: var(--sidebar-width) 1fr;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
   grid-template-rows: var(--header-height) 1fr;
   grid-template-areas:
     "sidebar header"
     "sidebar main";
   height: 100%;
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
 }
 .app-shell[data-mode="desktop"] {
   --header-height: 38px;
@@ -163,6 +166,20 @@ a.btn {
   padding: 0 var(--space-4);
   border-bottom: 1px solid var(--color-border-subtle);
   background: var(--color-bg-surface);
+  gap: var(--space-2);
+  min-width: 0;
+  overflow: hidden;
+}
+.app-header > .row {
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+.app-header > .row:first-child {
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+.app-header > .row:last-child {
+  flex: 0 0 auto;
 }
 .app-sidebar {
   grid-area: sidebar;
@@ -280,6 +297,7 @@ a.btn {
   overflow: auto;
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 .viewbar {
   display: flex;
@@ -314,6 +332,7 @@ a.btn {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
 }
 
 /* ---- Modal / Drawer ---- */
@@ -2441,7 +2460,8 @@ a.btn {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  flex-wrap: wrap;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
 }
 .shell-connectivity-badge {
   gap: 6px;
@@ -2607,9 +2627,19 @@ a.btn {
   min-height: 18px;
 }
 
+@media (max-width: 1350px) and (min-width: 901px) {
+  .shell-switch-action {
+    width: 32px;
+    padding-inline: 0;
+  }
+  .shell-switch-action .btn-label {
+    display: none;
+  }
+}
+
 @media (max-width: 900px) {
   .app-shell {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
       "header"
       "main";
@@ -2625,6 +2655,7 @@ a.btn {
     min-width: 0;
   }
   .app-header strong {
+    max-width: 88px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -2637,7 +2668,29 @@ a.btn {
     display: none;
   }
   .app-header .save-state-indicator {
-    max-width: 132px;
+    width: 28px;
+    max-width: 28px;
+    padding-inline: 0;
+    justify-content: center;
+    gap: 0;
+    font-size: 0;
+  }
+  .app-header .save-state-indicator .storage-dot {
+    flex: 0 0 auto;
+  }
+  .app-header .gph-help-tip,
+  .app-header .shell-setup-link,
+  .app-header .shell-switch-action {
+    display: none;
+  }
+  .app-header .shell-save-action,
+  .app-header .shell-command-action {
+    width: 32px;
+    padding-inline: 0;
+  }
+  .app-header .shell-save-action .btn-label,
+  .app-header .shell-command-action .btn-label {
+    display: none;
   }
   .app-header .btn-label {
     max-width: 96px;
@@ -2741,5 +2794,11 @@ a.btn {
   @keyframes slideIn {
     from { transform: translateY(12px); opacity: 0.6; }
     to { transform: translateY(0); opacity: 1; }
+  }
+}
+
+@media (max-width: 480px) {
+  .settings-tablist {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
