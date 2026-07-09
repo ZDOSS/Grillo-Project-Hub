@@ -7,6 +7,7 @@ import { createWorkItem } from "../domain/work-item";
 import { createDocument } from "../domain/document";
 import { createLabel } from "../domain/label";
 import { createMilestone } from "../domain/milestone";
+import { createMember } from "../domain/member";
 import { createBoardView, createBacklogView, createTableView } from "../domain/view";
 import { nowTimestamp } from "../domain/dates";
 import { generateId } from "../domain/ids";
@@ -48,6 +49,101 @@ export function buildProjectFromTemplate(templateId: TemplateId, name: string): 
     case "release-planner":
       return buildReleasePlanner(name);
   }
+}
+
+/** A richer, non-persistent sample workspace used by the dedicated demo route. */
+export function buildDemoProject(name = "Demo Project"): ProjectBundle {
+  const bundle = buildSoftwareProject(name);
+  const now = nowTimestamp();
+  const owner = createMember({ displayName: "Alex Rivera", color: "green" });
+  const reviewer = createMember({ displayName: "Sam Chen", color: "blue" });
+  const [mvp, polish] = bundle.core.milestones;
+  const [welcome, firstTask] = bundle.core.items;
+  const completedTask = {
+    ...firstTask,
+    title: "Confirm project goals",
+    description: "Review the project brief and agree on the first release outcome.",
+    statusId: "done",
+    priorityId: "medium",
+    assigneeId: reviewer.id,
+    milestoneId: mvp.id,
+    dueDate: dateOffset(now, -1),
+    comments: [{
+      id: generateId("comment"),
+      authorId: reviewer.id,
+      body: "Goals are aligned. I added the remaining launch questions to the project brief.",
+      createdAt: now,
+      updatedAt: now,
+      parentCommentId: null
+    }]
+  };
+  const activeTask = {
+    ...welcome,
+    title: "Polish the first-run workspace",
+    statusId: "in-progress",
+    priorityId: "high",
+    assigneeId: owner.id,
+    milestoneId: mvp.id,
+    dueDate: dateOffset(now, 3),
+    comments: [{
+      id: generateId("comment"),
+      authorId: owner.id,
+      body: "The launcher copy is ready; next I am checking the mobile layout.",
+      createdAt: now,
+      updatedAt: now,
+      parentCommentId: null
+    }]
+  };
+  const bug = createWorkItem({
+    projectId: bundle.project.id,
+    typeId: "bug",
+    title: "Save indicator overlaps actions on narrow screens",
+    description: "At tablet widths the project actions wrap outside the header. Keep every save control visible and keyboard reachable.",
+    statusId: "inbox",
+    priorityId: "urgent",
+    assigneeId: owner.id,
+    milestoneId: mvp.id,
+    dueDate: dateOffset(now, 2),
+    now
+  });
+  bug.moduleData = {
+    bug: {
+      severityId: "major",
+      reproductionSteps: [
+        { id: generateId("step"), text: "Open the project at a tablet-sized viewport.", order: 1024 },
+        { id: generateId("step"), text: "Inspect the project header actions.", order: 2048 }
+      ],
+      expectedBehavior: "All project actions remain visible or move into an accessible overflow menu.",
+      actualBehavior: "Save and switch actions are clipped by the fixed-height header.",
+      environment: "Hosted PWA, 1280 × 720",
+      affectedVersion: "0.1.0"
+    }
+  };
+  const launchDoc = createDocument({
+    title: "Launch checklist",
+    body: `# Launch checklist\n\n- Review [[item:${activeTask.id}|first-run workspace]]\n- Verify [[item:${bug.id}|responsive header fix]]\n- Publish release notes`,
+    now
+  });
+
+  return {
+    ...bundle,
+    core: {
+      ...bundle.core,
+      members: [owner, reviewer],
+      milestones: [
+        { ...mvp, targetDate: dateOffset(now, 14) },
+        { ...polish, targetDate: dateOffset(now, 30) }
+      ],
+      items: [activeTask, completedTask, bug],
+      documents: [...bundle.core.documents, launchDoc]
+    }
+  };
+}
+
+function dateOffset(now: string, days: number): string {
+  const date = new Date(now);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
 }
 
 function withHiddenViews(bundle: ProjectBundle, hiddenViewIds: string[]): ProjectBundle {

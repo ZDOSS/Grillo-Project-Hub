@@ -25,3 +25,16 @@ describe("global lane layout CSS", () => {
     expect(rule).toContain("width: var(--work-lane-min)");
   });
 });
+
+describe("responsive shell CSS", () => {
+  it("allows the shell grid and content to shrink without page-level overflow", () => {
+    expect(cssRule(".app-shell")).toContain("minmax(0, 1fr)");
+    expect(cssRule(".app-shell")).toContain("overflow: hidden");
+    expect(cssRule(".app-header")).toContain("overflow: hidden");
+    expect(cssRule(".app-main")).toContain("min-width: 0");
+  });
+
+  it("keeps project header actions on one line", () => {
+    expect(cssRule(".shell-project-actions")).toContain("flex-wrap: nowrap");
+  });
+});

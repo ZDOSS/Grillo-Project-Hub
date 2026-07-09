@@ -5,8 +5,8 @@
  * localStorage as a compatibility layer.
  */
 
-import type { ProjectStoreAdapter, StorageMetadata, WatchEvent } from "@gph/core";
-import { exportProjectJson, importProjectJson, type ProjectBundle, validateProjectBundle } from "@gph/core";
+import type { PersistedStorageTrust, ProjectStoreAdapter, StorageMetadata, WatchEvent } from "@gph/core";
+import { contentRevision, exportProjectJson, importProjectJson, type ProjectBundle, validateProjectBundle } from "@gph/core";
 
 const NAMESPACE = "gph.project.";
 const RECOVERY_BASE_NAMESPACE = "gph.project.folderBase.";
@@ -86,6 +86,17 @@ async function writeStoredFolderHandle(handle: FileSystemDirectoryHandle): Promi
     tx.objectStore(FS_STORE_NAME).put(handle, FS_FOLDER_HANDLE_KEY);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error ?? new Error("Could not persist folder handle"));
+  }).finally(() => db.close());
+}
+
+async function deleteStoredFolderHandle(): Promise<void> {
+  if (typeof indexedDB === "undefined") return;
+  const db = await openHandlesDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(FS_STORE_NAME, "readwrite");
+    tx.objectStore(FS_STORE_NAME).delete(FS_FOLDER_HANDLE_KEY);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error ?? new Error("Could not clear the saved folder handle"));
   }).finally(() => db.close());
 }
 
@@ -193,7 +204,7 @@ class WebLocalStorageAdapter implements ProjectStoreAdapter {
           metadata: {
             key,
             displayPath: meta.displayPath ?? folderDisplayPath(folderHandle, key),
-            externalRevision: meta.externalRevision,
+            externalRevision: contentRevision(json),
             trust: "folder"
           }
         };
@@ -207,12 +218,11 @@ class WebLocalStorageAdapter implements ProjectStoreAdapter {
     const fallbackMeta: StorageMetadata = meta?.trust === "folder" ? {
       key,
       displayPath: null,
-      externalRevision: meta.externalRevision,
+      externalRevision: contentRevision(raw),
       trust: "browser"
-    } : meta ?? {
-      key,
-      displayPath: null,
-      externalRevision: null,
+    } : {
+      ...(meta ?? { key, displayPath: null }),
+      externalRevision: contentRevision(raw),
       trust: "browser"
     };
     if (!meta) {
@@ -231,7 +241,7 @@ class WebLocalStorageAdapter implements ProjectStoreAdapter {
       const metadata: StorageMetadata = {
         key,
         displayPath: folderDisplayPath(folderHandle, key),
-        externalRevision: existing.externalRevision,
+        externalRevision: contentRevision(recoveredJson),
         trust: "folder"
       };
       if (folderJson && (!recoveryBaseJson || (folderJson !== recoveryBaseJson && folderJson !== recoveredJson))) {
@@ -239,8 +249,12 @@ class WebLocalStorageAdapter implements ProjectStoreAdapter {
           localStorage.setItem(getKey(key), folderJson);
           localStorage.setItem(getRecoveryBaseKey(key), folderJson);
         }
-        upsertIndexEntry(metadata);
-        return { json: folderJson, metadata };
+        const externalMetadata = {
+          ...metadata,
+          externalRevision: contentRevision(folderJson)
+        };
+        upsertIndexEntry(externalMetadata);
+        return { json: folderJson, metadata: externalMetadata };
       }
       const writableFolderHandle = await getBoundFolderHandle({ mode: "readwrite", allowPrompt: true });
       if (!writableFolderHandle) return null;
@@ -260,7 +274,7 @@ class WebLocalStorageAdapter implements ProjectStoreAdapter {
     const metadata: StorageMetadata = {
       key,
       displayPath: folderDisplayPath(folderHandle, key),
-      externalRevision: existing?.externalRevision ?? null,
+      externalRevision: contentRevision(folderJson),
       trust: "folder"
     };
     if (typeof localStorage !== "undefined") {
@@ -270,17 +284,29 @@ class WebLocalStorageAdapter implements ProjectStoreAdapter {
     upsertIndexEntry(metadata);
     return { json: folderJson, metadata };
   }
-  async save(key: string, json: string, expectedRevision?: number | null): Promise<StorageMetadata> {
+  async save(
+    key: string,
+    json: string,
+    expectedRevision?: number | null,
+    targetTrust?: PersistedStorageTrust
+  ): Promise<StorageMetadata> {
     if (typeof localStorage === "undefined") throw new Error("localStorage unavailable");
     const index = readIndex();
     const existing = index.find((m) => m.key === key);
-    if (expectedRevision != null) {
-      if (existing && existing.externalRevision != null && existing.externalRevision !== expectedRevision) {
-        throw new Error("External change detected; refusing to save without explicit conflict resolution");
-      }
+    const availableFolder = await getBoundFolderHandle({ mode: "readwrite", allowPrompt: false });
+    const resolvedTrust: PersistedStorageTrust = targetTrust
+      ?? (existing?.trust === "browser" ? "browser" : availableFolder ? "folder" : "browser");
+    const folderHandle = resolvedTrust === "folder" ? availableFolder : null;
+    if (resolvedTrust === "folder" && !folderHandle) {
+      throw new Error("Folder access is unavailable. Reconnect the project folder before saving.");
     }
-    const revision = (existing?.externalRevision ?? 0) + 1;
-    const folderHandle = await getBoundFolderHandle({ mode: "readwrite", allowPrompt: false });
+    const currentJson = folderHandle
+      ? await readFolderProjectJson(folderHandle, key)
+      : localStorage.getItem(getKey(key));
+    if (expectedRevision != null && (currentJson == null || contentRevision(currentJson) !== expectedRevision)) {
+      throw new Error("External change detected; refusing to save without explicit conflict resolution");
+    }
+    const revision = contentRevision(json);
     if (folderHandle) {
       await writeFolderProjectJson(folderHandle, key, json);
       const meta: StorageMetadata = {
@@ -336,6 +362,14 @@ class WebLocalStorageAdapter implements ProjectStoreAdapter {
   async getCurrentFolderDisplay(): Promise<string | null> {
     const handle = await readStoredFolderHandle();
     return handle?.name ?? null;
+  }
+  async clearFolder(): Promise<void> {
+    activeFolderHandle = null;
+    try {
+      await deleteStoredFolderHandle();
+    } catch {
+      // Clearing the active in-memory handle is sufficient for this session.
+    }
   }
   async listFolderProjects(): Promise<string[]> {
     const handle = await getBoundFolderHandle({ mode: "read", allowPrompt: true });

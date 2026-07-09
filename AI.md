@@ -4,7 +4,7 @@ This file is the standing architecture and contributor-alignment ledger for the 
 
 ## Project state
 
-The repository now has a working MVP implementation that matches the planning in `docs/FullSpec.md`. The shared core, hybrid web/desktop shells, validated command surface, board/backlog/table/docs/roadmap/calendar/bugs/my work/search/settings views, local/self-hosted PWA install behavior, hosted-demo distribution mode, and desktop shell are wired up and tested.
+The repository has a working MVP implementation of the current July scope. `docs/FullSpec.md` remains the broader product direction rather than a claim that every future-facing requirement is already shipped. The shared core, hybrid web/desktop shells, validated command surface, planning/docs/settings views, local/self-hosted PWA behavior, hosted-demo distribution mode, and desktop shell are wired up and tested.
 
 The product name is **Grillo Project Hub**, with **GPH** as the approved abbreviation.
 
@@ -78,14 +78,15 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - the web adapter is now hybrid: browser-local storage remains the default, but browsers with File System Access support can persist project files into a user-chosen local folder; the selected folder handle becomes the active handle immediately, while IndexedDB persistence is a best-effort durability layer for later sessions
 - `DesktopAdapter` for Tauri (calls the registered Rust commands and falls back to `localStorage` when Tauri is absent in dev)
 - `InMemoryProjectStore` is available for tests
-- external change detection uses the adapter's `externalRevision` counter and `WatchEvent` notifications
+- `StorageMetadata.externalRevision` is a deterministic FNV-1a fingerprint of the last loaded/saved JSON; adapters compare it with the actual current file or browser value before writing, so stale saves fail instead of trusting a browser-local counter
 - trust status is surfaced in the UI as a `Folder-backed` / `Browser-local` / `Unsaved` badge
 - the active UI store now tracks `saveStatus`, `lastSavedAt`, and `saveError` separately from `isDirty`; auto-save bridges call `markSaving()`, `markSaved()`, or `markSaveFailed()` so the header can report `Saved to folder/browser`, `Saving`, `Unsaved changes`, or `Save failed` without inferring that state from storage trust alone
-- `AppShell` now consumes adapter `watch()` events for the active project and shows an explicit external-change banner with `Reload from storage` and `Keep my changes`; reloading validates the bundle before replacing the store, rename events carry `event.newKey` through the reload path so the app does not keep saving to a stale file key, and keeping local changes marks the project dirty so auto-save can intentionally overwrite on the next save cycle
+- `AppShell` consumes key-scoped adapter `watch()` events for the active project and shows an explicit external-change banner with `Reload from storage` and `Keep my changes`; the Tauri Rust shell polls the active `.pms.json` fingerprint, reports edits/deletes/renames, and updates the expected revision before an intentional overwrite
 - the shared shell wraps routes in `ToastProvider`; route code should use `useToast()` for short-lived feedback and keep blocking or recoverable errors in `InlineAlert`
 - the shared shell exposes explicit project actions next to the save-state indicator: `Save now` / `Retry save` routes through the active `ProjectStoreAdapter.save()` plus `markSaving()` / `markSaved()` / `markSaveFailed()`, records a launcher recent from successful browser/folder save metadata, `Switch project` navigates to `/projects`, and `Close project` returns to the launcher immediately only for clean saved projects; dirty projects and unsaved in-memory imports/demos must confirm `Close without saving` before `closeProject()` runs
 - the web shell now surfaces offline status and emits one lightweight due-item/reminder notification per project/day/count combination; local/self-hosted web builds capture `beforeinstallprompt` and show `Install app`, while hosted-demo builds suppress that install prompt and show a `Run locally` GitHub setup CTA instead
 - desktop storage now only writes to the filesystem when a folder path has actually been attached; otherwise the desktop shell behaves as browser-local storage on purpose instead of pretending to be folder-backed
+- every save now carries an explicit `browser` or `folder` target; an active browser folder handle or desktop folder path cannot silently promote a different browser-local project, and the PWA launcher exposes `Use browser storage` to clear its selected folder
 - recent-project reopen uses the active adapter's `load()` path rather than forcing JSON import; desktop recents restore the remembered folder path before loading
 - new project creation now saves through the active adapter before navigation, so folder-backed creates produce the initial `.pm-suite/<project-id>.pms.json` immediately instead of waiting for a later dirty auto-save
 - launcher reopen paths now validate imported bundles before calling `setBundle()`, matching the startup restore and direct storage-load paths so corrupt saved data is rejected consistently instead of silently entering the UI store
@@ -141,11 +142,15 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - both apps import the same `@gph/ui` AppShell, views, and command palette
 - project navigation metadata now lives in shared `packages/ui/src/nav-config.ts`, so AppShell navigation and Settings left-panel visibility both derive from one source of truth
 - the web app uses `@vitejs/plugin-pwa` for offline/local install support; the desktop app uses the Tauri runtime
+- service-worker registration is owned by `@vitejs/plugin-pwa` so production builds honor Vite's configured base path instead of hard-coding `/sw.js`
 - the web app's storage adapter supports both browser-local saves and optional local-folder saves via the browser file-system picker when the runtime exposes that capability; the desktop adapter talks to a Rust filesystem command
 - in development, both apps run in the browser; the desktop app's storage adapter falls back to localStorage when `__TAURI__` is absent
 - the AppShell accepts an `appMode: "web" | "desktop"` prop for platform-specific header sizing plus `appDistribution: "local" | "hosted-demo"` for distribution-specific header calls to action
 - `apps/web/src/distribution.ts` derives hosted-demo mode from the GitHub Pages base path `/Grillo-Project-Hub/`, from `VITE_GITHUB_PAGES=true`, or from an explicit `VITE_GPH_DISTRIBUTION=hosted-demo`; `VITE_GPH_DISTRIBUTION=local` is the override for self-hosted builds that use the Pages base path but should still offer local PWA install
 - hosted-demo mode must point users to the GitHub README `#run-locally` instructions rather than making the Pages sample look like the primary product install path; keep MCP/bridge language careful because the bridge runtime is not shipped yet
+- the shared shell keeps project actions inside fixed-height desktop/tablet headers and compacts them to accessible icon actions on narrow screens; E2E checks assert both action bounds and absence of page-level mobile overflow
+- the dedicated demo route uses `buildDemoProject()` rather than a starter template directly, giving the sample active/completed work, a triage bug, members, dated milestones, linked docs, and comments
+- CI runs unit/component tests, typechecks, both frontend builds, responsive Playwright flows, and a Rust `cargo check`
 - the shared workspace launcher now explains the real storage story per platform:
   - web/PWA: browser-local projects by default, optional local-folder saves when supported, plus JSON import/export
   - desktop: browser-local by default, optional manual folder path for new projects, and folder scanning/open for existing `.pm-suite` saves

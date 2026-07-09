@@ -1,4 +1,5 @@
-import { type KeyboardEvent, useRef, useState } from "react";
+import { type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useProjectStore } from "../../store/project-store";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { AutomationSettings } from "./AutomationSettings";
@@ -70,6 +71,10 @@ const SETTINGS_GROUPS: SettingsGroup[] = [
 
 const SETTINGS_TABS = SETTINGS_GROUPS.flatMap((group) => group.tabs);
 
+function isSettingsTabId(value: string | null): value is SettingsTabId {
+  return value != null && SETTINGS_TABS.some((entry) => entry.id === value);
+}
+
 function tabId(tab: SettingsTabId) {
   return `settings-tab-${tab}`;
 }
@@ -113,14 +118,21 @@ function renderPanel(tab: SettingsTabId) {
  */
 export function SettingsView() {
   const bundle = useProjectStore((state) => state.bundle);
-  const [tab, setTab] = useState<SettingsTabId>("general");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get("section");
+  const [tab, setTab] = useState<SettingsTabId>(() => isSettingsTabId(requestedTab) ? requestedTab : "general");
   const tabRefs = useRef<Record<SettingsTabId, HTMLButtonElement | null>>({} as Record<SettingsTabId, HTMLButtonElement | null>);
+
+  useEffect(() => {
+    if (isSettingsTabId(requestedTab)) setTab(requestedTab);
+  }, [requestedTab]);
 
   if (!bundle) return null;
 
   const activeIndex = SETTINGS_TABS.findIndex((entry) => entry.id === tab);
   const activateTab = (next: SettingsTabId) => {
     setTab(next);
+    setSearchParams({ section: next }, { replace: true });
     tabRefs.current[next]?.focus();
   };
 

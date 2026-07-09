@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { InMemoryProjectStore } from "./store";
+import { contentRevision, InMemoryProjectStore } from "./store";
 import { createProjectBundle } from "../domain/project";
 import { exportProjectJson } from "../export/export-project";
 
 describe("InMemoryProjectStore", () => {
+  it("uses the cross-runtime content fingerprint", () => {
+    expect(contentRevision("hello")).toBe(1_335_831_723);
+  });
+
   it("saves and reloads a project bundle", async () => {
     const store = new InMemoryProjectStore();
     const bundle = createProjectBundle({ name: "Demo" });
@@ -18,12 +22,15 @@ describe("InMemoryProjectStore", () => {
     const store = new InMemoryProjectStore();
     const bundle = createProjectBundle({ name: "Demo" });
     const json = exportProjectJson(bundle);
-    // First save (no existing revision, expectedRevision=0 succeeds and produces revision 1)
-    await store.save("k1", json, 0);
-    const meta = await store.save("k1", json, 1);
-    expect(meta.externalRevision).toBe(2);
-    // Now an old expectedRevision should be rejected
-    await expect(store.save("k1", json, 0)).rejects.toThrow();
+    const first = await store.save("k1", json);
+    expect(first.externalRevision).toBe(contentRevision(json));
+    const externalJson = exportProjectJson({
+      ...bundle,
+      project: { ...bundle.project, name: "Changed elsewhere" }
+    });
+    await store.save("k1", externalJson);
+    await expect(store.save("k1", json, first.externalRevision)).rejects.toThrow();
+    await expect(store.save("missing", json, first.externalRevision)).rejects.toThrow();
     // And an unknown key starts fresh
     await expect(store.save("k2", json)).resolves.toBeDefined();
   });

@@ -112,14 +112,15 @@ describe("ProjectsListView", () => {
   });
 
   it("persists new folder-backed PWA projects immediately on create", async () => {
-    const saves: Array<{ key: string; json: string }> = [];
+    const saves: Array<{ key: string; json: string; targetTrust: string | undefined }> = [];
+    let currentFolder = "Client Folder";
     const adapter: ProjectStoreAdapter = {
       capabilities: { folderBacked: true, fileWatch: false, attachments: true },
       list: async () => [],
       has: async () => false,
       load: async () => null,
-      save: async (key, json) => {
-        saves.push({ key, json });
+      save: async (key, json, _expectedRevision, targetTrust) => {
+        saves.push({ key, json, targetTrust });
         return {
           key,
           displayPath: `Client Folder/.pm-suite/${key}.pms.json`,
@@ -128,8 +129,14 @@ describe("ProjectsListView", () => {
         };
       },
       delete: async () => {},
-      chooseFolder: async () => "Client Folder",
-      getCurrentFolderDisplay: async () => "Client Folder"
+      chooseFolder: async () => {
+        currentFolder = "Client Folder";
+        return currentFolder;
+      },
+      getCurrentFolderDisplay: async () => currentFolder,
+      clearFolder: async () => {
+        currentFolder = "";
+      }
     };
     (window as typeof window & { __gph_store?: unknown }).__gph_store = adapter;
 
@@ -142,6 +149,9 @@ describe("ProjectsListView", () => {
       </MemoryRouter>
     );
 
+    await screen.findByText(/Selected folder: Client Folder/i);
+    await userEvent.click(screen.getByRole("button", { name: "Use browser storage" }));
+    expect(await screen.findByText(/Leave this unset to keep the project browser-local/i)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Choose folder" }));
     await screen.findByText(/Selected folder: Client Folder/i);
     await userEvent.click(screen.getByRole("button", { name: "Create" }));
@@ -150,6 +160,7 @@ describe("ProjectsListView", () => {
       expect(screen.getByTestId("location")).toHaveTextContent("/overview");
     });
     expect(saves).toHaveLength(1);
+    expect(saves[0].targetTrust).toBe("folder");
     expect(importProjectJson(saves[0].json).bundle.project.name).toBe("My Project");
     expect(importProjectJson(saves[0].json).bundle.projectSettings.storageTrust).toBe("folder");
     expect(useProjectStore.getState().storageTrust).toBe("folder");

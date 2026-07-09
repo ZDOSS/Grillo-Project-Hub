@@ -16,3 +16,4 @@ out/
 playwright-report/
 test-results/
 target/
+apps/desktop/src-tauri/gen/

@@ -103,6 +103,62 @@ describe("WebStorageAdapter folder mode", () => {
     });
   });
 
+  it("keeps browser-local projects out of an active folder and lets users clear the folder", async () => {
+    const folderProject = buildProjectFromTemplate("software-project", "Folder Project");
+    const browserProject = buildProjectFromTemplate("software-project", "Browser Project");
+    const folder = createFakeFolder("Client Folder");
+    Object.defineProperty(window, "showDirectoryPicker", {
+      configurable: true,
+      value: vi.fn(async () => folder.handle)
+    });
+    const adapter = await getAdapter();
+
+    await adapter.chooseFolder?.();
+    await adapter.save(folderProject.project.id, exportProjectJson(folderProject), null, "folder");
+    await adapter.save(browserProject.project.id, exportProjectJson(browserProject), null, "browser");
+
+    expect(folder.files.has(`${folderProject.project.id}.pms.json`)).toBe(true);
+    expect(folder.files.has(`${browserProject.project.id}.pms.json`)).toBe(false);
+    expect(localStorage.getItem(`gph.project.${browserProject.project.id}`)).not.toBeNull();
+
+    await adapter.clearFolder?.();
+    await expect(adapter.getCurrentFolderDisplay?.()).resolves.toBeNull();
+  });
+
+  it("rejects a stale folder save after the project file changes externally", async () => {
+    const bundle = buildProjectFromTemplate("software-project", "Original");
+    const originalJson = exportProjectJson(bundle);
+    const externalJson = exportProjectJson({
+      ...bundle,
+      project: { ...bundle.project, name: "Changed elsewhere" }
+    });
+    const folder = createFakeFolder("Client Folder");
+    Object.defineProperty(window, "showDirectoryPicker", {
+      configurable: true,
+      value: vi.fn(async () => folder.handle)
+    });
+    const adapter = await getAdapter();
+
+    await adapter.chooseFolder?.();
+    const saved = await adapter.save(bundle.project.id, originalJson, null, "folder");
+    folder.files.set(`${bundle.project.id}.pms.json`, externalJson);
+
+    await expect(adapter.save(
+      bundle.project.id,
+      originalJson,
+      saved.externalRevision,
+      "folder"
+    )).rejects.toThrow(/External change detected/);
+
+    folder.files.delete(`${bundle.project.id}.pms.json`);
+    await expect(adapter.save(
+      bundle.project.id,
+      originalJson,
+      saved.externalRevision,
+      "folder"
+    )).rejects.toThrow(/External change detected/);
+  });
+
   it("restores a browser recovery copy after reload when the folder handle was not durable", async () => {
     const bundle = buildProjectFromTemplate("software-project", "Recovered Folder Project");
     const serializedBundle = exportProjectJson({

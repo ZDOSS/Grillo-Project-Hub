@@ -327,6 +327,9 @@ function validateProjectReferences(bundle: ProjectBundle): void {
 
   for (const item of bundle.core.items) {
     validateWorkItem(item);
+    if (item.projectId !== bundle.project.id) {
+      throw new Error(`Item project does not match bundle project: ${item.id}`);
+    }
     requireKnown(typeIds, item.typeId, "Type");
     requireKnown(statusIds, item.statusId, "Status");
     requireKnown(priorityIds, item.priorityId, "Priority");
@@ -357,6 +360,8 @@ function validateProjectReferences(bundle: ProjectBundle): void {
 
   const kanban = bundle.modules["builtin.kanban"];
   const views = ((kanban?.data as { views?: Record<string, View> } | undefined)?.views) ?? {};
+  const viewIds = new Set(Object.values(views).map((view) => view.id));
+  requireKnown(viewIds, bundle.projectSettings.defaultViewId, "Default view");
   for (const view of Object.values(views)) {
     validateViewFilterReferences(view, { typeIds, statusIds, priorityIds, memberIds, labelIds, milestoneIds });
     if (view.type === "board") {

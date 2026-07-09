@@ -48,7 +48,7 @@ When a project is open, the application shell has five persistent regions:
 
 ### Left sidebar
 
-The sidebar is primarily for workspace and project-level context, not for duplicating every view tab.
+The sidebar is primarily for workspace and project-level context. It may also provide persistent shortcuts to enabled built-in views, while the project view bar remains the primary switcher and owns saved-view and add-view affordances.
 
 Expected contents:
 
@@ -63,7 +63,7 @@ Sidebar behavior:
 
 - desktop supports full width, icon rail, and temporary overlay states
 - the collapsed icon rail must preserve recognizability for primary destinations
-- the sidebar should not fight the view bar for control of the current screen
+- sidebar view shortcuts and the view bar share one navigation registry and hidden-view configuration so they cannot drift
 - view switching remains primarily a project-view-bar action
 
 ### Project header
