@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const css = readFileSync(join(process.cwd(), "src", "theme", "global.css"), "utf8");
+const tokens = readFileSync(join(process.cwd(), "src", "theme", "tokens.css"), "utf8");
 
 function cssRule(selector: string): string {
   const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -27,6 +28,20 @@ describe("global lane layout CSS", () => {
 });
 
 describe("responsive shell CSS", () => {
+  it("supports a compact desktop icon rail without changing the mobile drawer", () => {
+    expect(tokens).toContain("--sidebar-rail-width: 56px");
+    expect(cssRule(".app-shell")).toContain(
+      "grid-template-columns: var(--active-sidebar-width) minmax(0, 1fr)"
+    );
+    expect(cssRule('.app-shell[data-sidebar-state="collapsed"]')).toContain(
+      "--active-sidebar-width: var(--sidebar-rail-width)"
+    );
+    expect(
+      cssRule('.app-shell[data-sidebar-state="collapsed"] .app-sidebar .sidebar-link-label')
+    ).toContain("display: none");
+    expect(cssRule(".app-header .mobile-nav-trigger")).toContain("display: none");
+  });
+
   it("allows the shell grid and content to shrink without page-level overflow", () => {
     expect(cssRule(".app-shell")).toContain("minmax(0, 1fr)");
     expect(cssRule(".app-shell")).toContain("overflow: hidden");

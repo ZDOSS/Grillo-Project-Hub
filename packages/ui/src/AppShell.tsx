@@ -56,6 +56,16 @@ type ExternalNotice = {
 };
 
 const LOCAL_SETUP_URL = "https://github.com/ZDOSS/Grillo-Project-Hub#run-locally";
+const SIDEBAR_PREFERENCE_KEY = "gph.sidebar.state";
+
+function readSidebarPreference(): boolean {
+  if (typeof localStorage === "undefined") return true;
+  try {
+    return localStorage.getItem(SIDEBAR_PREFERENCE_KEY) !== "collapsed";
+  } catch {
+    return true;
+  }
+}
 
 function activeAdapter(): ProjectStoreAdapter | null {
   if (typeof window === "undefined") return null;
@@ -151,6 +161,7 @@ function AppShellFrame({ appMode, appDistribution = "local", children }: AppShel
   const closeProject = useProjectStore((s) => s.closeProject);
   const recordRecent = useWorkspaceStore((s) => s.recordRecent);
   const { resolved, toggle } = useTheme();
+  const [desktopSidebarExpanded, setDesktopSidebarExpanded] = useState(readSidebarPreference);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [externalNotice, setExternalNotice] = useState<ExternalNotice | null>(null);
   const [online, setOnline] = useState(() =>
@@ -167,6 +178,16 @@ function AppShellFrame({ appMode, appDistribution = "local", children }: AppShel
   const setMobileNavSheetOpen = (open: boolean) => {
     mobileNavOpenRef.current = open;
     setMobileNavOpen(open);
+  };
+
+  const toggleDesktopSidebar = () => {
+    setDesktopSidebarExpanded((expanded) => {
+      const next = !expanded;
+      try {
+        localStorage.setItem(SIDEBAR_PREFERENCE_KEY, next ? "expanded" : "collapsed");
+      } catch {}
+      return next;
+    });
   };
 
   useEffect(() => registerCoreCommands(), []);
@@ -439,13 +460,31 @@ function AppShellFrame({ appMode, appDistribution = "local", children }: AppShel
   );
 
   return (
-    <div className="app-shell" data-mode={appMode} data-theme={resolved}>
-      <nav className="app-sidebar" aria-label="Workspace">
-        <ShellNavContent locationPathname={location.pathname} visibleNavItems={visibleNavItems} />
+    <div
+      className="app-shell"
+      data-mode={appMode}
+      data-sidebar-state={desktopSidebarExpanded ? "expanded" : "collapsed"}
+      data-theme={resolved}
+    >
+      <nav className="app-sidebar" aria-label="Workspace" id="workspace-sidebar">
+        <ShellNavContent
+          collapsed={!desktopSidebarExpanded}
+          locationPathname={location.pathname}
+          visibleNavItems={visibleNavItems}
+        />
       </nav>
 
       <header className="app-header" aria-label="Grillo Project Hub">
         <div className="row" style={{ gap: 8 }}>
+          <IconButton
+            aria-controls="workspace-sidebar"
+            aria-expanded={desktopSidebarExpanded}
+            aria-label={desktopSidebarExpanded ? "Collapse sidebar" : "Expand sidebar"}
+            className="desktop-nav-trigger"
+            onClick={toggleDesktopSidebar}
+          >
+            <Menu aria-hidden="true" />
+          </IconButton>
           <IconButton
             aria-label="Open workspace navigation"
             className="mobile-nav-trigger"
@@ -701,11 +740,13 @@ function formatSaveAge(iso: string): string {
 }
 
 function ShellNavContent({
+  collapsed = false,
   locationPathname,
   onNavigate,
   showBrand = true,
   visibleNavItems
 }: {
+  collapsed?: boolean;
   locationPathname: string;
   onNavigate?: MouseEventHandler<HTMLAnchorElement>;
   showBrand?: boolean;
@@ -725,26 +766,32 @@ function ShellNavContent({
         <Link
           to="/projects"
           className="sidebar-link"
+          aria-label="Projects"
           aria-current={locationPathname === "/projects" ? "page" : undefined}
           onClick={onNavigate}
+          title={collapsed ? "Projects" : undefined}
         >
-          <FolderKanban {...navIconProps} /> Projects
+          <FolderKanban {...navIconProps} /> <span className="sidebar-link-label">Projects</span>
         </Link>
         <Link
           to="/open"
           className="sidebar-link"
+          aria-label="Open"
           aria-current={locationPathname === "/open" ? "page" : undefined}
           onClick={onNavigate}
+          title={collapsed ? "Open" : undefined}
         >
-          <FolderOpen {...navIconProps} /> Open
+          <FolderOpen {...navIconProps} /> <span className="sidebar-link-label">Open</span>
         </Link>
         <Link
           to="/demo"
           className="sidebar-link"
+          aria-label="Demo"
           aria-current={locationPathname === "/demo" ? "page" : undefined}
           onClick={onNavigate}
+          title={collapsed ? "Demo" : undefined}
         >
-          <Play {...navIconProps} /> Demo
+          <Play {...navIconProps} /> <span className="sidebar-link-label">Demo</span>
         </Link>
       </div>
 
@@ -755,12 +802,14 @@ function ShellNavContent({
             key={item.to}
             to={item.to}
             className="sidebar-link"
+            aria-label={item.label}
             aria-current={
               locationPathname.startsWith(item.to) ? "page" : undefined
             }
             onClick={onNavigate}
+            title={collapsed ? item.label : undefined}
           >
-            {item.icon} {item.label}
+            {item.icon} <span className="sidebar-link-label">{item.label}</span>
           </Link>
         ))}
       </div>
@@ -772,12 +821,14 @@ function ShellNavContent({
             key={item.to}
             to={item.to}
             className="sidebar-link"
+            aria-label={item.label}
             aria-current={
               locationPathname.startsWith(item.to) ? "page" : undefined
             }
             onClick={onNavigate}
+            title={collapsed ? item.label : undefined}
           >
-            {item.icon} {item.label}
+            {item.icon} <span className="sidebar-link-label">{item.label}</span>
           </Link>
         ))}
       </div>
