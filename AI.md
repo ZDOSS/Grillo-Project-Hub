@@ -651,6 +651,12 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - addressed the Greptile hosted-demo install follow-up by:
   - keeping the web `beforeinstallprompt` listener active for hosted-demo builds so it still calls `preventDefault()` and suppresses the browser-native install prompt
   - only storing the captured install prompt for local/self-hosted builds, preserving the `Install app` button there while hosted-demo mode continues to show `Run locally`
+- fixed desktop sidebar space usage and state persistence by:
+  - separating the desktop sidebar toggle from the existing mobile workspace-sheet trigger, with header-scoped display rules that override shared icon-button styles so exactly one viewport-appropriate menu control is visible
+  - adding a `56px` `--sidebar-rail-width` layout token and switching the shell grid between that rail and the existing `232px` expanded width through `data-sidebar-state`
+  - keeping every destination available as an icon-only link in the collapsed rail, with explicit accessible names and native hover titles while visual labels and section headings are hidden
+  - storing the user's explicit choice under `gph.sidebar.state`, defaulting to the established expanded layout when no preference is present or browser storage is unavailable
+  - adding AppShell interaction coverage for restore/toggle/persist behavior and a CSS contract regression for the rail width and label-hiding rules
 
 ## Open follow-on planning
 

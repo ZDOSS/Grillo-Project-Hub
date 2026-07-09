@@ -55,7 +55,7 @@ Grillo is past the skeleton stage. The current app includes:
 - Bug triage with readable lanes, severity/priority/source/context fields, intake gates, accept/decline/snooze/assign actions, and a searchable duplicate-link picker.
 - Automation rules with command-backed create/update/delete/enable/disable, dry-run previews, item-event triggers, and audited action failures.
 - JSON, Markdown, and CSV import/export, plus clean print preview.
-- Light/dark/system themes, responsive shell navigation, offline status, and local/self-hosted PWA install support when the browser exposes it.
+- Light/dark/system themes, a remembered desktop sidebar that toggles between full navigation and an icon rail, responsive mobile navigation, offline status, and local/self-hosted PWA install support when the browser exposes it.
 - A realistic, non-persistent demo workspace with active and completed work, bug intake, comments, members, dates, milestones, and linked docs.
 
 ## Storage model

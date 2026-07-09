@@ -29,6 +29,7 @@ describe("AppShell", () => {
       saveError: null
     });
     useWorkspaceStore.setState({ localMemberId: null, recents: [] });
+    window.localStorage.removeItem("gph.sidebar.state");
     delete (window as typeof window & { __gph_store?: unknown }).__gph_store;
   });
 
@@ -45,6 +46,39 @@ describe("AppShell", () => {
     expect(screen.getByRole("banner", { name: /Grillo Project Hub/i })).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: /workspace/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /search commands/i })).toBeInTheDocument();
+  });
+
+  it("restores the desktop icon rail and remembers sidebar toggles", async () => {
+    window.localStorage.setItem("gph.sidebar.state", "collapsed");
+
+    const { container } = render(
+      <ThemeProvider>
+        <MemoryRouter initialEntries={["/projects"]}>
+          <AppShell appMode="web">
+            <div>content</div>
+          </AppShell>
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    const shell = container.querySelector(".app-shell");
+    const projectsLink = screen.getByRole("link", { name: "Projects" });
+    const expandButton = screen.getByRole("button", { name: "Expand sidebar" });
+
+    expect(shell).toHaveAttribute("data-sidebar-state", "collapsed");
+    expect(projectsLink).toHaveAttribute("title", "Projects");
+    expect(expandButton).toHaveAttribute("aria-controls", "workspace-sidebar");
+    expect(expandButton).toHaveAttribute("aria-expanded", "false");
+
+    await userEvent.click(expandButton);
+
+    expect(shell).toHaveAttribute("data-sidebar-state", "expanded");
+    expect(screen.getByRole("button", { name: "Collapse sidebar" })).toHaveAttribute(
+      "aria-expanded",
+      "true"
+    );
+    expect(projectsLink).not.toHaveAttribute("title");
+    expect(window.localStorage.getItem("gph.sidebar.state")).toBe("expanded");
   });
 
   it("shows saved planning views in the project view bar without ignoring hidden base views", () => {
