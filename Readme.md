@@ -45,6 +45,7 @@ Grillo is past the skeleton stage. The current app includes:
 
 - Workspace launcher with new, open/import, demo, recent-project, template preview, and explicit browser-vs-folder storage guidance.
 - Overview, board, backlog, table, roadmap, calendar, docs, bug triage, my work, search, trash, and settings surfaces.
+- Board-local column management for adding unmapped workflow statuses, removing columns without deleting their statuses or work items, and creating a new categorized status and column together.
 - Explicit save-state UI in the project header, including save destination, dirty state, save failures, manual save/retry, switch project, and guarded close-project actions.
 - Folder-backed browser saves through File System Access where supported, browser-local recovery copies, and direct folder reopen flows for `.pm-suite` projects.
 - Explicit per-project browser/folder save targets plus content-fingerprint stale-write protection; selecting a folder for one project does not silently move another project.
