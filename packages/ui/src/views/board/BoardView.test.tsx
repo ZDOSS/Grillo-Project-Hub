@@ -308,6 +308,72 @@ describe("BoardView", () => {
     expect(updated.filter?.statusIds).toEqual(["ready", "done"]);
   });
 
+  it("adds an existing workflow status as a board column", async () => {
+    const bundle = buildProjectFromTemplate("simple-kanban", "Test");
+    useProjectStore.setState({ bundle });
+    const views = (bundle.modules["builtin.kanban"].data as { views?: Record<string, Parameters<typeof BoardView>[0]["view"]> }).views ?? {};
+    const view = Object.values(views).find((entry) => entry.type === "board")!;
+
+    renderBoard(view);
+    await userEvent.click(screen.getByRole("button", { name: "Manage columns" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Manage board columns" });
+    const statusRow = within(dialog).getByText("Won't Fix").closest(".board-columns-row")!;
+    await userEvent.click(within(statusRow as HTMLElement).getByRole("button", { name: "Add column" }));
+
+    const updatedViews = (useProjectStore.getState().bundle!.modules["builtin.kanban"].data as { views?: Record<string, Parameters<typeof BoardView>[0]["view"]> }).views ?? {};
+    const updated = updatedViews[view.id];
+    expect(updated.columns.at(-1)).toMatchObject({
+      name: "Won't Fix",
+      statusIds: ["wont-fix"],
+      defaultDropStatusId: "wont-fix"
+    });
+  });
+
+  it("removes a column from the board without deleting its statuses or work items", async () => {
+    const bundle = buildProjectFromTemplate("simple-kanban", "Test");
+    useProjectStore.setState({ bundle });
+    const apply = useProjectStore.getState().applyCommand;
+    apply({ type: "item.create", projectId: bundle.project.id, typeId: "task", title: "Keep this item", statusId: "ready" });
+    const current = useProjectStore.getState().bundle!;
+    const views = (current.modules["builtin.kanban"].data as { views?: Record<string, Parameters<typeof BoardView>[0]["view"]> }).views ?? {};
+    const view = Object.values(views).find((entry) => entry.type === "board")!;
+
+    renderBoard(view);
+    await userEvent.click(screen.getByRole("button", { name: "Manage columns" }));
+    await userEvent.click(screen.getByRole("button", { name: "Remove To Do column" }));
+
+    const updatedBundle = useProjectStore.getState().bundle!;
+    const updatedViews = (updatedBundle.modules["builtin.kanban"].data as { views?: Record<string, Parameters<typeof BoardView>[0]["view"]> }).views ?? {};
+    expect(updatedViews[view.id].columns.some((column) => column.name === "To Do")).toBe(false);
+    expect(updatedBundle.core.statuses.some((status) => status.id === "ready")).toBe(true);
+    expect(updatedBundle.core.items.some((item) => item.title === "Keep this item" && item.statusId === "ready")).toBe(true);
+  });
+
+  it("creates a workflow status and adds it as a board column in one step", async () => {
+    const bundle = buildProjectFromTemplate("simple-kanban", "Test");
+    useProjectStore.setState({ bundle });
+    const views = (bundle.modules["builtin.kanban"].data as { views?: Record<string, Parameters<typeof BoardView>[0]["view"]> }).views ?? {};
+    const view = Object.values(views).find((entry) => entry.type === "board")!;
+
+    renderBoard(view);
+    await userEvent.click(screen.getByRole("button", { name: "Manage columns" }));
+    const dialog = screen.getByRole("dialog", { name: "Manage board columns" });
+    await userEvent.type(within(dialog).getByLabelText("Status name"), "Quality check");
+    await userEvent.selectOptions(within(dialog).getByLabelText("Category"), "active");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Create and add" }));
+
+    const updatedBundle = useProjectStore.getState().bundle!;
+    const createdStatus = updatedBundle.core.statuses.find((status) => status.name === "Quality check");
+    expect(createdStatus).toMatchObject({ category: "active", archived: false });
+    const updatedViews = (updatedBundle.modules["builtin.kanban"].data as { views?: Record<string, Parameters<typeof BoardView>[0]["view"]> }).views ?? {};
+    expect(updatedViews[view.id].columns.at(-1)).toMatchObject({
+      name: "Quality check",
+      statusIds: [createdStatus!.id],
+      defaultDropStatusId: createdStatus!.id
+    });
+  });
+
   it("shows a density hint on very large boards", () => {
     const bundle = buildProjectFromTemplate("simple-kanban", "Large Board");
     useProjectStore.setState({ bundle });

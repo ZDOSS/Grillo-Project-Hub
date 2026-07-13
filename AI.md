@@ -69,6 +69,8 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - `projectSettings.hiddenViewIds` for left-panel/viewbar visibility preferences without deleting underlying views
 - saved view definitions now share optional `WorkItemFilter`, `ViewSort`, and `order` fields across board, backlog, table, and my-work style views; the shared filter covers text query plus type, status, priority, assignee, label, and milestone ID arrays
 - table views may persist `visibleColumns` and `columnOrder`; backlog views may group by `status`; board/backlog/table saved views all keep their configuration in the core view map rather than in route-local UI state
+- board columns remain a view-level projection of project workflow statuses: the board's `Manage columns` dialog persists column additions/removals through `view.update`, removing a column does not archive its statuses or mutate its work items, and any active status not mapped by the current board is available to add as its own column
+- the same board dialog may create a project-level workflow status through `status.create` and immediately append a matching board column through `view.update`; the new column owns that status as both its sole `statusIds` entry and `defaultDropStatusId`, receives a generated column ID, and is ordered 1024 after the current highest column order
 
 ## Storage model summary
 
@@ -216,6 +218,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - backlog rows now show compact custom-field metadata tags for populated applicable fields, limited to the first few ordered fields to keep the row scannable
 - backlog view now supports shared text/type/status/priority/assignee/milestone filters and board/backlog/table style saved-view actions for save-as, update, delete, and left/right ordering
 - board view now supports text/type/status filtering plus save-as, update, delete, and left/right ordering for saved board views while preserving board-column configuration in the saved view payload
+- board view now exposes `Manage columns` on default and saved boards. Existing unmapped statuses can become columns, board columns can be removed non-destructively, and a compact inline form creates a planned/active/completed/canceled status plus its column in one action. Component regressions cover all three command-backed paths.
 - `/trash` is a first-class route in the shared navigation; `TrashView` lists project trash records, supports restore and confirmed permanent deletion for work items, documents, and attachments, and marks unsupported trash record types as unavailable instead of pretending they can be restored
 - Trash restore/permanent-delete UI catches command failures, closes the confirmation if one is open, and surfaces an inline danger alert so broken historical references do not trap the user in a modal
 - work-item modal relationship selectors now memoize item and relationship derivations, so transient local-state changes such as typing in comments do not rebuild every relationship group on large projects

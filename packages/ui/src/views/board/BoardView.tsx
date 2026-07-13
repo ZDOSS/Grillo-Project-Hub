@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { useProjectStore } from "../../store/project-store";
-import type { WorkItem, BoardView as BoardViewDef, BoardColumn, StatusDefinition, PriorityDefinition, Label, WorkItemFilter } from "@gph/core";
-import { findColumnForStatus } from "@gph/core";
-import { Button, EmptyState, InlineAlert, SelectField, TextField, ViewToolbar } from "../../components";
+import type { WorkItem, BoardView as BoardViewDef, BoardColumn, StatusCategory, StatusDefinition, PriorityDefinition, Label, WorkItemFilter } from "@gph/core";
+import { findColumnForStatus, generateId } from "@gph/core";
+import { Button, EmptyState, InlineAlert, Modal, SelectField, TextField, ViewToolbar } from "../../components";
 import { openCreateItem } from "../../commands/palette-bus";
 import { ItemCard } from "./ItemCard";
 import {
@@ -30,6 +30,7 @@ export function BoardView({ view }: BoardViewProps) {
   const [statusFilterIds, setStatusFilterIds] = useState<string[]>(view.filter?.statusIds ?? []);
   const [viewName, setViewName] = useState(defaultSaveNameForView(view));
   const [viewMessage, setViewMessage] = useState<string | null>(null);
+  const [columnsOpen, setColumnsOpen] = useState(false);
   const dragCounter = useRef(0);
   const statuses = bundle?.core.statuses ?? [];
   const itemTypes = bundle?.core.itemTypes ?? [];
@@ -218,6 +219,7 @@ export function BoardView({ view }: BoardViewProps) {
           onChange={(event) => setViewName(event.target.value)}
         />
         <Button size="sm" onClick={saveView}>Save view</Button>
+        <Button size="sm" onClick={() => setColumnsOpen(true)}>Manage columns</Button>
         {!isDefaultView ? (
           <>
             <Button size="sm" onClick={updateView}>Update view</Button>
@@ -301,6 +303,41 @@ export function BoardView({ view }: BoardViewProps) {
           );
         })}
       </div>
+      {columnsOpen ? (
+        <BoardColumnsDialog
+          view={view}
+          statuses={statuses}
+          onClose={() => setColumnsOpen(false)}
+          onColumnsChange={(columns, message) => {
+            applyCommand({
+              type: "view.update",
+              projectId: bundle.project.id,
+              viewId: view.id,
+              patch: { columns }
+            });
+            setViewMessage(message);
+          }}
+          onCreateStatus={(name, category) => {
+            const knownStatusIds = new Set(bundle.core.statuses.map((status) => status.id));
+            const result = applyCommand({
+              type: "status.create",
+              projectId: bundle.project.id,
+              name,
+              category
+            });
+            const createdStatus = result.bundle.core.statuses.find((status) => !knownStatusIds.has(status.id));
+            if (!createdStatus) return;
+            const columns = [...view.columns, columnForStatus(createdStatus, view.columns)];
+            applyCommand({
+              type: "view.update",
+              projectId: bundle.project.id,
+              viewId: view.id,
+              patch: { columns }
+            });
+            setViewMessage(`${createdStatus.name} created and added to the board.`);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -309,4 +346,146 @@ export { findColumnForStatus };
 
 function defaultSaveNameForView(view: BoardViewDef): string {
   return view.order === undefined && !view.filter ? "" : view.name;
+}
+
+function BoardColumnsDialog({
+  onClose,
+  onColumnsChange,
+  onCreateStatus,
+  statuses,
+  view
+}: {
+  onClose: () => void;
+  onColumnsChange: (columns: BoardColumn[], message: string) => void;
+  onCreateStatus: (name: string, category: StatusCategory) => void;
+  statuses: StatusDefinition[];
+  view: BoardViewDef;
+}) {
+  const [statusName, setStatusName] = useState("");
+  const [statusCategory, setStatusCategory] = useState<StatusCategory>("planned");
+  const mappedStatusIds = new Set(view.columns.flatMap((column) => column.statusIds));
+  const availableStatuses = statuses
+    .filter((status) => !status.archived && !mappedStatusIds.has(status.id))
+    .sort((a, b) => a.order - b.order);
+  const statusById = new Map(statuses.map((status) => [status.id, status]));
+
+  const createStatus = () => {
+    const name = statusName.trim();
+    if (!name) return;
+    onCreateStatus(name, statusCategory);
+    setStatusName("");
+  };
+
+  return (
+    <Modal
+      title="Manage board columns"
+      onClose={onClose}
+      size="lg"
+      footer={<Button onClick={onClose}>Done</Button>}
+    >
+      <div className="board-columns-dialog">
+        <div>
+          <h3 className="board-columns-section-title">Columns on this board</h3>
+          <p className="text-sm text-secondary">
+            Removing a column only hides it from this board. Its statuses and work items stay in the project.
+          </p>
+          <div className="board-columns-list">
+            {view.columns.length === 0 ? (
+              <EmptyState title="No columns shown" description="Add an existing status or create a new one below." />
+            ) : view.columns.map((column) => (
+              <div className="board-columns-row" key={column.id}>
+                <div>
+                  <strong>{column.name}</strong>
+                  <div className="text-xs text-secondary">
+                    {column.statusIds.map((id) => statusById.get(id)?.name ?? id).join(", ")}
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  aria-label={`Remove ${column.name} column`}
+                  onClick={() => onColumnsChange(
+                    view.columns.filter((entry) => entry.id !== column.id),
+                    `${column.name} removed from this board.`
+                  )}
+                >
+                  Remove
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <h3 className="board-columns-section-title">Add from existing statuses</h3>
+          <div className="board-columns-list">
+            {availableStatuses.length === 0 ? (
+              <p className="text-sm text-secondary">Every visible workflow status is already represented on this board.</p>
+            ) : availableStatuses.map((status) => (
+              <div className="board-columns-row" key={status.id}>
+                <div>
+                  <strong>{status.name}</strong>
+                  <div className="text-xs text-secondary">{status.category}</div>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => onColumnsChange(
+                    [...view.columns, columnForStatus(status, view.columns)],
+                    `${status.name} added to this board.`
+                  )}
+                >
+                  Add column
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <form
+          className="board-columns-create"
+          onSubmit={(event) => {
+            event.preventDefault();
+            createStatus();
+          }}
+        >
+          <div>
+            <h3 className="board-columns-section-title">Create a new status</h3>
+            <p className="text-sm text-secondary">The new workflow status will also be added as a column on this board.</p>
+          </div>
+          <div className="board-columns-create-fields">
+            <TextField
+              label="Status name"
+              placeholder="For example, QA"
+              value={statusName}
+              onChange={(event) => setStatusName(event.target.value)}
+            />
+            <SelectField
+              label="Category"
+              value={statusCategory}
+              onChange={(event) => setStatusCategory(event.target.value as StatusCategory)}
+            >
+              <option value="planned">Planned</option>
+              <option value="active">Active</option>
+              <option value="completed">Completed</option>
+              <option value="canceled">Canceled</option>
+            </SelectField>
+            <Button type="submit" variant="primary" disabled={!statusName.trim()}>Create and add</Button>
+          </div>
+        </form>
+      </div>
+    </Modal>
+  );
+}
+
+function columnForStatus(status: StatusDefinition, columns: BoardColumn[]): BoardColumn {
+  const highestOrder = columns.reduce((highest, column) => Math.max(highest, column.order), 0);
+  return {
+    id: generateId("col"),
+    name: status.name,
+    statusIds: [status.id],
+    defaultDropStatusId: status.id,
+    order: highestOrder + 1024,
+    wipLimit: null,
+    wipMode: "warn"
+  };
 }
