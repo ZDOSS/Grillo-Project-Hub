@@ -469,6 +469,7 @@ function AppShellFrame({ appMode, appDistribution = "local", children }: AppShel
       <nav className="app-sidebar" aria-label="Workspace" id="workspace-sidebar">
         <ShellNavContent
           collapsed={!desktopSidebarExpanded}
+          hasProject={Boolean(bundle)}
           locationPathname={location.pathname}
           visibleNavItems={visibleNavItems}
         />
@@ -610,6 +611,7 @@ function AppShellFrame({ appMode, appDistribution = "local", children }: AppShel
             </div>
             <nav className="mobile-nav-content" aria-label="Mobile workspace navigation">
               <ShellNavContent
+                hasProject={Boolean(bundle)}
                 locationPathname={location.pathname}
                 onNavigate={() => setMobileNavSheetOpen(false)}
                 showBrand={false}
@@ -741,12 +743,14 @@ function formatSaveAge(iso: string): string {
 
 function ShellNavContent({
   collapsed = false,
+  hasProject,
   locationPathname,
   onNavigate,
   showBrand = true,
   visibleNavItems
 }: {
   collapsed?: boolean;
+  hasProject: boolean;
   locationPathname: string;
   onNavigate?: MouseEventHandler<HTMLAnchorElement>;
   showBrand?: boolean;
@@ -795,43 +799,47 @@ function ShellNavContent({
         </Link>
       </div>
 
-      <div className="sidebar-section">
-        <div className="sidebar-section-title">Project</div>
-        {visibleNavItems.map((item) => (
-          <Link
-            key={item.to}
-            to={item.to}
-            className="sidebar-link"
-            aria-label={item.label}
-            aria-current={
-              locationPathname.startsWith(item.to) ? "page" : undefined
-            }
-            onClick={onNavigate}
-            title={collapsed ? item.label : undefined}
-          >
-            {item.icon} <span className="sidebar-link-label">{item.label}</span>
-          </Link>
-        ))}
-      </div>
+      {hasProject ? (
+        <>
+          <div className="sidebar-section">
+            <div className="sidebar-section-title">Project</div>
+            {visibleNavItems.map((item) => (
+              <Link
+                key={item.to}
+                to={item.to}
+                className="sidebar-link"
+                aria-label={item.label}
+                aria-current={
+                  locationPathname.startsWith(item.to) ? "page" : undefined
+                }
+                onClick={onNavigate}
+                title={collapsed ? item.label : undefined}
+              >
+                {item.icon} <span className="sidebar-link-label">{item.label}</span>
+              </Link>
+            ))}
+          </div>
 
-      <div className="sidebar-section">
-        <div className="sidebar-section-title">App</div>
-        {SECONDARY.map((item) => (
-          <Link
-            key={item.to}
-            to={item.to}
-            className="sidebar-link"
-            aria-label={item.label}
-            aria-current={
-              locationPathname.startsWith(item.to) ? "page" : undefined
-            }
-            onClick={onNavigate}
-            title={collapsed ? item.label : undefined}
-          >
-            {item.icon} <span className="sidebar-link-label">{item.label}</span>
-          </Link>
-        ))}
-      </div>
+          <div className="sidebar-section">
+            <div className="sidebar-section-title">App</div>
+            {SECONDARY.map((item) => (
+              <Link
+                key={item.to}
+                to={item.to}
+                className="sidebar-link"
+                aria-label={item.label}
+                aria-current={
+                  locationPathname.startsWith(item.to) ? "page" : undefined
+                }
+                onClick={onNavigate}
+                title={collapsed ? item.label : undefined}
+              >
+                {item.icon} <span className="sidebar-link-label">{item.label}</span>
+              </Link>
+            ))}
+          </div>
+        </>
+      ) : null}
     </>
   );
 }
@@ -840,27 +848,31 @@ function ProjectViewTabs({ items, savedViews }: { items: typeof NAV_ITEMS; saved
   const location = useLocation();
   return (
     <div className="viewbar" role="tablist" aria-label="Project views">
-      {items.map((item) => (
-        <Link
-          key={item.to}
-          to={item.to}
-          role="tab"
-          aria-current={
-            location.pathname.startsWith(item.to) ? "page" : undefined
-          }
-          className="viewbar-tab"
-        >
-          {item.label}
-        </Link>
-      ))}
+      {items.map((item) => {
+        const active = location.pathname.startsWith(item.to);
+        return (
+          <Link
+            key={item.to}
+            to={item.to}
+            role="tab"
+            aria-current={active ? "page" : undefined}
+            aria-selected={active}
+            className="viewbar-tab"
+          >
+            {item.label}
+          </Link>
+        );
+      })}
       {savedViews.map((view) => {
         const to = viewRoute(view);
+        const active = location.pathname === to;
         return (
           <Link
             key={view.id}
             to={to}
             role="tab"
-            aria-current={location.pathname === to ? "page" : undefined}
+            aria-current={active ? "page" : undefined}
+            aria-selected={active}
             className="viewbar-tab viewbar-tab-saved"
           >
             {view.name}
@@ -870,6 +882,7 @@ function ProjectViewTabs({ items, savedViews }: { items: typeof NAV_ITEMS; saved
       <Link
         to="/settings?section=views"
         role="tab"
+        aria-selected={false}
         className="viewbar-tab viewbar-tab-add"
       >
         <Plus aria-hidden="true" size={14} />

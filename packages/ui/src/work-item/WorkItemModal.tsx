@@ -428,23 +428,36 @@ export function WorkItemModal() {
                   Due
                   <input className="input" type="date" value={item.dueDate ?? ""} onChange={(e) => saveField({ dueDate: e.target.value || null })} />
                 </label>
-                <label className="label label-row">
-                  Labels
-                  <select
-                    className="select"
-                    multiple
-                    value={item.labelIds}
-                    onChange={(e) => {
-                      const opts = Array.from(e.target.selectedOptions).map((o) => o.value);
-                      saveField({ labelIds: opts });
-                    }}
-                    style={{ minHeight: 80 }}
-                  >
-                    {labels.map((l) => (
-                      <option key={l.id} value={l.id}>{l.name}</option>
-                    ))}
-                  </select>
-                </label>
+                <fieldset className="item-detail-labels-field">
+                  <legend className="item-detail-labels-legend">Labels</legend>
+                  {labels.length > 0 ? (
+                    <div className="item-detail-label-options">
+                      {labels.map((label) => {
+                        const selected = item.labelIds.includes(label.id);
+                        return (
+                          <label
+                            className="item-detail-label-option"
+                            data-selected={selected}
+                            key={label.id}
+                          >
+                            <input
+                              checked={selected}
+                              type="checkbox"
+                              onChange={() => saveField({
+                                labelIds: selected
+                                  ? item.labelIds.filter((labelId) => labelId !== label.id)
+                                  : [...item.labelIds, label.id]
+                              })}
+                            />
+                            <span>{label.name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-muted">No labels configured.</span>
+                  )}
+                </fieldset>
               </div>
               <div className="item-detail-reminder-summary">
                 {nextReminder ? (

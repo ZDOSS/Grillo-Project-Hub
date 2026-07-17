@@ -660,6 +660,21 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - keeping every destination available as an icon-only link in the collapsed rail, with explicit accessible names and native hover titles while visual labels and section headings are hidden
   - storing the user's explicit choice under `gph.sidebar.state`, defaulting to the established expanded layout when no preference is present or browser storage is unavailable
   - adding AppShell interaction coverage for restore/toggle/persist behavior and a CSS contract regression for the rail width and label-hiding rules
+- completed the 2026-07-16 interaction-backed user-flow UX pass by:
+  - auditing every shipped web flow in the running app at 1280 x 720 and 390 x 844, including launcher/open/demo, Overview, Board, Backlog, Table, Roadmap, Calendar, Docs, Bug Triage, My Work, Search, Trash, Settings, command palette, work-item detail, and guarded close-project behavior
+  - making the launcher wait for an explicit `New project` action instead of opening creation on first run or immediately after project close
+  - passing active-project context into shared desktop/mobile navigation so project routes and Settings are hidden until a project exists, while Projects/Open/Demo remain available
+  - adding `aria-selected` to project view tabs, hiding native mobile viewbar scrollbars while preserving touch scrolling, and using a two-by-two mobile Overview metric grid
+  - subscribing `CommandPalette` to command-registry updates with `useSyncExternalStore`, fixing the empty initial result set when commands register after mount
+  - giving Board and Bug Triage item links stable title-based accessible names, while shortening Bug Triage visual action labels and retaining item-specific `aria-label` values
+  - removing the shared `gph-work-row` class from Backlog rows so its seven-column layout is no longer overridden by the five-column shared row contract
+  - progressively revealing Table bulk selectors only after selection and moving column visibility checkboxes into a collapsed disclosure with a visible-column count
+  - wrapping Roadmap milestone metadata and replacing the empty resize edge with a Lucide grip button that supports pointer drag, one-day Arrow changes, and one-week Shift+Arrow changes
+  - changing Calendar tracks to `minmax(0, 1fr)` and constraining the agenda column so all seven days remain visible at standard desktop width
+  - making work-item metadata collapse to one column on narrow screens, adding shrink/wrap guards around the modal title/footer, and replacing the native label multi-select with explicit checkbox chips
+  - differentiating disabled primary buttons from enabled green actions and constraining Bug Triage context fields with zero-minimum grid tracks
+  - replacing the stale read-only flow report with `docs/gph-user-flows-review.md`, updating `Readme.md`, and adding focused regressions across AppShell, CommandPalette, WorkItemModal, ProjectsListView, BoardView, TableView, and RoadmapView
+  - verifying the finished pass with 53 focused UI tests, the complete 230-test repository suite, all workspace TypeScript checks, a successful production web build, and matched-state desktop/mobile browser comparisons
 
 ## Open follow-on planning
 

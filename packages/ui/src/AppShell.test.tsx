@@ -46,6 +46,9 @@ describe("AppShell", () => {
     expect(screen.getByRole("banner", { name: /Grillo Project Hub/i })).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: /workspace/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /search commands/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Projects" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Board" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Settings" })).not.toBeInTheDocument();
   });
 
   it("restores the desktop icon rail and remembers sidebar toggles", async () => {

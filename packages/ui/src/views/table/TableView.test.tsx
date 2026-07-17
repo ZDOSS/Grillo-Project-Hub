@@ -98,6 +98,7 @@ describe("TableView", () => {
     render(<MemoryRouter><TableView /></MemoryRouter>);
 
     expect(screen.getByText("Labels")).toBeInTheDocument();
+    await userEvent.click(screen.getByText("Columns"));
     await userEvent.click(screen.getByRole("checkbox", { name: "Labels column" }));
     expect(screen.queryByText("Labels")).not.toBeInTheDocument();
 
@@ -233,7 +234,10 @@ describe("TableView", () => {
 
     render(<MemoryRouter><TableView /></MemoryRouter>);
 
+    expect(screen.queryByLabelText("Bulk status")).not.toBeInTheDocument();
+    expect(screen.getByText("Select rows to edit them together.")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("checkbox", { name: "Select Bulk first" }));
+    expect(screen.getByLabelText("Bulk status")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("checkbox", { name: "Select Bulk second" }));
     await userEvent.selectOptions(screen.getByLabelText("Bulk status"), "ready");
     await userEvent.selectOptions(screen.getByLabelText("Bulk priority"), "urgent");

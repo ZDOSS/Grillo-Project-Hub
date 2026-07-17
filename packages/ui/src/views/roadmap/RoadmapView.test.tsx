@@ -103,12 +103,16 @@ describe("RoadmapView", () => {
       screen.getByLabelText("Milestone for Moveable roadmap item"),
       secondMilestone.id
     );
+    fireEvent.keyDown(
+      screen.getByRole("button", { name: "Adjust due date for Moveable roadmap item" }),
+      { key: "ArrowRight", shiftKey: true }
+    );
 
     const updated = useProjectStore.getState().bundle!.core.items.find((item) =>
       item.title === "Moveable roadmap item"
     )!;
     expect(updated.startDate).toBe("2026-07-03");
-    expect(updated.dueDate).toBe("2026-07-12");
+    expect(updated.dueDate).toBe("2026-07-19");
     expect(updated.milestoneId).toBe(secondMilestone.id);
   });
 

@@ -226,7 +226,7 @@ export function BacklogView({ view }: { view?: BacklogViewDef }) {
           const milestone = milestones.find((m) => m.id === item.milestoneId);
           const customFieldSummaries = customFieldSummariesForItem(bundle.core.customFields, item);
           return (
-            <div key={item.id} className="backlog-row gph-work-row">
+            <div key={item.id} className="backlog-row">
               <span className="text-muted text-xs">#{item.id.slice(-4)}</span>
               <Link
                 to={`/item/${item.id}`}

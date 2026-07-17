@@ -1,7 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useNavigate } from "react-router-dom";
 import { useProjectStore } from "../store/project-store";
-import { searchCommands, listCommands, registerCommand, type CommandEntry } from "./registry";
+import {
+  listCommands,
+  registerCommand,
+  searchCommands,
+  subscribeCommands,
+  type CommandEntry
+} from "./registry";
 import { closePalette, openCreateItem, subscribePalette, isPaletteOpen } from "./palette-bus";
 import { searchProject } from "@gph/core";
 
@@ -12,6 +18,11 @@ export function CommandPalette() {
   const [highlight, setHighlight] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const bundle = useProjectStore((s) => s.bundle);
+  const registeredCommands = useSyncExternalStore(
+    subscribeCommands,
+    listCommands,
+    listCommands
+  );
   const listboxId = "command-palette-results";
 
   useEffect(() => subscribePalette(setOpen), []);
@@ -25,12 +36,13 @@ export function CommandPalette() {
   }, [open]);
 
   const allCommands = useMemo(() => {
-    const registered = listCommands();
     if (!query.trim()) {
-      return registered.filter((c) => c.group === "navigation" || c.group === "view" || c.group === "item");
+      return registeredCommands.filter((c) =>
+        c.group === "navigation" || c.group === "view" || c.group === "item"
+      );
     }
     return searchCommands(query);
-  }, [query]);
+  }, [query, registeredCommands]);
 
   const items: Array<{ id: string; title: string; meta?: string; run: () => void; group: string }> = useMemo(() => {
     const out: Array<{ id: string; title: string; meta?: string; run: () => void; group: string }> = [];
