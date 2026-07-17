@@ -36,6 +36,7 @@ import { Button, ConfirmDialog, HelpTip, IconButton, InlineAlert, ToastProvider,
 import { PROJECT_NAV_ITEMS } from "./nav-config";
 import { useWorkspaceStore } from "./store/workspace-store";
 import { hasRegisteredSavedRoute, savedViewsForBundle, viewRoute } from "./views/planning/view-helpers";
+import { NewUserTutorial } from "./tutorial";
 
 export type AppShellProps = {
   appMode: "web" | "desktop";
@@ -455,7 +456,8 @@ function AppShellFrame({ appMode, appDistribution = "local", children }: AppShel
       location.pathname !== "/" &&
       !location.pathname.startsWith("/projects") &&
       !location.pathname.startsWith("/open") &&
-      !location.pathname.startsWith("/demo"),
+      !location.pathname.startsWith("/demo") &&
+      !location.pathname.startsWith("/tutorial"),
     [location.pathname]
   );
 
@@ -664,6 +666,7 @@ function AppShellFrame({ appMode, appDistribution = "local", children }: AppShel
         />
       ) : null}
 
+      <NewUserTutorial activeProjectId={bundle?.project.id ?? null} />
       <CommandPalette />
     </div>
   );

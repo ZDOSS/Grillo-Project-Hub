@@ -2,6 +2,8 @@
 
 **Review date:** 2026-07-16
 
+**Feature update:** 2026-07-17 — added the guided New user tutorial described below.
+
 **Scope:** The complete browser product journey, reviewed in the running app at desktop and mobile widths, followed by implementation and regression verification.
 
 **Primary environment:** Local web app, demo workspace, 1280 x 720 desktop viewport, and 390 x 844 mobile viewport.
@@ -16,7 +18,7 @@ The audit did expose several interaction-level problems that source review alone
 
 ### 1. Workspace launcher, first run, open/import, and demo
 
-**Journey:** Open Grillo -> review launcher -> create a project, open/import a bundle, or enter the demo -> arrive at Overview.
+**Journey:** Open Grillo -> review launcher -> create a project, open/import a bundle, enter the demo, or start the New user tutorial -> arrive at Overview.
 
 **Health after this pass:** Good.
 
@@ -24,6 +26,7 @@ The audit did expose several interaction-level problems that source review alone
 - When no project is open, the sidebar contains only Projects, Open, and Demo. Project views and Settings no longer lead users into guarded routes that cannot work yet.
 - Closing an unsaved demo still uses the existing confirmation dialog, but confirming now returns to the clean launcher without immediately reopening project creation.
 - Disabled primary actions now look inactive instead of retaining the full green emphasis of an available action.
+- The Demo project explanation now includes a `New user tutorial` link. Its landing page opens a disposable demo only when existing unsaved work is protected, then a 13-step wizard moves through every core project surface with visible progress, Back/Next/Exit controls, and manual sidebar-route synchronization.
 
 ### 2. Create, save, switch, and close project
 
@@ -136,6 +139,7 @@ The audit did expose several interaction-level problems that source review alone
 - Reflowed work-item metadata for mobile and replaced native multi-select labels with checkbox chips.
 - Shortened Bug Triage action copy without losing item-specific accessible labels.
 - Improved disabled primary-action styling and mobile Overview density.
+- Added the safe demo-backed New user tutorial entry, landing page, persistent route-aware wizard, and responsive desktop/mobile presentation.
 
 ## Verification
 
