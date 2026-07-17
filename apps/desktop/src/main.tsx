@@ -14,6 +14,7 @@ import {
   ProjectsListView,
   OpenProjectView,
   DemoFolderView,
+  NewUserTutorialView,
   ThemeProvider,
   useRestoreProjectSession
 } from "@gph/ui";
@@ -35,6 +36,7 @@ function App() {
             <Route path="/projects" element={<ProjectsListView />} />
             <Route path="/open" element={<OpenProjectView />} />
             <Route path="/demo" element={<DemoFolderView />} />
+            <Route path="/tutorial" element={<NewUserTutorialView />} />
             <Route path="/*" element={<ProjectRouter />} />
           </Routes>
         </AppShell>

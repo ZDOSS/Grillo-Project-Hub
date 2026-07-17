@@ -44,6 +44,7 @@ For real project work, run the repo locally or use the future release builds.
 Grillo is past the skeleton stage. The current app includes:
 
 - Workspace launcher with new, open/import, demo, recent-project, template preview, explicit browser-vs-folder storage guidance, and a calm first-run state that waits for the user to choose a path.
+- A guided New user tutorial beneath the demo entry that opens safe sample data and walks through all 12 core workspace surfaces in a resumable 13-step wizard.
 - Overview, board, backlog, table, roadmap, calendar, docs, bug triage, my work, search, trash, and settings surfaces.
 - Board-local column management for adding unmapped workflow statuses, removing columns without deleting their statuses or work items, and creating a new categorized status and column together.
 - Explicit save-state UI in the project header, including save destination, dirty state, save failures, manual save/retry, switch project, and guarded close-project actions.

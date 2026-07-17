@@ -26,3 +26,4 @@ export * from "./views/search";
 export * from "./views/settings";
 export * from "./views/projects";
 export * from "./work-item";
+export * from "./tutorial";

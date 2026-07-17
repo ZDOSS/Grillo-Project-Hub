@@ -120,6 +120,16 @@ describe("ProjectsListView", () => {
     expect(screen.getByRole("button", { name: "Bug Tracker template" })).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("offers a new user tutorial beneath the demo project guidance", () => {
+    render(
+      <MemoryRouter>
+        <ProjectsListView />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole("link", { name: "New user tutorial" })).toHaveAttribute("href", "/tutorial");
+  });
+
   it("persists new folder-backed PWA projects immediately on create", async () => {
     const saves: Array<{ key: string; json: string; targetTrust: string | undefined }> = [];
     let currentFolder = "Client Folder";

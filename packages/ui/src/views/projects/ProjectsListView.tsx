@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { GraduationCap } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   buildProjectFromTemplate,
@@ -474,6 +475,10 @@ export function ProjectsListView() {
               <p className="text-sm text-secondary" style={{ margin: 0 }}>
                 Open a sample workspace to inspect the board, docs, roadmap, and settings flows without touching your own data.
               </p>
+              <Link className="workspace-tutorial-link" to="/tutorial">
+                <GraduationCap aria-hidden="true" />
+                New user tutorial
+              </Link>
             </div>
           </div>
         </section>

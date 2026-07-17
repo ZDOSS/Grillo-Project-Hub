@@ -676,6 +676,14 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - replacing the stale read-only flow report with `docs/gph-user-flows-review.md`, updating `Readme.md`, and adding focused regressions across AppShell, CommandPalette, WorkItemModal, ProjectsListView, BoardView, TableView, and RoadmapView
   - verifying the finished pass with 53 focused UI tests, the complete 230-test repository suite, all workspace TypeScript checks, a successful production web build, and matched-state desktop/mobile browser comparisons
   - aligning the Playwright project bootstrap with the calmer launcher behavior through a shared `createProjectFromLauncher()` helper, so E2E coverage chooses `New project` before submitting the creation modal instead of depending on the removed automatic first-run modal
+- added the guided New user tutorial by:
+  - placing a `New user tutorial` link directly beneath the launcher’s Demo project explanation and registering `/tutorial` in both the web and desktop shells without treating it as an active project route
+  - adding a focused tutorial landing surface that sets expectations, lists the covered workspace areas, and refuses to replace a dirty or otherwise unsaved active project
+  - opening a disposable `buildDemoProject()` bundle named `Tutorial Project`, keeping its storage trust unsaved, and clearly explaining that tutorial changes remain sample data unless explicitly exported
+  - adding an external tutorial state store persisted in `sessionStorage`, tied to the exact generated tutorial project id so the guide ends instead of leaking into another project
+  - mounting a non-modal, keyboard-readable tutorial panel in `AppShell` with 13 steps, progress semantics, Back/Next/Exit controls, responsive bottom-sheet behavior, and real route transitions across Overview, Board, Backlog, Table, Roadmap, Calendar, Docs, Bug Triage, My Work, Search/commands, Trash, and Settings
+  - synchronizing the wizard with manual sidebar navigation so users can skip ahead or revisit a feature without being forced back to the previous route
+  - adding focused launcher/tutorial component coverage plus a full Playwright journey that advances through every tutorial stop and verifies the final handoff back to Overview
 
 ## Open follow-on planning
 
