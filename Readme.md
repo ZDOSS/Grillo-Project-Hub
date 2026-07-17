@@ -122,7 +122,7 @@ The test suite covers:
 - `packages/ui`: AppShell, project router, shared primitives, work item modal, planning views, docs, settings, launcher, command palette, trash, automation settings.
 - `apps/web`: browser/PWA storage adapter and distribution-mode behavior.
 - `apps/desktop`: desktop storage adapter command wiring.
-- `tests/e2e`: hybrid parity, project workflow, theme, command palette, export, search, calendar creation, docs edit-mode behavior, and mobile navigation.
+- `tests/e2e`: explicit launcher-to-project setup, hybrid parity, project workflow, theme, command palette, export, search, calendar creation, docs edit-mode behavior, and mobile navigation.
 
 Run unit/component coverage with `npm test`, browser coverage with `npm run test:e2e`, and TypeScript coverage with `npm run typecheck`.
 

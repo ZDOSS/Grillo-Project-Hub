@@ -675,6 +675,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - differentiating disabled primary buttons from enabled green actions and constraining Bug Triage context fields with zero-minimum grid tracks
   - replacing the stale read-only flow report with `docs/gph-user-flows-review.md`, updating `Readme.md`, and adding focused regressions across AppShell, CommandPalette, WorkItemModal, ProjectsListView, BoardView, TableView, and RoadmapView
   - verifying the finished pass with 53 focused UI tests, the complete 230-test repository suite, all workspace TypeScript checks, a successful production web build, and matched-state desktop/mobile browser comparisons
+  - aligning the Playwright project bootstrap with the calmer launcher behavior through a shared `createProjectFromLauncher()` helper, so E2E coverage chooses `New project` before submitting the creation modal instead of depending on the removed automatic first-run modal
 
 ## Open follow-on planning
 

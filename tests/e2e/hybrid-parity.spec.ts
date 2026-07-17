@@ -1,16 +1,15 @@
 import { test, expect } from "@playwright/test";
+import { createProjectFromLauncher } from "./project-launcher";
 
 test("web app shows the same shell labels across both distributions", async ({ page }) => {
   await page.goto("/");
-  // Dismiss the auto-opening New Project modal so the test can interact with the shell
-  await page.keyboard.press("Escape");
   await expect(page.getByRole("banner", { name: /Grillo Project Hub/i })).toBeVisible();
   await expect(page.getByRole("navigation", { name: /workspace/i })).toBeVisible();
 });
 
 test("a user can create a project and see the board", async ({ page }) => {
   await page.goto("/");
-  await page.locator(".modal-footer button.btn-primary").click();
+  await createProjectFromLauncher(page);
   await expect(page).toHaveURL(/\/overview/);
   await page.getByRole("link", { name: "Board" }).click();
   await expect(page).toHaveURL(/\/board/);
@@ -20,7 +19,7 @@ test("a user can create a project and see the board", async ({ page }) => {
 test("opening the command palette lists navigation commands", async ({ page }) => {
   await page.goto("/");
   // Create a project first so the navigation commands are useful
-  await page.locator(".modal-footer button.btn-primary").click();
+  await createProjectFromLauncher(page);
   await expect(page).toHaveURL(/\/overview/);
   // Wait for the AppShell to register core commands (effects run after first paint)
   await page.waitForTimeout(150);
@@ -33,8 +32,8 @@ test("opening the command palette lists navigation commands", async ({ page }) =
 
 test("toggling theme switches between light and dark", async ({ page }) => {
   await page.goto("/");
-  // Create project first to dismiss the modal so the header toggle is accessible
-  await page.locator(".modal-footer button.btn-primary").click();
+  // Create a project first so the in-project header toggle is accessible.
+  await createProjectFromLauncher(page);
   await expect(page).toHaveURL(/\/overview/);
   const initialTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
   const toggle = page.getByRole("button", { name: /switch to (light|dark) mode/i });
@@ -46,7 +45,7 @@ test("toggling theme switches between light and dark", async ({ page }) => {
 test("mobile shell exposes workspace navigation from the header", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
-  await page.locator(".modal-footer button.btn-primary").click();
+  await createProjectFromLauncher(page);
   await expect(page).toHaveURL(/\/overview/);
 
   await page.getByRole("button", { name: "Open workspace navigation" }).click();
@@ -63,7 +62,7 @@ test("mobile shell exposes workspace navigation from the header", async ({ page 
 test("project header actions remain inside a tablet-height viewport", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto("/");
-  await page.locator(".modal-footer button.btn-primary").click();
+  await createProjectFromLauncher(page);
   await expect(page).toHaveURL(/\/overview/);
 
   for (const name of ["Save now", "Switch project", "Close project"]) {
@@ -77,7 +76,7 @@ test("project header actions remain inside a tablet-height viewport", async ({ p
 test("mobile project and settings screens do not overflow the viewport", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
-  await page.locator(".modal-footer button.btn-primary").click();
+  await createProjectFromLauncher(page);
   await expect(page).toHaveURL(/\/overview/);
 
   const expectNoPageOverflow = async () => {
