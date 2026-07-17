@@ -15,7 +15,6 @@ describe("CommandPalette", () => {
     cleanup();
   });
   it("opens and lists navigation commands when empty", () => {
-    registerCoreCommands();
     render(
       <ThemeProvider>
         <MemoryRouter>
@@ -23,9 +22,18 @@ describe("CommandPalette", () => {
         </MemoryRouter>
       </ThemeProvider>
     );
-    act(() => openPalette());
-    expect(isPaletteOpen()).toBe(true);
-    expect(screen.getByPlaceholderText(/search commands/i)).toBeInTheDocument();
+    let unregister = () => {};
+    try {
+      act(() => {
+        unregister = registerCoreCommands();
+        openPalette();
+      });
+      expect(isPaletteOpen()).toBe(true);
+      expect(screen.getByPlaceholderText(/search commands/i)).toBeInTheDocument();
+      expect(screen.getByRole("option", { name: /go to board/i })).toBeInTheDocument();
+    } finally {
+      unregister();
+    }
   });
   it("filters commands by query", () => {
     registerCoreCommands();

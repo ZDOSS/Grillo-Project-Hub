@@ -581,54 +581,62 @@ export function TableView({ view }: { view?: TableViewDef }) {
             Clear {hiddenSelectedCount} hidden
           </Button>
         ) : null}
-        <SelectField
-          label="Bulk status"
-          value={bulkStatusId}
-          onChange={(event) => setBulkStatusId(event.target.value)}
-        >
-          <option value="">Leave status</option>
-          {bundle.core.statuses.map((status) => <option key={status.id} value={status.id}>{status.name}</option>)}
-        </SelectField>
-        <SelectField
-          label="Bulk priority"
-          value={bulkPriorityId}
-          onChange={(event) => setBulkPriorityId(event.target.value)}
-        >
-          <option value="__no-change">Leave priority</option>
-          <option value="__none">No priority</option>
-          {bundle.core.priorities.map((priority) => <option key={priority.id} value={priority.id}>{priority.name}</option>)}
-        </SelectField>
-        <SelectField
-          label="Bulk assignee"
-          value={bulkAssigneeId}
-          onChange={(event) => setBulkAssigneeId(event.target.value)}
-        >
-          <option value="__no-change">Leave assignee</option>
-          <option value="__none">Unassigned</option>
-          {bundle.core.members.filter((member) => !member.archived).map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}
-        </SelectField>
-        <Button
-          size="sm"
-          disabled={selectedLiveItems.length === 0}
-          onClick={applyBulkChanges}
-        >
-          Apply bulk changes
-        </Button>
-        <Button size="sm" variant="ghost" onClick={clearBulkSelection}>Clear selection</Button>
-        <span className="table-bulk-live text-xs text-muted" role="status" aria-live="polite">
-          {hiddenSelectedCount > 0 ? `${hiddenSelectedCount} selected item${hiddenSelectedCount === 1 ? "" : "s"} hidden by filters.` : ""}
-        </span>
+        {selectedLiveItems.length > 0 ? (
+          <>
+            <SelectField
+              label="Bulk status"
+              value={bulkStatusId}
+              onChange={(event) => setBulkStatusId(event.target.value)}
+            >
+              <option value="">Leave status</option>
+              {bundle.core.statuses.map((status) => <option key={status.id} value={status.id}>{status.name}</option>)}
+            </SelectField>
+            <SelectField
+              label="Bulk priority"
+              value={bulkPriorityId}
+              onChange={(event) => setBulkPriorityId(event.target.value)}
+            >
+              <option value="__no-change">Leave priority</option>
+              <option value="__none">No priority</option>
+              {bundle.core.priorities.map((priority) => <option key={priority.id} value={priority.id}>{priority.name}</option>)}
+            </SelectField>
+            <SelectField
+              label="Bulk assignee"
+              value={bulkAssigneeId}
+              onChange={(event) => setBulkAssigneeId(event.target.value)}
+            >
+              <option value="__no-change">Leave assignee</option>
+              <option value="__none">Unassigned</option>
+              {bundle.core.members.filter((member) => !member.archived).map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}
+            </SelectField>
+            <Button size="sm" onClick={applyBulkChanges}>
+              Apply bulk changes
+            </Button>
+            <Button size="sm" variant="ghost" onClick={clearBulkSelection}>Clear selection</Button>
+            <span className="table-bulk-live text-xs text-muted" role="status" aria-live="polite">
+              {hiddenSelectedCount > 0 ? `${hiddenSelectedCount} selected item${hiddenSelectedCount === 1 ? "" : "s"} hidden by filters.` : ""}
+            </span>
+          </>
+        ) : (
+          <span className="table-bulk-hint text-xs text-muted">Select rows to edit them together.</span>
+        )}
       </div>
-      <div className="table-column-picker" aria-label="Column visibility">
-        {BASE_TABLE_COLUMNS.map((columnId) => (
-          <CheckboxField
-            key={columnId}
-            label={`${COLUMN_LABELS[columnId]} column`}
-            checked={visibleColumns.includes(columnId)}
-            onChange={() => toggleColumn(columnId)}
-          />
-        ))}
-      </div>
+      <details className="table-column-disclosure">
+        <summary>
+          <span>Columns</span>
+          <span className="text-xs text-muted">{visibleColumns.length} visible</span>
+        </summary>
+        <div className="table-column-picker" aria-label="Column visibility">
+          {BASE_TABLE_COLUMNS.map((columnId) => (
+            <CheckboxField
+              key={columnId}
+              label={`${COLUMN_LABELS[columnId]} column`}
+              checked={visibleColumns.includes(columnId)}
+              onChange={() => toggleColumn(columnId)}
+            />
+          ))}
+        </div>
+      </details>
       {rows.length >= 100 ? (
         <div className="view-hint">
           <InlineAlert tone="info">

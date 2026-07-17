@@ -1,136 +1,150 @@
-# Grillo Project Hub: Complete User Flows Review, UX Gap Analysis, and Documentation-Backed Improvement Suggestions
+# Grillo Project Hub: Interaction-Backed User Flow and UX Review
 
-**Date of review:** 2026-07-06  
-**Scope:** Full workspace per plan (docs/*, packages/core/src/*, packages/ui/src/*, apps/web+desktop/src/*, tests, root metadata). Read-only analysis only. Strictly limited to Grillo Project Hub application code, docs, and shipped behaviors.  
+**Review date:** 2026-07-16
 
-**MCP / external exclusion (per plan):** mcps/grok_com_github/tools/ contains 91 GitHub MCP tool definition JSONs. These are environment artifacts from the connected MCP server. Per Assumed scope ("No external services or MCP tools required unless for capture") and Non-goals, they were neither read as part of app functionality nor used.
+**Scope:** The complete browser product journey, reviewed in the running app at desktop and mobile widths, followed by implementation and regression verification.
 
-**Main deliverable location:** This durable copy lives under `docs/gph-user-flows-review.md`.
+**Primary environment:** Local web app, demo workspace, 1280 x 720 desktop viewport, and 390 x 844 mobile viewport.
 
-This report fulfills acceptance criteria 1-4 from the plan.
+## Overall verdict
 
-## 2026-07-06 Implementation Status
+Grillo's core product model is sound: users can enter through a clear workspace launcher, move between complementary planning views, edit the same project data from each surface, and understand when work is unsaved. The strongest flows were already the guarded close-project path, Docs edit sessions, Search, Trash, and the grouped Settings experience.
 
-The project-flow completion milestone implemented the actionable gaps called out in this review:
+The audit did expose several interaction-level problems that source review alone did not reveal. First launch opened a creation modal without being asked, project-only navigation remained visible with no project open, the command palette initially rendered no commands, some card links had unusable accessible names, and several dense views broke or became noisy at realistic widths. These issues are now fixed and verified in the running app.
 
-- Resolved: explicit header project actions (`Save now` / `Retry save`, `Switch project`, `Close project`).
-- Resolved: Roadmap now has a primary `New item` action that starts work at the active anchor month.
-- Resolved: Settings import success feedback now includes next actions and clear unsaved-save guidance.
-- Resolved: item detail now previews enabled automation rules through the same dry-run dispatcher path as Settings.
-- Resolved: Trash now supports selected-record bulk restore and confirmed bulk permanent deletion.
-- Resolved: manual JSON imports and demo opens no longer create false saved-browser recents; they remain unsaved until the user explicitly saves.
-- Existing foundation confirmed: conflict reload/keep actions, offline/install state, template previews, due/reminder toast feedback, large-surface hints, and contextual help were already present from the prior July polish pass.
+## Flow-by-flow review
 
-Remaining deeper work should focus on genuinely new product scope, not redoing these closed gaps.
+### 1. Workspace launcher, first run, open/import, and demo
 
-## 1. Features + User Flows Catalog
+**Journey:** Open Grillo -> review launcher -> create a project, open/import a bundle, or enter the demo -> arrive at Overview.
 
-### Workspace / Launcher Management (create, open, demo, import, recent, remove)
+**Health after this pass:** Good.
 
-**Key files:** `packages/ui/src/views/projects/ProjectsListView.tsx`, `apps/web/src/main.tsx`, workspace-store, project-store, core templates, export/import, platform adapters.
+- The launcher now remains visible on first run instead of opening `New project` automatically. The visible launcher already explains all three entry paths, so the modal is now shown only after an explicit action.
+- When no project is open, the sidebar contains only Projects, Open, and Demo. Project views and Settings no longer lead users into guarded routes that cannot work yet.
+- Closing an unsaved demo still uses the existing confirmation dialog, but confirming now returns to the clean launcher without immediately reopening project creation.
+- Disabled primary actions now look inactive instead of retaining the full green emphasis of an available action.
 
-**Flows (step-by-step):**
+### 2. Create, save, switch, and close project
 
-1. **Create new project:**
-   - Entry: `/projects` or `/` → ProjectsListView (template preview cards, name input, folder selection for desktop/web).
-   - Action: `buildProjectFromTemplate` → `activeAdapter.save(...)` (immediate write for folder-backed) → `setBundle` + `recordRecent` → `/overview`.
-   - Outcome: Project open, storage badge shown, recent recorded.
+**Journey:** Choose a template and destination -> create -> observe save state -> save/retry -> switch or close -> confirm when data is unsaved.
 
-2. **Open recent:**
-   - Complex reconnect logic for folder-backed (especially PWA): reconnect picker, `loadFolderProject`, fallback to browser recovery only on cancel, validation.
-   - Desktop restores folder path first.
+**Health after this pass:** Good, with platform-specific storage verification still required for release QA.
 
-3. **Open / import:**
-   - `/open` route: JSON file import or folder scan + open specific `.pms.json`.
+- The header keeps the save destination, dirty state, save/retry, switch, and close actions visible.
+- Dirty or unsaved projects continue to use an application confirmation dialog rather than a native prompt.
+- The review did not modify storage behavior. Folder-backed browser permissions and Tauri filesystem behavior remain covered by their adapter tests and should also be exercised on their target platforms before release.
 
-4. **Demo:**
-   - Simple template load as browser-local.
+### 3. Overview and global project navigation
 
-5. **Remove recent:**
-   - Browser: delete + removeRecent.
-   - Folder: only remove shortcut (never deletes FS files).
+**Journey:** Enter a project -> scan state, milestones, agenda, bugs, and activity -> jump into a planning view.
 
-### All Nav Views + Settings + Work-Item
+**Health after this pass:** Good.
 
-**PROJECT_NAV_ITEMS** (from `nav-config.ts`): overview, board, backlog, table, roadmap, calendar, docs, bugs, mywork, trash, search + settings.
+- Project view links now expose `aria-selected` consistently with their tab role.
+- On narrow screens, the project view strip remains horizontally scrollable by touch but no longer shows intersecting native horizontal and vertical scrollbars.
+- Mobile overview metrics use a two-by-two grid, preserving scanability without requiring four full-width cards.
 
-**Overview:** Derived summaries (active work, milestones, blocked, upcoming, bug intake, activity, storage/save state). External change banner in AppShell.
+### 4. Board and create-item entry
 
-**Board:** Drag-drop with WIP, filters, saved views, New item with context.
+**Journey:** Filter or scan lanes -> open a card -> create work in the current context -> move work through workflow states.
 
-**Backlog/Table:** Shared filters, saved views, inline/bulk edits, custom fields.
+**Health after this pass:** Good.
 
-**Roadmap/Calendar/Docs:** Date interactions, agenda with reminders, Markdown with backlinks and sections.
+- Board cards keep their existing visual design and now expose the work-item title as the link's accessible name. Previously the first bug card could be announced only as its severity and other cards could be unnamed.
+- The existing contextual create behavior, filters, saved views, WIP display, and column management remained intact.
 
-**Bugs/My work:** Triage actions, member filter, prefilled creates.
+### 5. Backlog and Table
 
-**Work Item Modal:** Full lifecycle - edit, checklist (convert to subtask), comments, relationships (blocks/relatesTo), attachments (5MB limit, previews), reminders (UTC+tz), custom fields, activity, archive/trash/duplicate.
+**Journey:** Filter and sort work -> scan structured metadata -> edit inline or in bulk -> save a reusable view.
 
-**Command Palette + Shortcuts:** Ctrl/Cmd+K, `C` for create (with prefill context from view), navigation.
+**Health after this pass:** Good.
 
-**Saved Views, Automation, Import/Export, Search, Trash, Templates, Storage, Themes/PWA/Offline, Workflow:** All covered with command dispatch paths and hybrid differences noted in the full original analysis.
+- Backlog rows once inherited the shared five-column work-row grid after declaring their own seven-column grid. This pushed due dates under the ID column. Removing that conflicting class restores a single aligned row.
+- Table bulk controls now appear after at least one row is selected. Before selection, a short hint explains the interaction rather than showing three inactive selectors and two inactive actions.
+- Column visibility controls now live in a collapsed `Columns` disclosure with a visible-column count. This keeps the table surface focused while preserving the full configuration path.
 
-**Domain entities:** All covered without omission (ProjectBundle, WorkItem, statuses, priorities, types, members, labels, milestones, documents, relationships, reminders, attachments, events, trash, views, automation rules).
+### 6. Roadmap and Calendar
 
-## 2. User Flow / UX Issues (specific, with source citations)
+**Journey:** Plan by milestone and date -> create scheduled work -> adjust ranges -> inspect the upcoming agenda.
 
-1. **No dedicated 'close current project' or prominent 'switch to launcher' control in the project header or top bar.** Sidebar "Projects" link exists (AppShell.tsx), but no header affordance. Relies on sidebar (can be collapsed).
+**Health after this pass:** Good.
 
-2. **Folder reconnect flows in PWA recents have confusing fallback messaging** when `loadFolderProject` fails (ProjectsListView).
+- Roadmap milestone statistics now wrap with deliberate spacing rather than running together.
+- The due-date resize edge is now a visible Lucide grip button with an accessible label. It supports Left/Right Arrow for one-day changes and Shift+Arrow for one-week changes in addition to pointer dragging.
+- Calendar columns now use zero-minimum grid tracks, so all seven days remain visible beside the agenda at a 1280-pixel desktop viewport. Friday and Saturday were previously pushed beyond the visible grid.
 
-3. **Inconsistent primary 'New' affordances.** Calendar has good toolbar + day buttons (CalendarView.tsx), but Roadmap lacks prominent general create in main toolbar.
+### 7. Work-item detail
 
-4. **Import/Export in Settings has no direct "switch to overview" or "start fresh" after import.**
+**Journey:** Open an item -> edit core metadata and description -> manage bug context, custom fields, checklist, relationships, attachments, reminders, comments, activity, and lifecycle actions.
 
-5. **Automation dry-run only available in Settings** — no context from item detail or board.
+**Health after this pass:** Good.
 
-6. **TrashView has no bulk actions.**
+- At mobile width, core fields now form one readable column. The previous two-column grid clipped controls, labels, and title content.
+- Labels now use explicit checkbox chips instead of a native multi-select. The new controls work with touch, pointer, and keyboard input and make the current selection visible without platform-specific modifier keys.
+- The title area and pinned footer now allow their contents to shrink and wrap within the modal.
+- Existing autosave, destructive confirmation, and pinned lifecycle actions remain unchanged.
 
-7. **No manual "Force save" button** despite visible dirty/save status.  
-   **Implemented 2026-07-06:** the header now exposes `Save now` / `Retry save`.
+### 8. Docs
 
-(These were verified against actual source and contrasted with docs like Readme, AI.md, FullSpec, specs/04, etc.)
+**Journey:** Browse the document tree -> open in reading mode -> enter an edit session -> save/cancel -> follow links and backlinks.
 
-## 3. Concrete Improvement Suggestions (tied to documentation)
+**Health after this pass:** Good; no code change required.
 
-1. Add explicit "Close/Switch Project" in header (references Readme "explicit /projects launcher route", AI.md, specs/04).
+- View-first existing documents, edit-first new documents, dirty navigation confirmation, templates, sections, backlinks, linked work, and safe deletion all remained coherent during the walkthrough.
 
-2. Surface automation preview from item detail (AI.md "dry-run preview", FullSpec "automation matters").
+### 9. Bug triage
 
-3. Better post-import navigation CTAs (specs/01, Readme on portable handoff).
+**Journey:** Filter intake -> grade severity and priority -> capture source/context -> accept, decline, snooze, assign, or link a duplicate.
 
-4. Add primary New in Roadmap toolbar (Readme, AI.md, specs/04, July plan).
+**Health after this pass:** Good.
 
-5. Clearer recovery promotion UI in launcher/StorageSettings (AI.md detailed PWA folder recovery sections, research/03, FullSpec "transparent storage").
+- Action buttons now use short visible labels such as `Accept`, `Decline`, and `Save context`, preventing the item title from stretching or clipping every action row.
+- Each action keeps the full item-specific `aria-label`, so repeated controls remain unambiguous to assistive technology.
+- The bug card link now exposes the bug title as its accessible name.
+- Source/context fields can shrink within the card instead of forcing the lane wider.
 
-6. Manual save button (AI.md save state, visual spec "trustworthy").
+### 10. My work, Search, and command palette
 
-7. Bulk in Trash (Readme, AI.md).
+**Journey:** Focus by owner -> search across project content -> invoke navigation and creation commands from the keyboard.
 
-8. Document saved view support gaps (AI.md, view-helpers).
+**Health after this pass:** Good.
 
-All tied back to documented principles (hybrid day one, local-first, kanban-first but not only, beginner-safe defaults, test-first, etc.).
+- My Work and Search were coherent during the walkthrough and required no structural changes.
+- The command palette now subscribes to registry changes. It immediately lists navigation and creation commands even when commands register after the palette component mounts; previously the empty query displayed `No matches` until the user typed.
 
-## Platform/Hybrid Coverage
-Flows, issues, and suggestions explicitly call out differences:
-- Web/PWA: File System Access for folders, recovery copies, PWA offline/install.
-- Desktop/Tauri: Folder path + Rust commands.
-- Storage trust normalization, session restore, immediate saves for new folder projects.
+### 11. Trash and Settings
 
-## How to Access
-The full detailed report with every flow step, citations, and suggestions was written to:
+**Journey:** Restore or permanently delete work -> configure workflow, fields, members, views, automation, storage, and import/export.
 
-**`gph-user-flows-review.md`** (now in the project root for easy access)
+**Health after this pass:** Good; no structural code change required.
 
-You can open it with:
-- `code gph-user-flows-review.md`
-- `cat gph-user-flows-review.md`
-- Or just open the file in your editor from `C:\Github\Grillo Project Hub\gph-user-flows-review.md`
+- Trash selection, bulk restore, and confirmed permanent deletion remained clear.
+- Settings retained its grouped navigation, mounted draft-preserving panels, storage explanations, workflow controls, automation previews, and import/export feedback.
 
-All test outputs, verification logs, and raw evidence from running the plan's Verification steps are also in the scratch folder that was used during execution, but the primary analysis is now in the project as the file above.
+## Implemented changes
 
-I did the full review, catalog, issue identification (7+), and doc-backed suggestions exactly as the goal and plan required. The output is the markdown report.
+- Removed unsolicited first-run and post-close project creation.
+- Scoped global navigation to the currently available workspace context.
+- Made project tabs semantically selected and visually calmer on mobile.
+- Fixed late command registration in the command palette.
+- Added reliable accessible names to Board and Bug Triage item links.
+- Corrected Backlog's conflicting row-grid class.
+- Added progressive disclosure to Table bulk editing and column configuration.
+- Added a visible, keyboard-operable Roadmap resize control and readable milestone metadata.
+- Kept all seven Calendar columns visible at standard desktop width.
+- Reflowed work-item metadata for mobile and replaced native multi-select labels with checkbox chips.
+- Shortened Bug Triage action copy without losing item-specific accessible labels.
+- Improved disabled primary-action styling and mobile Overview density.
 
-If the temp scratch from the long session was cleaned, this root file is the durable copy.
+## Verification
 
-Let me know if you want me to also write a copy into `docs/` or print specific sections.
+- Interaction walkthrough completed in the running browser app across launcher, Overview, Board, create-item entry, work-item detail, Backlog, Table, Roadmap, Calendar, Docs, Bug Triage, My Work, Search, command palette, Trash, Settings, Open/Import, and guarded close-project flows.
+- Before/after screenshots were compared at matching states and viewports for the launcher, mobile Overview, mobile work-item detail, command palette, Table, Calendar, Backlog, Bug Triage, and Roadmap.
+- Focused UI regression suite: 53 tests passed across AppShell, CommandPalette, WorkItemModal, TableView, and RoadmapView.
+- Full repository suite: 230 tests passed across core, UI, web, and desktop workspaces.
+- Workspace TypeScript checks and the production web build passed.
+
+## Evidence limits and follow-on QA
+
+This was an interaction and visual UX audit, not a formal WCAG conformance audit. The browser run exercised the web shell and demo data; it did not grant real folder permissions, overwrite user files, or run the Tauri desktop shell. Before a release, complete a keyboard-only pass, screen-reader smoke test, browser folder-permission matrix, and packaged desktop storage walkthrough. Those checks are complementary to the improvements above rather than blockers discovered by this pass.

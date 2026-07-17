@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { createProjectFromLauncher } from "./project-launcher";
 
 function todayDateOnly(): string {
   const date = new Date();
@@ -11,7 +12,7 @@ function todayDateOnly(): string {
 
 test("the user can create an item, change its status, and see the activity log", async ({ page }) => {
   await page.goto("/");
-  await page.locator(".modal-footer button.btn-primary").click();
+  await createProjectFromLauncher(page);
   await expect(page).toHaveURL(/\/overview/);
   await page.getByRole("link", { name: "Board" }).click();
   await expect(page).toHaveURL(/\/board/);
@@ -30,7 +31,7 @@ test("the user can create an item, change its status, and see the activity log",
 
 test("export downloads a JSON project bundle", async ({ page }) => {
   await page.goto("/");
-  await page.locator(".modal-footer button.btn-primary").click();
+  await createProjectFromLauncher(page);
   await expect(page).toHaveURL(/\/overview/);
   // Navigate to settings and export
   await page.getByRole("link", { name: "Settings" }).click();
@@ -44,9 +45,7 @@ test("export downloads a JSON project bundle", async ({ page }) => {
 
 test("search finds items by title", async ({ page }) => {
   await page.goto("/");
-  // The first-run modal is open. Click Create.
-  await expect(page.locator(".modal-backdrop").first()).toBeVisible();
-  await page.locator(".modal-footer button.btn-primary").click();
+  await createProjectFromLauncher(page);
   await expect(page).toHaveURL(/\/overview/);
   // Use the C shortcut to create an item with a known title
   await page.locator(".app-main").click();
@@ -69,7 +68,7 @@ test("search finds items by title", async ({ page }) => {
 test("calendar creates a dated work item from a day cell", async ({ page }) => {
   const today = todayDateOnly();
   await page.goto("/");
-  await page.locator(".modal-footer button.btn-primary").click();
+  await createProjectFromLauncher(page);
   await expect(page).toHaveURL(/\/overview/);
 
   await page.getByLabel("Workspace", { exact: true }).getByRole("link", { name: "Calendar" }).click();
@@ -87,7 +86,7 @@ test("calendar creates a dated work item from a day cell", async ({ page }) => {
 
 test("docs workflow creates and saves a project note", async ({ page }) => {
   await page.goto("/");
-  await page.locator(".modal-footer button.btn-primary").click();
+  await createProjectFromLauncher(page);
   await expect(page).toHaveURL(/\/overview/);
 
   await page.getByLabel("Workspace", { exact: true }).getByRole("link", { name: "Docs" }).click();

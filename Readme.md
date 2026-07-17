@@ -43,7 +43,7 @@ For real project work, run the repo locally or use the future release builds.
 
 Grillo is past the skeleton stage. The current app includes:
 
-- Workspace launcher with new, open/import, demo, recent-project, template preview, and explicit browser-vs-folder storage guidance.
+- Workspace launcher with new, open/import, demo, recent-project, template preview, explicit browser-vs-folder storage guidance, and a calm first-run state that waits for the user to choose a path.
 - Overview, board, backlog, table, roadmap, calendar, docs, bug triage, my work, search, trash, and settings surfaces.
 - Board-local column management for adding unmapped workflow statuses, removing columns without deleting their statuses or work items, and creating a new categorized status and column together.
 - Explicit save-state UI in the project header, including save destination, dirty state, save failures, manual save/retry, switch project, and guarded close-project actions.
@@ -51,12 +51,13 @@ Grillo is past the skeleton stage. The current app includes:
 - Explicit per-project browser/folder save targets plus content-fingerprint stale-write protection; selecting a folder for one project does not silently move another project.
 - Tauri desktop storage command wiring for folder-backed save/load/existence/delete flows.
 - Shared UI primitives for buttons, forms, surfaces, modals, dialogs, tables, empty states, inline alerts, toasts, help tips, and work item cards/rows.
-- Modal-style work item detail with comments, checklist/subtasks, relationships, custom fields, attachments, reminders, activity, automation previews, archive/trash/delete, and a pinned action footer.
+- Responsive modal-style work item detail with mobile-friendly metadata fields, explicit label checkboxes, comments, checklist/subtasks, relationships, custom fields, attachments, reminders, activity, automation previews, archive/trash/delete, and a pinned action footer.
 - Docs with explicit view/edit sessions, Markdown preview, document templates, internal links, linked work, backlinks, dirty navigation confirmation, and safe deletion behavior.
 - Bug triage with readable lanes, severity/priority/source/context fields, intake gates, accept/decline/snooze/assign actions, and a searchable duplicate-link picker.
 - Automation rules with command-backed create/update/delete/enable/disable, dry-run previews, item-event triggers, and audited action failures.
 - JSON, Markdown, and CSV import/export, plus clean print preview.
-- Light/dark/system themes, a remembered desktop sidebar that toggles between full navigation and an icon rail, responsive mobile navigation, offline status, and local/self-hosted PWA install support when the browser exposes it.
+- Light/dark/system themes, a remembered desktop sidebar that toggles between full navigation and an icon rail, context-aware no-project navigation, responsive mobile navigation and project tabs, offline status, and local/self-hosted PWA install support when the browser exposes it.
+- Planning-surface UX polish including aligned Backlog rows, progressive Table controls, a keyboard-operable Roadmap resize grip, a complete seven-day Calendar beside its agenda, and item-title link names for assistive technology.
 - A realistic, non-persistent demo workspace with active and completed work, bug intake, comments, members, dates, milestones, and linked docs.
 
 ## Storage model
@@ -121,7 +122,7 @@ The test suite covers:
 - `packages/ui`: AppShell, project router, shared primitives, work item modal, planning views, docs, settings, launcher, command palette, trash, automation settings.
 - `apps/web`: browser/PWA storage adapter and distribution-mode behavior.
 - `apps/desktop`: desktop storage adapter command wiring.
-- `tests/e2e`: hybrid parity, project workflow, theme, command palette, export, search, calendar creation, docs edit-mode behavior, and mobile navigation.
+- `tests/e2e`: explicit launcher-to-project setup, hybrid parity, project workflow, theme, command palette, export, search, calendar creation, docs edit-mode behavior, and mobile navigation.
 
 Run unit/component coverage with `npm test`, browser coverage with `npm run test:e2e`, and TypeScript coverage with `npm run typecheck`.
 

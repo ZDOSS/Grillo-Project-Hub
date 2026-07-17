@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus } from "lucide-react";
+import { GripVertical, Plus } from "lucide-react";
 import {
   isDateOnlyOrderValid,
   milestoneProgress,
@@ -151,9 +151,11 @@ export function RoadmapView() {
             <div key={lane.id} className="roadmap-row" style={{ display: "contents" }}>
               <div className="roadmap-row-lane">
                 <div className="roadmap-lane-title">{lane.name}</div>
-                {lane.targetDate ? <span className="text-xs text-muted">Target {lane.targetDate}</span> : null}
-                <span className="text-xs text-muted">{progress.completed}/{progress.total} complete</span>
-                <span className="text-xs text-muted">{progress.percent}%</span>
+                <div className="roadmap-lane-meta">
+                  {lane.targetDate ? <span>Target {lane.targetDate}</span> : null}
+                  <span>{progress.completed}/{progress.total} complete</span>
+                  <span>{progress.percent}%</span>
+                </div>
               </div>
               <div className="roadmap-row-cell" style={{ gridColumn: `span ${months}`, position: "relative", height: laneItems.length > 0 ? Math.max(88, laneItems.length * 84 + 16) : 64, padding: 0 }}>
                 {laneItems.length === 0 ? <span className="text-xs text-muted" style={{ padding: 8 }}>-</span> : null}
@@ -256,11 +258,24 @@ function RoadmapBar({
         </Link>
         {blockedByCount > 0 ? <MetadataBadge tone="danger">Blocked by {blockedByCount}</MetadataBadge> : null}
         {blocksCount > 0 ? <MetadataBadge>Blocks {blocksCount}</MetadataBadge> : null}
-        <span
+        <button
+          type="button"
+          className="roadmap-resize-handle"
           onPointerDown={start("resize")}
-          style={{ width: 6, cursor: "ew-resize", alignSelf: "stretch" }}
-          aria-label="Resize due date"
-        />
+          onKeyDown={(event) => {
+            if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+            event.preventDefault();
+            event.stopPropagation();
+            const dayDelta = (event.shiftKey ? 7 : 1) * (event.key === "ArrowRight" ? 1 : -1);
+            const startDate = item.startDate ?? item.dueDate ?? "";
+            const dueDate = item.dueDate ?? item.startDate ?? "";
+            if (startDate && dueDate) onChange(startDate, shiftDate(dueDate, dayDelta));
+          }}
+          aria-label={`Adjust due date for ${item.title}`}
+          title="Drag to resize. Use Left and Right arrow keys for precise changes; hold Shift for one week."
+        >
+          <GripVertical aria-hidden="true" size={14} />
+        </button>
       </div>
       <div className="roadmap-bar-controls" onPointerDown={(event) => event.stopPropagation()}>
         <label>

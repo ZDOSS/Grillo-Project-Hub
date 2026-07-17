@@ -223,7 +223,11 @@ export function BugTriageView() {
                   .filter((label): label is (typeof labels)[number] => Boolean(label));
                 return (
                   <article key={item.id} className="bugs-card" aria-label={item.title}>
-                    <Link to={`/item/${item.id}`} className="bugs-card-link">
+                    <Link
+                      to={`/item/${item.id}`}
+                      aria-label={item.title}
+                      className="bugs-card-link"
+                    >
                       <WorkItemCard
                         item={item}
                         status={status}
@@ -291,15 +295,25 @@ export function BugTriageView() {
                           }
                         }))}
                       />
-                      <Button size="sm" variant="ghost" onClick={() => saveBugContext(item)}>
-                        Save bug context for {item.title}
+                      <Button
+                        aria-label={`Save bug context for ${item.title}`}
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => saveBugContext(item)}
+                      >
+                        Save context
                       </Button>
                     </div>
                     <div className="bugs-card-actions">
-                      <Button size="sm" onClick={() => updateItem(item, { statusId: readyStatusId })}>
-                        Accept {item.title}
+                      <Button
+                        aria-label={`Accept ${item.title}`}
+                        size="sm"
+                        onClick={() => updateItem(item, { statusId: readyStatusId })}
+                      >
+                        Accept
                       </Button>
                       <Button
+                        aria-label={`Decline ${item.title}`}
                         size="sm"
                         variant="ghost"
                         disabled={!declinedStatusId}
@@ -311,10 +325,15 @@ export function BugTriageView() {
                           updateItem(item, { statusId: declinedStatusId });
                         }}
                       >
-                        Decline {item.title}
+                        Decline
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => snooze(item)}>
-                        Snooze {item.title}
+                      <Button
+                        aria-label={`Snooze ${item.title}`}
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => snooze(item)}
+                      >
+                        Snooze
                       </Button>
                     </div>
                     <div className="bugs-card-actions">
@@ -329,8 +348,13 @@ export function BugTriageView() {
                           <option key={member.id} value={member.id}>{member.displayName}</option>
                         ))}
                       </select>
-                      <Button size="sm" variant="ghost" onClick={() => openDuplicateDialog(item)}>
-                        Link duplicate for {item.title}
+                      <Button
+                        aria-label={`Link duplicate for ${item.title}`}
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => openDuplicateDialog(item)}
+                      >
+                        Link duplicate
                       </Button>
                     </div>
                   </article>

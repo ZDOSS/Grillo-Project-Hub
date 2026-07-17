@@ -154,6 +154,24 @@ describe("WorkItemModal", () => {
     });
   });
 
+  it("toggles labels with explicit checkbox controls", async () => {
+    const item = seedItem();
+    const label = useProjectStore.getState().bundle!.core.labels[0]!;
+
+    renderModal(item.id);
+
+    const labelCheckbox = screen.getByRole("checkbox", { name: label.name });
+    expect(labelCheckbox).not.toBeChecked();
+    await userEvent.click(labelCheckbox);
+
+    await waitFor(() => {
+      const updated = useProjectStore
+        .getState()
+        .bundle?.core.items.find((entry) => entry.id === item.id);
+      expect(updated?.labelIds).toContain(label.id);
+    });
+  });
+
   it("edits applicable custom fields in the work item detail", async () => {
     const item = seedItem();
     const risk = defineCustomField({

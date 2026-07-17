@@ -74,7 +74,7 @@ describe("BoardView", () => {
 
     renderBoard(view);
 
-    const link = screen.getByRole("link", { name: /Open me\s+Ready/ });
+    const link = screen.getByRole("link", { name: "Open me" });
     expect(link).toHaveAttribute("href", `/item/${item.id}`);
 
     await userEvent.click(link);
@@ -127,7 +127,7 @@ describe("BoardView", () => {
 
     renderBoard(view);
 
-    const link = screen.getByRole("link", { name: /Drag then open\s+Ready/ });
+    const link = screen.getByRole("link", { name: "Drag then open" });
     const card = link.closest(".board-card");
     expect(card).toBeTruthy();
 
@@ -163,7 +163,7 @@ describe("BoardView", () => {
 
     renderBoard(view);
 
-    const link = screen.getByRole("link", { name: /Keyboard open\s+Ready/ });
+    const link = screen.getByRole("link", { name: "Keyboard open" });
     link.focus();
     await userEvent.keyboard("{Enter}");
 

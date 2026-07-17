@@ -31,6 +31,7 @@ export function ItemCard({
   return (
     <Link
       to={`/item/${item.id}`}
+      aria-label={item.title}
       className="board-card"
       draggable
       data-dragging={dragging}

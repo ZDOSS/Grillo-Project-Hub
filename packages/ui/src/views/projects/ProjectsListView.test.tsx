@@ -12,6 +12,12 @@ function LocationProbe() {
   return <div data-testid="location">{location.pathname}</div>;
 }
 
+async function openNewProjectDialog() {
+  const [newProjectButton] = screen.getAllByRole("button", { name: "New project" });
+  await userEvent.click(newProjectButton);
+  await screen.findByRole("button", { name: "Create" });
+}
+
 describe("ProjectsListView", () => {
   beforeEach(() => {
     cleanup();
@@ -85,6 +91,7 @@ describe("ProjectsListView", () => {
       </MemoryRouter>
     );
 
+    await openNewProjectDialog();
     await userEvent.click(screen.getByRole("button", { name: "Create" }));
 
     await waitFor(() => {
@@ -103,6 +110,8 @@ describe("ProjectsListView", () => {
     );
 
     expect(screen.getByText("Create your first project")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Create" })).not.toBeInTheDocument();
+    await openNewProjectDialog();
     expect(screen.getByRole("button", { name: "Bug Tracker template" })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Bug Tracker template" }));
@@ -149,6 +158,7 @@ describe("ProjectsListView", () => {
       </MemoryRouter>
     );
 
+    await openNewProjectDialog();
     await screen.findByText(/Selected folder: Client Folder/i);
     await userEvent.click(screen.getByRole("button", { name: "Use browser storage" }));
     expect(await screen.findByText(/Leave this unset to keep the project browser-local/i)).toBeInTheDocument();
@@ -531,6 +541,7 @@ describe("ProjectsListView", () => {
       </MemoryRouter>
     );
 
+    await openNewProjectDialog();
     const backdrop = document.querySelector(".modal-backdrop");
     expect(backdrop).not.toBeNull();
     await userEvent.click(backdrop!);
@@ -595,6 +606,7 @@ describe("ProjectsListView", () => {
       </MemoryRouter>
     );
 
+    await openNewProjectDialog();
     await userEvent.click(screen.getByRole("button", { name: "Choose folder" }));
 
     expect(screen.queryByText("The user aborted a request.")).not.toBeInTheDocument();

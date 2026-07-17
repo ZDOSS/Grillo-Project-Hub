@@ -211,7 +211,7 @@ export function ProjectsListView() {
   const adapter = useMemo(() => getActiveAdapter(), []);
   const recents = useWorkspaceStore((s) => s.recents);
   const removeRecent = useWorkspaceStore((s) => s.removeRecent);
-  const [showNew, setShowNew] = useState(recents.length === 0);
+  const [showNew, setShowNew] = useState(false);
   const [newName, setNewName] = useState("My Project");
   const [templateId, setTemplateId] = useState<TemplateId>("software-project");
   const [folderPath, setFolderPath] = useState(getDesktopFolderPath());
@@ -227,10 +227,6 @@ export function ProjectsListView() {
   const templates = useMemo(() => listTemplates(), []);
   const selectedTemplate = templates.find((template) => template.id === templateId) ?? templates[0];
   const selectedTemplatePreview = TEMPLATE_PREVIEWS[templateId];
-
-  useEffect(() => {
-    if (recents.length === 0) setShowNew(true);
-  }, [recents.length]);
 
   useEffect(() => {
     if (!adapter?.getCurrentFolderDisplay) return;
