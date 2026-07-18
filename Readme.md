@@ -59,7 +59,7 @@ Grillo is past the skeleton stage. The current app includes:
 - JSON, Markdown, and CSV import/export, plus clean print preview.
 - A full Appearance studio with light/dark/system modes, Grillo Adaptive, Graphite, Warm Sand, and High Contrast presets, seed-based custom theme creation, every authored UI color exposed as a semantic role, live preview, contrast checks, safe JSON import/export, per-project personal overrides, and a shared project accent.
 - A remembered desktop sidebar that toggles between full navigation and an icon rail, context-aware no-project navigation, responsive mobile navigation and project tabs, offline status, and local/self-hosted PWA install support when the browser exposes it.
-- Planning-surface UX polish including aligned Backlog rows, progressive Table controls, a keyboard-operable Roadmap resize grip, a complete seven-day Calendar beside its agenda, and item-title link names for assistive technology.
+- Planning-surface UX polish including aligned Backlog rows, progressive Table controls, and a day-accurate Roadmap whose bars resize with their dates and support pointer-captured move/resize plus keyboard adjustment; Calendar keeps all seven days beside its agenda, and item links retain useful assistive names.
 - A realistic, non-persistent demo workspace with active and completed work, bug intake, comments, members, dates, milestones, and linked docs.
 
 ## Appearance and themes
@@ -141,7 +141,7 @@ The test suite covers:
 - `packages/ui`: AppShell, project router, shared primitives, work item modal, planning views, docs, settings, launcher, command palette, trash, automation settings.
 - `apps/web`: browser/PWA storage adapter and distribution-mode behavior.
 - `apps/desktop`: desktop storage adapter command wiring.
-- `tests/e2e`: explicit launcher-to-project setup, hybrid parity, project workflow, theme, command palette, export, search, calendar creation, docs edit-mode behavior, and mobile navigation.
+- `tests/e2e`: explicit launcher-to-project setup, hybrid parity, project workflow, theme, command palette, export, search, calendar creation, roadmap date/drag/resize geometry, docs edit-mode behavior, and mobile navigation.
 
 Run unit/component coverage with `npm test`, browser coverage with `npm run test:e2e`, and TypeScript coverage with `npm run typecheck`.
 
