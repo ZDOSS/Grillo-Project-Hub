@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
@@ -7,6 +7,7 @@ import {
   exportProjectJson,
   importProjectJson,
   type PersistedStorageTrust,
+  type StorageMetadata,
   type ProjectStoreAdapter
 } from "@gph/core";
 import { useProjectStore } from "../../store/project-store";
@@ -277,6 +278,79 @@ describe("SettingsView", () => {
     });
     expect(useWorkspaceStore.getState().recents[0]).toMatchObject({ key: folderKey, trust: "browser", storagePath: null });
     expect(within(panel).getByText("Browser-local")).toBeInTheDocument();
+  });
+
+  it("keeps edits made during a storage move dirty after the earlier snapshot is saved", async () => {
+    let resolveSave!: (metadata: StorageMetadata) => void;
+    const pendingSave = new Promise<StorageMetadata>((resolve) => {
+      resolveSave = resolve;
+    });
+    const save = vi.fn(() => pendingSave);
+    const adapter: ProjectStoreAdapter = {
+      capabilities: { folderBacked: true, fileWatch: false, attachments: true },
+      list: async () => [],
+      has: async () => true,
+      load: async () => null,
+      save,
+      delete: async () => undefined,
+      chooseFolder: async () => "Client Work",
+      getCurrentFolderDisplay: async () => null,
+      listFolderProjects: async () => []
+    };
+    (window as typeof window & { __gph_store?: ProjectStoreAdapter }).__gph_store = adapter;
+    const projectId = useProjectStore.getState().bundle!.project.id;
+
+    render(
+      <ThemeProvider>
+        <MemoryRouter>
+          <SettingsView />
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    await userEvent.click(screen.getByRole("tab", { name: "Storage" }));
+    const panel = screen.getByRole("tabpanel", { name: "Storage" });
+    await userEvent.click(within(panel).getByRole("button", { name: "Save to local folder" }));
+    await waitFor(() => expect(save).toHaveBeenCalledOnce());
+    const savedJson = save.mock.calls[0][1];
+
+    act(() => {
+      useProjectStore.getState().applyCommand({
+        type: "item.create",
+        projectId,
+        typeId: "task",
+        title: "Edit made during storage move"
+      });
+    });
+
+    await act(async () => {
+      resolveSave({
+        key: projectId,
+        displayPath: `Client Work/.pm-suite/${projectId}.pms.json`,
+        externalRevision: 202,
+        trust: "folder"
+      });
+      await pendingSave;
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(useProjectStore.getState()).toMatchObject({
+        storagePath: `Client Work/.pm-suite/${projectId}.pms.json`,
+        storageTrust: "folder",
+        externalRevision: 202,
+        isDirty: true,
+        saveStatus: "idle",
+        saveError: null
+      });
+    });
+    expect(useProjectStore.getState().bundle?.core.items).toEqual(
+      expect.arrayContaining([expect.objectContaining({ title: "Edit made during storage move" })])
+    );
+    expect(importProjectJson(savedJson).bundle.core.items).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ title: "Edit made during storage move" })])
+    );
+    expect(within(panel).getByText(/Newer edits remain unsaved/i)).toBeInTheDocument();
   });
 
   it("does not overwrite an existing folder project or treat picker cancellation as a save error", async () => {

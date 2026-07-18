@@ -55,6 +55,7 @@ export function StorageSettings() {
   const saveStatus = useProjectStore((state) => state.saveStatus);
   const markSaving = useProjectStore((state) => state.markSaving);
   const markSaved = useProjectStore((state) => state.markSaved);
+  const markUnsaved = useProjectStore((state) => state.markUnsaved);
   const markSaveFailed = useProjectStore((state) => state.markSaveFailed);
   const recordRecent = useWorkspaceStore((state) => state.recordRecent);
   const [operation, setOperation] = useState<StorageOperation>(null);
@@ -90,20 +91,31 @@ export function StorageSettings() {
       return false;
     }
 
+    const key = current.storageKey ?? currentBundle.project.id;
+    const projectId = currentBundle.project.id;
+    const json = exportProjectJson(withStorageTrust(currentBundle, targetTrust));
     markSaving();
     try {
-      const key = current.storageKey ?? currentBundle.project.id;
       const metadata = await adapter.save(
         key,
-        exportProjectJson(withStorageTrust(currentBundle, targetTrust)),
+        json,
         null,
         targetTrust
       );
-      markSaved(metadata.key, metadata.displayPath, metadata.trust, metadata.externalRevision);
+      const latest = useProjectStore.getState();
+      const latestKey = latest.storageKey ?? latest.bundle?.project.id;
+      const isStillActive = latest.bundle?.project.id === projectId && latestKey === key;
+      const hasNewerEdits = Boolean(
+        isStillActive && latest.bundle && exportProjectJson(withStorageTrust(latest.bundle, targetTrust)) !== json
+      );
+      if (isStillActive) {
+        markSaved(metadata.key, metadata.displayPath, metadata.trust, metadata.externalRevision);
+        if (hasNewerEdits) markUnsaved(metadata.externalRevision);
+      }
       if (metadata.trust !== "unsaved") {
         recordRecent({
           key: metadata.key,
-          name: currentBundle.project.name,
+          name: isStillActive && latest.bundle ? latest.bundle.project.name : currentBundle.project.name,
           storagePath: metadata.displayPath,
           trust: metadata.trust,
           lastOpenedAt: new Date().toISOString()
@@ -112,15 +124,22 @@ export function StorageSettings() {
       const destination = targetTrust === "folder"
         ? `local folder${folderName ? ` ${folderName}` : ""}`
         : "browser storage";
-      const message = `Saved ${currentBundle.project.name} to ${destination}.`;
-      setFeedback({ message, tone: "success" });
-      notify({ tone: "success", message });
+      const message = hasNewerEdits
+        ? `Saved ${currentBundle.project.name} to ${destination}. Newer edits remain unsaved and will auto-save next.`
+        : `Saved ${currentBundle.project.name} to ${destination}.`;
+      const tone: InlineAlertTone = hasNewerEdits ? "warning" : "success";
+      setFeedback({ message, tone });
+      notify({ tone, message });
       return true;
     } catch (error) {
       const detail = error instanceof Error ? error.message : "The save did not complete.";
       const message = `Storage change failed: ${detail}`;
-      markSaveFailed(detail);
-      showFailure(message);
+      const latest = useProjectStore.getState();
+      const latestKey = latest.storageKey ?? latest.bundle?.project.id;
+      if (latest.bundle?.project.id === projectId && latestKey === key) {
+        markSaveFailed(detail);
+        showFailure(message);
+      }
       return false;
     }
   };
