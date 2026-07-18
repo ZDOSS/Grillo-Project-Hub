@@ -1,9 +1,16 @@
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
-import { buildProjectFromTemplate, exportProjectJson } from "@gph/core";
+import {
+  buildProjectFromTemplate,
+  exportProjectJson,
+  importProjectJson,
+  type PersistedStorageTrust,
+  type ProjectStoreAdapter
+} from "@gph/core";
 import { useProjectStore } from "../../store/project-store";
+import { useWorkspaceStore } from "../../store/workspace-store";
 import { ThemeProvider } from "../../theme/theme-provider";
 import { SettingsView } from "./SettingsView";
 
@@ -11,13 +18,18 @@ describe("SettingsView", () => {
   beforeEach(() => {
     cleanup();
     localStorage.clear();
+    delete (window as typeof window & { __gph_store?: ProjectStoreAdapter }).__gph_store;
+    useWorkspaceStore.setState({ localMemberId: null, recents: [] });
     const bundle = buildProjectFromTemplate("software-project", "Settings");
     useProjectStore.setState({
       bundle,
       storageKey: bundle.project.id,
       storagePath: null,
       storageTrust: "browser",
+      externalRevision: 101,
       isDirty: false,
+      saveStatus: "saved",
+      saveError: null,
       lastSource: null
     });
     useProjectStore.getState().applyCommand({
@@ -188,6 +200,125 @@ describe("SettingsView", () => {
     const labelPanel = screen.getByRole("tabpanel", { name: "Labels & milestones" });
     expect(within(labelPanel).getByPlaceholderText("Label name")).toBeInTheDocument();
     expect(within(labelPanel).getByPlaceholderText("Milestone name")).toBeInTheDocument();
+  });
+
+  it("moves the current browser project to a local folder and back without recreating it", async () => {
+    const chooseFolder = vi.fn(async () => "Client Work");
+    const save = vi.fn(async (
+      key: string,
+      _json: string,
+      _expectedRevision?: number | null,
+      targetTrust?: PersistedStorageTrust
+    ) => ({
+      key,
+      displayPath: targetTrust === "folder" ? `Client Work/.pm-suite/${key}.pms.json` : null,
+      externalRevision: targetTrust === "folder" ? 202 : 303,
+      trust: targetTrust ?? "browser"
+    }));
+    const adapter: ProjectStoreAdapter = {
+      capabilities: { folderBacked: true, fileWatch: false, attachments: true },
+      list: async () => [],
+      has: async () => true,
+      load: async () => null,
+      save,
+      delete: async () => undefined,
+      chooseFolder,
+      getCurrentFolderDisplay: async () => null,
+      listFolderProjects: async () => []
+    };
+    (window as typeof window & { __gph_store?: ProjectStoreAdapter }).__gph_store = adapter;
+
+    render(
+      <ThemeProvider>
+        <MemoryRouter>
+          <SettingsView />
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    await userEvent.click(screen.getByRole("tab", { name: "Storage" }));
+    const panel = screen.getByRole("tabpanel", { name: "Storage" });
+    await userEvent.click(within(panel).getByRole("button", { name: "Save to local folder" }));
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(chooseFolder).toHaveBeenCalledOnce();
+    const [folderKey, folderJson, folderRevision, folderTrust] = save.mock.calls[0];
+    expect(folderKey).toBe(useProjectStore.getState().bundle?.project.id);
+    expect(folderRevision).toBeNull();
+    expect(folderTrust).toBe("folder");
+    expect(importProjectJson(folderJson).bundle.projectSettings.storageTrust).toBe("folder");
+    expect(useProjectStore.getState()).toMatchObject({
+      storagePath: `Client Work/.pm-suite/${folderKey}.pms.json`,
+      storageTrust: "folder",
+      externalRevision: 202,
+      isDirty: false,
+      saveStatus: "saved"
+    });
+    expect(useWorkspaceStore.getState().recents[0]).toMatchObject({
+      key: folderKey,
+      trust: "folder",
+      storagePath: `Client Work/.pm-suite/${folderKey}.pms.json`
+    });
+    expect(within(panel).getByText("Folder-backed")).toBeInTheDocument();
+
+    await userEvent.click(within(panel).getByRole("button", { name: "Use browser storage" }));
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(2));
+    const [, browserJson, browserRevision, browserTrust] = save.mock.calls[1];
+    expect(browserRevision).toBeNull();
+    expect(browserTrust).toBe("browser");
+    expect(importProjectJson(browserJson).bundle.projectSettings.storageTrust).toBe("browser");
+    expect(useProjectStore.getState()).toMatchObject({
+      storagePath: null,
+      storageTrust: "browser",
+      externalRevision: 303,
+      isDirty: false,
+      saveStatus: "saved"
+    });
+    expect(useWorkspaceStore.getState().recents[0]).toMatchObject({ key: folderKey, trust: "browser", storagePath: null });
+    expect(within(panel).getByText("Browser-local")).toBeInTheDocument();
+  });
+
+  it("does not overwrite an existing folder project or treat picker cancellation as a save error", async () => {
+    const bundle = useProjectStore.getState().bundle!;
+    const save = vi.fn();
+    const chooseFolder = vi
+      .fn<() => Promise<string | null>>()
+      .mockResolvedValueOnce("Existing Work")
+      .mockRejectedValueOnce(new DOMException("Picker dismissed", "AbortError"));
+    const adapter: ProjectStoreAdapter = {
+      capabilities: { folderBacked: true, fileWatch: false, attachments: true },
+      list: async () => [],
+      has: async () => true,
+      load: async () => null,
+      save,
+      delete: async () => undefined,
+      chooseFolder,
+      listFolderProjects: async () => [`${bundle.project.id}.pms.json`]
+    };
+    (window as typeof window & { __gph_store?: ProjectStoreAdapter }).__gph_store = adapter;
+
+    render(
+      <ThemeProvider>
+        <MemoryRouter>
+          <SettingsView />
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    await userEvent.click(screen.getByRole("tab", { name: "Storage" }));
+    const panel = screen.getByRole("tabpanel", { name: "Storage" });
+    const saveToFolder = within(panel).getByRole("button", { name: "Save to local folder" });
+    await userEvent.click(saveToFolder);
+
+    expect(await within(panel).findByText(/already contains .*\.pms\.json/i)).toBeInTheDocument();
+    expect(save).not.toHaveBeenCalled();
+    expect(useProjectStore.getState()).toMatchObject({ storageTrust: "browser", saveStatus: "idle" });
+
+    await userEvent.click(saveToFolder);
+    await waitFor(() => expect(chooseFolder).toHaveBeenCalledTimes(2));
+    expect(save).not.toHaveBeenCalled();
+    expect(useProjectStore.getState()).toMatchObject({ storageTrust: "browser", saveError: null });
   });
 
   it("supports keyboard navigation across settings sections", async () => {

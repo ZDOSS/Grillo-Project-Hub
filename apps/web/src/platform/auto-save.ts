@@ -34,6 +34,7 @@ export function useAutoSave() {
           );
           const latest = useProjectStore.getState();
           if (!latest.bundle || latest.storageKey !== key || latest.bundle.project.id !== projectId) return;
+          if (latest.storageTrust !== targetTrust) return;
           if (latest.serialize() === json) {
             latest.markSaved(key, meta.displayPath, meta.trust, meta.externalRevision);
           } else {
