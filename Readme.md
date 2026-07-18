@@ -82,6 +82,10 @@ The durable project format is a `.pms.json` bundle under `.pm-suite/` when using
 Important behavior:
 
 - New folder-backed projects write their initial `.pm-suite/<project-id>.pms.json` immediately.
+- An open browser-local project can move to a chosen folder from **Settings -> Storage** without being recreated; a folder-backed project can change folders or switch back to browser storage from the same panel.
+- Changing storage locations writes and activates the new copy first. The previous browser or folder copy is retained as a recovery point, and a collision or failed move restores the previously accepted folder binding instead of leaving later saves pointed at a rejected directory. Folder identity is checked by the browser's filesystem handles, so two different folders with the same name cannot bypass the same-project collision guard; reselecting the actual current folder is recognized without rewriting its file.
+- If an edit arrives while that location change is still writing, Grillo activates the new destination but keeps the newer edit marked unsaved so the next auto-save includes it.
+- Auto-save results belong to the storage target that started them. If the user changes targets while a save is in flight, its later success or failure cannot overwrite the new target's saved state.
 - Folder-backed browser saves keep a browser-local recovery copy so reloads are recoverable when the browser cannot restore folder access.
 - Reopening folder-backed recents asks for folder access and refuses to silently open stale browser recovery when the selected folder is missing the recorded project file.
 - Imported JSON and demo projects are unsaved in-memory sessions until the user explicitly saves them.

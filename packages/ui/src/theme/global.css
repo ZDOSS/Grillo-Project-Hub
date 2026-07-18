@@ -2717,6 +2717,16 @@ a.btn {
   padding: 10px 0;
   border-top: 1px solid var(--color-border-subtle);
 }
+.storage-settings-location {
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.storage-settings-path {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
 .settings-truth-callout {
   display: flex;
   flex-direction: column;
@@ -3482,6 +3492,10 @@ a.btn {
   .settings-inline-form .input,
   .settings-inline-form .select {
     min-width: 0;
+  }
+  .storage-settings-path {
+    width: 100%;
+    text-align: left;
   }
   .form-grid-2 {
     grid-template-columns: 1fr;

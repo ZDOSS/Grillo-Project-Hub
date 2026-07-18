@@ -45,6 +45,7 @@ function createFakeFolder(name: string, seed: Record<string, string> = {}): Fake
     name,
     queryPermission: async () => "granted",
     requestPermission: async () => "granted",
+    isSameEntry: async (other: FileSystemHandle) => other === handle,
     getDirectoryHandle: async (dirname: string, options?: FileSystemGetDirectoryOptions) => {
       if (dirname === ".pm-suite") return projectDir;
       if (options?.create) throw new Error("Only .pm-suite is supported by this test handle");
@@ -123,6 +124,50 @@ describe("WebStorageAdapter folder mode", () => {
 
     await adapter.clearFolder?.();
     await expect(adapter.getCurrentFolderDisplay?.()).resolves.toBeNull();
+  });
+
+  it("restores the previous folder after a newly picked folder is rejected", async () => {
+    const accepted = createFakeFolder("Accepted Work", { "accepted.pms.json": "{}" });
+    const rejected = createFakeFolder("Rejected Work", { "rejected.pms.json": "{}" });
+    Object.defineProperty(window, "showDirectoryPicker", {
+      configurable: true,
+      value: vi.fn()
+        .mockResolvedValueOnce(accepted.handle)
+        .mockResolvedValueOnce(rejected.handle)
+    });
+    const adapter = await getAdapter();
+
+    await expect(adapter.chooseFolder?.()).resolves.toBe("Accepted Work");
+    await expect(adapter.chooseFolder?.()).resolves.toBe("Rejected Work");
+    await expect(adapter.getCurrentFolderDisplay?.()).resolves.toBe("Rejected Work");
+    await expect(adapter.listFolderProjects?.()).resolves.toEqual(["rejected.pms.json"]);
+
+    await adapter.restorePreviousFolder?.();
+
+    await expect(adapter.getCurrentFolderDisplay?.()).resolves.toBe("Accepted Work");
+    await expect(adapter.listFolderProjects?.()).resolves.toEqual(["accepted.pms.json"]);
+  });
+
+  it("compares folder picks by handle identity instead of their display names", async () => {
+    const accepted = createFakeFolder("Shared Name");
+    const different = createFakeFolder("Shared Name");
+    Object.defineProperty(window, "showDirectoryPicker", {
+      configurable: true,
+      value: vi.fn()
+        .mockResolvedValueOnce(accepted.handle)
+        .mockResolvedValueOnce(accepted.handle)
+        .mockResolvedValueOnce(different.handle)
+    });
+    const adapter = await getAdapter();
+
+    await adapter.chooseFolder?.();
+    await expect(adapter.isSelectedFolderSameAsPrevious?.()).resolves.toBe(false);
+
+    await adapter.chooseFolder?.();
+    await expect(adapter.isSelectedFolderSameAsPrevious?.()).resolves.toBe(true);
+
+    await adapter.chooseFolder?.();
+    await expect(adapter.isSelectedFolderSameAsPrevious?.()).resolves.toBe(false);
   });
 
   it("rejects a stale folder save after the project file changes externally", async () => {

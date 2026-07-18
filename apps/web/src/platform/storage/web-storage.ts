@@ -180,6 +180,7 @@ function folderDisplayPath(handle: FileSystemDirectoryHandle, key: string): stri
 
 class WebLocalStorageAdapter implements ProjectStoreAdapter {
   capabilities = { folderBacked: supportsFolderAccess(), fileWatch: false, attachments: true };
+  private previousFolderHandle: FileSystemDirectoryHandle | null | undefined;
 
   async list(): Promise<StorageMetadata[]> {
     return readIndex();
@@ -348,9 +349,11 @@ class WebLocalStorageAdapter implements ProjectStoreAdapter {
   async chooseFolder(): Promise<string | null> {
     const picker = supportsFolderAccess() ? window.showDirectoryPicker : undefined;
     if (!picker) return null;
+    const previousHandle = await readStoredFolderHandle();
     const handle = await picker.call(window, { mode: "readwrite" });
     const granted = await ensureFolderPermission(handle, "readwrite", true);
     if (!granted) return null;
+    this.previousFolderHandle = previousHandle;
     activeFolderHandle = handle;
     try {
       await writeStoredFolderHandle(handle);
@@ -359,11 +362,43 @@ class WebLocalStorageAdapter implements ProjectStoreAdapter {
     }
     return handle.name;
   }
+  async restorePreviousFolder(): Promise<void> {
+    if (this.previousFolderHandle === undefined) return;
+    const previousHandle = this.previousFolderHandle;
+    this.previousFolderHandle = undefined;
+    activeFolderHandle = previousHandle;
+    try {
+      if (previousHandle) await writeStoredFolderHandle(previousHandle);
+      else await deleteStoredFolderHandle();
+    } catch {
+      // Restoring the in-memory handle keeps this session on the accepted folder;
+      // durable handle persistence remains best-effort, matching chooseFolder().
+    }
+  }
+  async isSelectedFolderSameAsPrevious(): Promise<boolean> {
+    const selectedHandle = activeFolderHandle;
+    const previousHandle = this.previousFolderHandle;
+    if (!selectedHandle || !previousHandle) return false;
+    const isSameEntry = (
+      selectedHandle as FileSystemDirectoryHandle & {
+        isSameEntry?: (other: FileSystemHandle) => Promise<boolean>;
+      }
+    ).isSameEntry;
+    if (!isSameEntry) return false;
+    try {
+      return await isSameEntry.call(selectedHandle, previousHandle);
+    } catch {
+      // Display names are not identities. If the browser cannot compare handles,
+      // callers must conservatively treat an existing same-ID file as a collision.
+      return false;
+    }
+  }
   async getCurrentFolderDisplay(): Promise<string | null> {
     const handle = await readStoredFolderHandle();
     return handle?.name ?? null;
   }
   async clearFolder(): Promise<void> {
+    this.previousFolderHandle = undefined;
     activeFolderHandle = null;
     try {
       await deleteStoredFolderHandle();

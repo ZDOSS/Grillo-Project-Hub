@@ -63,6 +63,10 @@ export type ProjectStoreAdapter = {
   delete(key: string): Promise<void>;
   /** Optional folder-picking surface for runtimes that can bind a durable local directory. */
   chooseFolder?(): Promise<string | null>;
+  /** Optional rollback for the most recent successful folder pick when validation rejects it. */
+  restorePreviousFolder?(): Promise<void>;
+  /** Optional identity check for the latest folder pick against the binding it replaced. */
+  isSelectedFolderSameAsPrevious?(): Promise<boolean>;
   /** Optional human-readable display name for the currently selected folder. */
   getCurrentFolderDisplay?(): Promise<string | null>;
   /** Optional reset that makes subsequent explicitly browser-local saves ignore a selected folder. */

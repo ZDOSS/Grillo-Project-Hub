@@ -34,6 +34,7 @@ export function useAutoSave() {
           );
           const latest = useProjectStore.getState();
           if (!latest.bundle || latest.storageKey !== key || latest.bundle.project.id !== projectId) return;
+          if (latest.storageTrust !== targetTrust) return;
           if (latest.serialize() === json) {
             latest.markSaved(key, meta.displayPath, meta.trust, meta.externalRevision);
           } else {
@@ -41,7 +42,7 @@ export function useAutoSave() {
           }
         } catch (err) {
           const latest = useProjectStore.getState();
-          if (latest.storageKey === key) {
+          if (latest.storageKey === key && latest.storageTrust === targetTrust) {
             latest.markSaveFailed(err instanceof Error ? err.message : "Auto-save failed.");
           }
           console.warn("Auto-save failed:", err);
