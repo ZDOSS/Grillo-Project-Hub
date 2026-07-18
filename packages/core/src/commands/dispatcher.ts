@@ -368,6 +368,7 @@ function updateProjectSettings(
       enabledModuleIds?: string[];
       hiddenViewIds?: string[];
       pluginTrustMode?: "first-party" | "curated" | "unrestricted";
+      accentColor?: string | null;
     };
   }
 ): DispatchResult {
@@ -375,11 +376,18 @@ function updateProjectSettings(
   if (payload.patch.pluginTrustMode && !["first-party", "curated", "unrestricted"].includes(payload.patch.pluginTrustMode)) {
     throw new Error(`Invalid plugin trust mode: ${payload.patch.pluginTrustMode}`);
   }
+  if (payload.patch.accentColor !== undefined && payload.patch.accentColor !== null && !/^#[0-9a-f]{6}$/i.test(payload.patch.accentColor)) {
+    throw new Error("Project accent color must be a six-digit hex color");
+  }
+  const { accentColor, ...settingsPatch } = payload.patch;
   const next = bumpRevision({
     ...bundle,
+    project: accentColor === undefined
+      ? bundle.project
+      : { ...bundle.project, accentColor },
     projectSettings: {
       ...bundle.projectSettings,
-      ...payload.patch,
+      ...settingsPatch,
       enabledModuleIds: payload.patch.enabledModuleIds ? [...payload.patch.enabledModuleIds] : bundle.projectSettings.enabledModuleIds,
       hiddenViewIds: payload.patch.hiddenViewIds ? [...payload.patch.hiddenViewIds] : (bundle.projectSettings.hiddenViewIds ?? [])
     }

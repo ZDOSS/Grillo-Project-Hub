@@ -42,6 +42,17 @@ test("toggling theme switches between light and dark", async ({ page }) => {
   expect(initialTheme).not.toBe(nextTheme);
 });
 
+test("appearance presets apply through the semantic theme runtime", async ({ page }) => {
+  await page.goto("/");
+  await createProjectFromLauncher(page);
+  await page.getByRole("link", { name: "Settings" }).click();
+  await page.getByRole("tab", { name: "Appearance" }).click();
+
+  await page.getByRole("radio", { name: /Graphite/i }).click();
+  await expect.poll(() => page.evaluate(() => document.documentElement.dataset.themeId)).toBe("graphite");
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("gph.appearance.v2") ?? "{}").selectedThemeId)).toBe("graphite");
+});
+
 test("mobile shell exposes workspace navigation from the header", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
@@ -93,4 +104,11 @@ test("mobile project and settings screens do not overflow the viewport", async (
   await sheet.getByRole("link", { name: "Settings" }).click();
   await expect(page).toHaveURL(/\/settings/);
   await expectNoPageOverflow();
+
+  await page.getByRole("tab", { name: "Appearance" }).click();
+  const appearancePanel = page.getByRole("tabpanel", { name: "Appearance" });
+  await expect(appearancePanel).toBeVisible();
+  const panelBox = await appearancePanel.boundingBox();
+  expect(panelBox, "Appearance content should be present in the first mobile viewport").not.toBeNull();
+  expect(panelBox!.y).toBeLessThan(844);
 });

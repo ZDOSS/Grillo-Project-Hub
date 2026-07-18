@@ -53,3 +53,24 @@ describe("responsive shell CSS", () => {
     expect(cssRule(".shell-project-actions")).toContain("flex-wrap: nowrap");
   });
 });
+
+describe("theme contract CSS", () => {
+  it("routes authored component colors through semantic variables", () => {
+    expect(css).not.toMatch(/#[0-9a-f]{3,8}/i);
+    expect(css).not.toMatch(/rgba?\(/i);
+  });
+
+  it("declares every referenced custom property", () => {
+    const source = `${tokens}\n${css}`;
+    const declared = new Set(Array.from(source.matchAll(/(--[\w-]+)\s*:/g), (match) => match[1]));
+    const referenced = new Set(Array.from(source.matchAll(/var\((--[\w-]+)/g), (match) => match[1]));
+    expect(Array.from(referenced).filter((name) => !declared.has(name))).toEqual([]);
+  });
+
+  it("provides focus, reduced motion, and forced-color foundations", () => {
+    expect(tokens).toContain("color-scheme: light");
+    expect(tokens).toContain('@media (forced-colors: active)');
+    expect(tokens).toContain('[data-motion="reduce"]');
+    expect(cssRule(".input:focus-visible, .textarea:focus-visible, .select:focus-visible")).toContain("box-shadow");
+  });
+});

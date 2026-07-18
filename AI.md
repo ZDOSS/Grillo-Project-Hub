@@ -227,6 +227,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - settings view is now a shell plus focused panels: `SettingsView.tsx` owns grouped tab navigation/tabpanel semantics only, while `GeneralSettings`, `AppearanceSettings`, `StorageSettings`, `ViewsSettings`, `MembersSettings`, `WorkflowSettings`, `LabelsMilestonesSettings`, `CustomFieldsSettings`, `PluginsSettings`, `AutomationSettings`, `ImportExportSettings`, and `BridgeSettings` own their own command wiring
 - settings workflow, automation, and bridge sections should stay out of the shell; add future settings surfaces as focused files under `packages/ui/src/views/settings/` and register them through the shell tab list
 - settings sections expose keyboard-accessible tab semantics with Arrow/Home/End navigation; inactive settings panels stay mounted with `hidden` instead of being unmounted so unsaved local form drafts survive section switches
+- the narrow Settings navigation recomposes into a single horizontally scrollable tab strip; keep `flex-direction: row` in the responsive rule because the base tab-list contract is column-oriented and otherwise pushes the active panel below the fold
 - settings edit icons come from `lucide-react`, and import failures render as inline alerts instead of browser-native `alert()`
 - `BridgeSettings.tsx` is truth-in-UI for future AI/MCP integration: it documents real core command coverage and explicitly says no installable bridge/server binary/client config is shipped yet, so do not add setup commands until a bridge runtime exists
 - settings registry tables now follow a consistent edit flow for members/statuses/priorities/types:
@@ -285,6 +286,29 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - roadmap and calendar controls now sit in shared toolbars with accessible names
   - docs use shared confirmation for document delete and lucide document icons instead of emoji UI markers
   - `/item/:id` now renders through the shared modal shell instead of the legacy drawer route shell, with Archive/Trash/Duplicate/Done actions passed through `Modal`'s pinned footer slot
+
+## Visual system and appearance architecture
+
+- The color system is a finite semantic contract, not an open CSS editor. `packages/ui/src/theme/theme-contract.ts` owns every customizable `--color-*` role, its public types, grouped editor metadata, and the appearance/theme schema versions. Components should consume semantic roles; do not add route-local hex, rgb, named colors, or arbitrary user-authored CSS.
+- `packages/ui/src/theme/built-in-themes.ts` owns the immutable Grillo Adaptive, Graphite, Warm Sand, and High Contrast definitions. Every definition carries complete light and dark token records. `themeFromSeed()` clones a complete source palette and derives accent, hover, pressed, soft, focus, status-active, and readable foreground values for both modes.
+- `packages/ui/src/theme/color-utils.ts` is the dependency-free color boundary. It accepts only 3/4/6/8-digit hex, normalizes values, mixes colors, computes WCAG relative luminance/contrast, chooses a readable accent foreground, applies shared project accents, and strengthens muted text/borders for the explicit or system-derived high-contrast preference.
+- `packages/ui/src/theme/theme-storage.ts` owns device-local persistence and validation:
+  - `gph.appearance.v2` stores mode, selected theme, personal per-project theme bindings, contrast, and motion
+  - `gph.custom-themes.v1` stores sanitized custom theme definitions
+  - legacy `gph.theme` light/dark/system values migrate on read and are removed on the next save
+  - import/export is versioned JSON and requires every known semantic role in both modes; unknown objects cannot inject CSS
+- `ThemeProvider` combines built-ins plus custom themes, resolves system mode/contrast/motion media queries, applies the active complete token map to the root element, synchronizes preference/custom-theme changes across tabs through the `storage` event, updates `color-scheme` plus the browser theme-color meta value, and keeps a non-persisted preview layer for the editor. Its compatibility `theme`, `setTheme`, and `toggle` API remains available to existing shell controls.
+- Theme ownership is intentionally split:
+  - custom themes, default selection, and per-project theme binding are personal/device-local
+  - `ProjectMeta.accentColor` is shared project identity data
+  - `project.updateSettings.patch.accentColor` validates a six-digit hex value, writes it to `bundle.project`, and deliberately removes it from the `projectSettings` spread
+  - the provider overlays a shared project accent on the active personal palette, so collaborators can keep different themes while retaining the same project identity
+- Built-ins are immutable in the UI. Users clone a built-in or active theme before editing. Draft edits can preview across the running app, persist only on Save, and may be discarded; deletion uses inline confirmation. Contrast warnings inform but do not hard-block custom themes.
+- `tokens.css` is the first-paint fallback and shared non-color token layer. It declares matching Grillo light/dark values, rem-based type/spacing, motion timing, `color-scheme`, reduced-motion behavior, and forced-color focus handling. Runtime themes override only the semantic color variables.
+- `apps/web/index.html` and `apps/desktop/index.html` resolve the persisted light/dark/system choice before React starts to prevent the old light-mode flash. Full custom token application follows when `ThemeProvider` mounts.
+- `global.css` no longer authors component hex/rgb colors. Label colors, sidebar separators, shortcut/code surfaces, shadows, overlays, focus, feedback, and workflow colors all resolve through the theme contract. The CSS contract test fails on new component hex/rgb literals or unresolved custom-property references.
+- Accessibility guardrails include visible input focus rings, 4.5:1 text and 3:1 essential-boundary editor checks, readable generated accent foregrounds, system/explicit higher contrast, reduced motion, reduced transparency, and forced-colors handling. Low-contrast custom values remain possible by design and produce warnings rather than a lockout.
+- Responsive polish tied to this system includes a one-row horizontally scrollable Board toolbar, viewport-sized snap-aligned mobile board lanes, 44px narrow-screen button targets, a compact mobile Settings strip, consistent Overview metric hierarchy, and bordered work-item detail sections.
 
 ## Testing strategy
 
@@ -354,10 +378,11 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - deep JSON import reference validation
   - whole-card board-card link activation
   - desktop storage adapter command wiring and shared adapter installation
+  - legacy theme-mode migration, malformed preference repair, safe custom-theme round trips, complete import validation, hex-only color parsing, WCAG contrast calculations, generated accent states, preset application, seed-theme creation, shared project accent validation, and semantic CSS completeness
 - the Settings view test now always seeds a fresh project-store bundle per run instead of reusing any stale Zustand singleton state from prior tests
 - UI test setup now installs a memory-backed `localStorage` shim when jsdom's storage implementation is unavailable or misconfigured, which keeps persistence-oriented tests deterministic
 - `apps/desktop` now has a Vitest/jsdom test harness for the desktop storage adapter
-- Playwright e2e for hybrid parity, theme toggle, command palette, project creation, item creation with `C` shortcut, JSON export download, search, calendar day-cell work creation, docs create/save/edit-mode behavior, and mobile navigation
+- Playwright e2e for hybrid parity, theme toggle and Appearance preset persistence, command palette, project creation, item creation with `C` shortcut, JSON export download, search, calendar day-cell work creation, docs create/save/edit-mode behavior, mobile navigation, and a first-viewport check for the active mobile Settings panel
 - `npm test` runs core, UI, and desktop adapter tests; `npm run test:e2e` runs `apps/web/scripts/run-e2e.mjs`, which starts Vite as an owned child process, waits for readiness, runs Playwright, and shuts Vite down before returning; `npm run typecheck` covers all packages and apps; `npm run lint` currently aliases typecheck until a dedicated lint stack is added
 - `apps/web/scripts/run-e2e.mjs` owns the e2e base URL and passes it through `PLAYWRIGHT_BASE_URL`; `apps/web/playwright.config.ts` reads that environment value with a fixed local fallback so runner and config cannot silently drift.
 
@@ -368,7 +393,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - implemented the validated command dispatcher with envelope + dispatch table + per-command handlers and event logging
 - implemented starter templates: `simple-kanban`, `software-project`, `bug-tracker`, `release-planner`
 - implemented search, export (JSON / Markdown / CSV), and import (JSON + CSV) in the shared core
-- implemented the React AppShell, theme provider (light/dark/system), and command palette with navigation, item creation, view switching, search hits, and theme toggle commands
+- implemented the React AppShell, versioned semantic theme runtime and Appearance studio, and command palette with navigation, item creation, view switching, search hits, and theme toggle commands
 - implemented board, backlog, table, docs (with sanitized Markdown and backlinks), roadmap (drag/resize), calendar, bug triage, my work, search, settings, and the work item drawer
 - configured the Tauri desktop shell with narrow Rust commands and a folder-backed storage adapter
 - added the PWA manifest, service worker registration, favicon, and auto-save bridge for the web app
