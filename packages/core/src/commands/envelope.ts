@@ -111,6 +111,8 @@ export type ProjectUpdateSettingsPayload = {
     enabledModuleIds?: string[];
     hiddenViewIds?: string[];
     pluginTrustMode?: "first-party" | "curated" | "unrestricted";
+    /** Shared project identity color. Null follows the active personal theme. */
+    accentColor?: string | null;
   };
 };
 

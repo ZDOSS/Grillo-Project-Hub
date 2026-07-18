@@ -180,7 +180,7 @@ export function BoardView({ view }: BoardViewProps) {
 
   return (
     <div className="board-view">
-      <ViewToolbar>
+      <ViewToolbar className="board-toolbar">
         <Button
           variant="primary"
           size="sm"

@@ -984,6 +984,29 @@ describe("command dispatcher", () => {
     ).toThrow(/Project mismatch/);
   });
 
+  it("stores a validated shared project accent outside personal appearance settings", () => {
+    const bundle = createProjectBundle({ name: "Branded" });
+    const result = dispatchCommand(
+      bundle,
+      envelopeFor({
+        type: "project.updateSettings",
+        projectId: bundle.project.id,
+        patch: { accentColor: "#245ea8" }
+      }, "ui", null)
+    );
+
+    expect(result.bundle.project.accentColor).toBe("#245ea8");
+    expect(result.bundle.projectSettings).not.toHaveProperty("accentColor");
+    expect(() => dispatchCommand(
+      result.bundle,
+      envelopeFor({
+        type: "project.updateSettings",
+        projectId: bundle.project.id,
+        patch: { accentColor: "blue" }
+      }, "ui", null)
+    )).toThrow(/six-digit hex/);
+  });
+
   it("stores edits previews disables and deletes automation rules", () => {
     let bundle = buildProjectFromTemplate("software-project", "Automation");
     const label = bundle.core.labels.find((entry) => entry.name === "frontend")!;

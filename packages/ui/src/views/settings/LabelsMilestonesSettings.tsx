@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { colorForLabel } from "../../components";
 import { useProjectStore } from "../../store/project-store";
 import { SettingsPanelHeader, SettingsSectionCard } from "./settings-shared";
 
@@ -43,7 +44,7 @@ export function LabelsMilestonesSettings() {
         {bundle.core.labels.map((label) => (
           <div key={label.id} className="settings-simple-row">
             <span className="row" style={{ gap: 6 }}>
-              <span className="board-card-label" style={{ background: label.color ?? "var(--color-bg-muted)" }}>{label.name}</span>
+              <span className="board-card-label" style={{ background: label.color ? colorForLabel(label.color) : "var(--color-bg-muted)" }}>{label.name}</span>
             </span>
             <span className="text-xs text-muted">{label.description ?? ""}</span>
           </div>

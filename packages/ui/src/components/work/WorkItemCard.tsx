@@ -53,14 +53,14 @@ export function WorkItemCard({
   );
 }
 
-function colorForLabel(color: string): string {
+export function colorForLabel(color: string): string {
   const palette: Record<string, string> = {
-    blue: "rgba(91, 144, 191, 0.18)",
-    green: "rgba(79, 138, 85, 0.18)",
-    orange: "rgba(210, 138, 58, 0.20)",
-    purple: "rgba(125, 95, 168, 0.18)",
-    red: "rgba(177, 58, 58, 0.20)",
-    yellow: "rgba(210, 180, 58, 0.20)"
+    blue: "var(--color-label-blue)",
+    green: "var(--color-label-green)",
+    orange: "var(--color-label-orange)",
+    purple: "var(--color-label-purple)",
+    red: "var(--color-label-red)",
+    yellow: "var(--color-label-yellow)"
   };
-  return palette[color] ?? color;
+  return palette[color] ?? (/^#[0-9a-f]{3,8}$/i.test(color) ? color : "var(--color-accent-soft)");
 }

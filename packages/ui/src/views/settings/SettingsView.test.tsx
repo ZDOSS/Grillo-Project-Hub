@@ -10,6 +10,7 @@ import { SettingsView } from "./SettingsView";
 describe("SettingsView", () => {
   beforeEach(() => {
     cleanup();
+    localStorage.clear();
     const bundle = buildProjectFromTemplate("software-project", "Settings");
     useProjectStore.setState({
       bundle,
@@ -169,7 +170,9 @@ describe("SettingsView", () => {
     }
 
     await userEvent.click(within(tablist).getByRole("tab", { name: "Appearance" }));
-    expect(screen.getByRole("tabpanel", { name: "Appearance" })).toContainElement(screen.getByLabelText("Theme"));
+    const appearancePanel = screen.getByRole("tabpanel", { name: "Appearance" });
+    expect(within(appearancePanel).getByLabelText("Color mode")).toBeInTheDocument();
+    expect(within(appearancePanel).getByRole("radiogroup", { name: "Available themes" })).toBeInTheDocument();
 
     await userEvent.click(within(tablist).getByRole("tab", { name: "Storage" }));
     expect(screen.getByRole("tabpanel", { name: "Storage" })).toHaveTextContent("Browser-local");
@@ -238,6 +241,53 @@ describe("SettingsView", () => {
 
     await userEvent.click(within(tablist).getByRole("tab", { name: "Workflow" }));
     expect(within(screen.getByRole("tabpanel", { name: "Workflow" })).getByDisplayValue("Draft status")).toBeInTheDocument();
+  });
+
+  it("offers polished theme presets and applies one through the semantic runtime", async () => {
+    render(
+      <ThemeProvider>
+        <MemoryRouter>
+          <SettingsView />
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    await userEvent.click(screen.getByRole("tab", { name: "Appearance" }));
+    const panel = screen.getByRole("tabpanel", { name: "Appearance" });
+    expect(within(panel).getByRole("radio", { name: /Grillo Adaptive/i })).toBeInTheDocument();
+    expect(within(panel).getByRole("radio", { name: /Graphite/i })).toBeInTheDocument();
+    expect(within(panel).getByRole("radio", { name: /Warm Sand/i })).toBeInTheDocument();
+    expect(within(panel).getByRole("radio", { name: /High Contrast/i })).toBeInTheDocument();
+
+    await userEvent.click(within(panel).getByRole("radio", { name: /Graphite/i }));
+    await waitFor(() => expect(document.documentElement).toHaveAttribute("data-theme-id", "graphite"));
+    expect(JSON.parse(localStorage.getItem("gph.appearance.v2") ?? "{}")).toMatchObject({ selectedThemeId: "graphite" });
+  });
+
+  it("creates an editable theme from a seed and exposes both mode token sets", async () => {
+    render(
+      <ThemeProvider>
+        <MemoryRouter>
+          <SettingsView />
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    await userEvent.click(screen.getByRole("tab", { name: "Appearance" }));
+    const panel = screen.getByRole("tabpanel", { name: "Appearance" });
+    const name = within(panel).getByLabelText("Theme name");
+    await userEvent.clear(name);
+    await userEvent.type(name, "Ocean Focus");
+    const seed = within(panel).getByLabelText("Seed color hex value");
+    await userEvent.clear(seed);
+    await userEvent.type(seed, "#245ea8");
+    await userEvent.click(within(panel).getByRole("button", { name: "Create theme" }));
+
+    expect(await within(panel).findByRole("radio", { name: /Ocean Focus/i })).toHaveAttribute("aria-checked", "true");
+    expect(within(panel).getByText("Advanced theme editor")).toBeInTheDocument();
+    expect(within(panel).getByRole("button", { name: "Light values" })).toBeInTheDocument();
+    expect(within(panel).getByRole("button", { name: "Dark values" })).toBeInTheDocument();
+    expect(within(panel).getByText("Accessibility report")).toBeInTheDocument();
   });
 
   it("shows truthful AI bridge status and command coverage instead of placeholder install instructions", async () => {

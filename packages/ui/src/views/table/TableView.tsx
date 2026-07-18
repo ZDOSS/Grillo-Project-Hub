@@ -14,6 +14,7 @@ import {
 import {
   Button,
   CheckboxField,
+  colorForLabel,
   DataTable,
   EmptyState,
   HelpTip,
@@ -364,7 +365,7 @@ export function TableView({ view }: { view?: TableViewDef }) {
       render: ({ labels }) => (
         <div className="board-card-labels">
           {labels.map((label) => (
-            <span key={label.id} className="board-card-label">
+            <span key={label.id} className="board-card-label" style={{ background: label.color ? colorForLabel(label.color) : undefined }}>
               {label.name}
             </span>
           ))}

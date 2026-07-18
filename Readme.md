@@ -57,9 +57,23 @@ Grillo is past the skeleton stage. The current app includes:
 - Bug triage with readable lanes, severity/priority/source/context fields, intake gates, accept/decline/snooze/assign actions, and a searchable duplicate-link picker.
 - Automation rules with command-backed create/update/delete/enable/disable, dry-run previews, item-event triggers, and audited action failures.
 - JSON, Markdown, and CSV import/export, plus clean print preview.
-- Light/dark/system themes, a remembered desktop sidebar that toggles between full navigation and an icon rail, context-aware no-project navigation, responsive mobile navigation and project tabs, offline status, and local/self-hosted PWA install support when the browser exposes it.
+- A full Appearance studio with light/dark/system modes, Grillo Adaptive, Graphite, Warm Sand, and High Contrast presets, seed-based custom theme creation, every authored UI color exposed as a semantic role, live preview, contrast checks, safe JSON import/export, per-project personal overrides, and a shared project accent.
+- A remembered desktop sidebar that toggles between full navigation and an icon rail, context-aware no-project navigation, responsive mobile navigation and project tabs, offline status, and local/self-hosted PWA install support when the browser exposes it.
 - Planning-surface UX polish including aligned Backlog rows, progressive Table controls, a keyboard-operable Roadmap resize grip, a complete seven-day Calendar beside its agenda, and item-title link names for assistive technology.
 - A realistic, non-persistent demo workspace with active and completed work, bug intake, comments, members, dates, milestones, and linked docs.
+
+## Appearance and themes
+
+Open **Settings -> Appearance** to choose a preset or build your own. Grillo stores light and dark values together, so a custom theme remains coherent when the operating system changes modes.
+
+- Color mode, contrast, motion, selected theme, custom themes, and per-project theme bindings stay local to the current device and browser profile.
+- The optional project accent is different: it is stored in the project bundle and shared with collaborators. Grillo derives its hover, pressed, soft, focus, and readable foreground states automatically.
+- Built-in themes are immutable. Clone one before changing individual semantic roles.
+- Theme imports accept only the versioned Grillo theme structure and recognized hex color values. Imported files cannot inject arbitrary CSS.
+- The editor reports key WCAG text and control-boundary contrast pairs without preventing intentional low-contrast experimentation.
+- System contrast and reduced-motion preferences are respected, with explicit user overrides available.
+
+All authored component colors now route through the semantic contract in `packages/ui/src/theme/theme-contract.ts`. The default palette remains recognizably Grillo, with stronger text, focus, border, and accent contrast than the original token set.
 
 ## Storage model
 
