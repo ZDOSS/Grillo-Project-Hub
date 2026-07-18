@@ -399,6 +399,104 @@ describe("SettingsView", () => {
     expect(useProjectStore.getState()).toMatchObject({ storageTrust: "browser", saveError: null });
   });
 
+  it("does not trust a matching folder name when a different folder contains the same project id", async () => {
+    const bundle = useProjectStore.getState().bundle!;
+    const storagePath = `Shared Name/.pm-suite/${bundle.project.id}.pms.json`;
+    useProjectStore.setState({
+      storagePath,
+      storageTrust: "folder",
+      isDirty: false,
+      saveStatus: "saved"
+    });
+    const save = vi.fn();
+    const restorePreviousFolder = vi.fn(async () => undefined);
+    const isSelectedFolderSameAsPrevious = vi.fn(async () => false);
+    const adapter: ProjectStoreAdapter = {
+      capabilities: { folderBacked: true, fileWatch: false, attachments: true },
+      list: async () => [],
+      has: async () => true,
+      load: async () => null,
+      save,
+      delete: async () => undefined,
+      chooseFolder: async () => "Shared Name",
+      restorePreviousFolder,
+      isSelectedFolderSameAsPrevious,
+      listFolderProjects: async () => [`${bundle.project.id}.pms.json`]
+    };
+    (window as typeof window & { __gph_store?: ProjectStoreAdapter }).__gph_store = adapter;
+
+    render(
+      <ThemeProvider>
+        <MemoryRouter>
+          <SettingsView />
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    await userEvent.click(screen.getByRole("tab", { name: "Storage" }));
+    const panel = screen.getByRole("tabpanel", { name: "Storage" });
+    await userEvent.click(within(panel).getByRole("button", { name: "Change folder" }));
+
+    expect(await within(panel).findByText(/already contains .*\.pms\.json/i)).toBeInTheDocument();
+    expect(isSelectedFolderSameAsPrevious).toHaveBeenCalledOnce();
+    expect(save).not.toHaveBeenCalled();
+    expect(restorePreviousFolder).toHaveBeenCalledOnce();
+    expect(useProjectStore.getState()).toMatchObject({
+      storagePath,
+      storageTrust: "folder",
+      saveStatus: "saved"
+    });
+  });
+
+  it("treats a confirmed re-selection of the active folder as a no-op", async () => {
+    const bundle = useProjectStore.getState().bundle!;
+    const storagePath = `Client Work/.pm-suite/${bundle.project.id}.pms.json`;
+    useProjectStore.setState({
+      storagePath,
+      storageTrust: "folder",
+      isDirty: false,
+      saveStatus: "saved"
+    });
+    const save = vi.fn();
+    const restorePreviousFolder = vi.fn(async () => undefined);
+    const isSelectedFolderSameAsPrevious = vi.fn(async () => true);
+    const adapter: ProjectStoreAdapter = {
+      capabilities: { folderBacked: true, fileWatch: false, attachments: true },
+      list: async () => [],
+      has: async () => true,
+      load: async () => null,
+      save,
+      delete: async () => undefined,
+      chooseFolder: async () => "Client Work",
+      restorePreviousFolder,
+      isSelectedFolderSameAsPrevious,
+      listFolderProjects: async () => [`${bundle.project.id}.pms.json`]
+    };
+    (window as typeof window & { __gph_store?: ProjectStoreAdapter }).__gph_store = adapter;
+
+    render(
+      <ThemeProvider>
+        <MemoryRouter>
+          <SettingsView />
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    await userEvent.click(screen.getByRole("tab", { name: "Storage" }));
+    const panel = screen.getByRole("tabpanel", { name: "Storage" });
+    await userEvent.click(within(panel).getByRole("button", { name: "Change folder" }));
+
+    expect(await within(panel).findByText(/already saved in Client Work\. No files were changed/i)).toBeInTheDocument();
+    expect(isSelectedFolderSameAsPrevious).toHaveBeenCalledOnce();
+    expect(save).not.toHaveBeenCalled();
+    expect(restorePreviousFolder).not.toHaveBeenCalled();
+    expect(useProjectStore.getState()).toMatchObject({
+      storagePath,
+      storageTrust: "folder",
+      saveStatus: "saved"
+    });
+  });
+
   it("restores the previous folder when saving to a newly selected folder fails", async () => {
     const restorePreviousFolder = vi.fn(async () => undefined);
     const adapter: ProjectStoreAdapter = {

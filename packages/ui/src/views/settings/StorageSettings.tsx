@@ -36,17 +36,6 @@ function isFolderPickerDismissal(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError";
 }
 
-function isCurrentFolderTarget(
-  storagePath: string | null,
-  folderName: string,
-  projectKey: string
-): boolean {
-  if (!storagePath) return false;
-  const normalized = storagePath.replace(/\\/g, "/");
-  const expected = `${folderName}/.pm-suite/${projectKey}.pms.json`;
-  return normalized === expected || normalized.endsWith(`/${expected}`);
-}
-
 export function StorageSettings() {
   const bundle = useProjectStore((state) => state.bundle);
   const storagePath = useProjectStore((state) => state.storagePath);
@@ -172,8 +161,19 @@ export function StorageSettings() {
       const projectAlreadyExists = folderFiles?.some(
         (filename) => filename.toLowerCase() === `${key}.pms.json`.toLowerCase()
       );
-      const currentTarget = current.storageTrust === "folder" && isCurrentFolderTarget(current.storagePath, folderName, key);
-      if (projectAlreadyExists && !currentTarget) {
+      const currentTarget = Boolean(
+        projectAlreadyExists
+        && current.storageTrust === "folder"
+        && await adapter.isSelectedFolderSameAsPrevious?.()
+      );
+      if (projectAlreadyExists && currentTarget) {
+        setFeedback({
+          message: `This project is already saved in ${folderName}. No files were changed.`,
+          tone: "info"
+        });
+        return;
+      }
+      if (projectAlreadyExists) {
         await restoreRejectedFolder();
         setFeedback({
           message: `That folder already contains ${key}.pms.json. Grillo did not overwrite it; open that project from the workspace launcher or choose a different folder.`,

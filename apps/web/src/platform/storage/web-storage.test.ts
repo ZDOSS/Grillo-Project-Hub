@@ -45,6 +45,7 @@ function createFakeFolder(name: string, seed: Record<string, string> = {}): Fake
     name,
     queryPermission: async () => "granted",
     requestPermission: async () => "granted",
+    isSameEntry: async (other: FileSystemHandle) => other === handle,
     getDirectoryHandle: async (dirname: string, options?: FileSystemGetDirectoryOptions) => {
       if (dirname === ".pm-suite") return projectDir;
       if (options?.create) throw new Error("Only .pm-suite is supported by this test handle");
@@ -145,6 +146,28 @@ describe("WebStorageAdapter folder mode", () => {
 
     await expect(adapter.getCurrentFolderDisplay?.()).resolves.toBe("Accepted Work");
     await expect(adapter.listFolderProjects?.()).resolves.toEqual(["accepted.pms.json"]);
+  });
+
+  it("compares folder picks by handle identity instead of their display names", async () => {
+    const accepted = createFakeFolder("Shared Name");
+    const different = createFakeFolder("Shared Name");
+    Object.defineProperty(window, "showDirectoryPicker", {
+      configurable: true,
+      value: vi.fn()
+        .mockResolvedValueOnce(accepted.handle)
+        .mockResolvedValueOnce(accepted.handle)
+        .mockResolvedValueOnce(different.handle)
+    });
+    const adapter = await getAdapter();
+
+    await adapter.chooseFolder?.();
+    await expect(adapter.isSelectedFolderSameAsPrevious?.()).resolves.toBe(false);
+
+    await adapter.chooseFolder?.();
+    await expect(adapter.isSelectedFolderSameAsPrevious?.()).resolves.toBe(true);
+
+    await adapter.chooseFolder?.();
+    await expect(adapter.isSelectedFolderSameAsPrevious?.()).resolves.toBe(false);
   });
 
   it("rejects a stale folder save after the project file changes externally", async () => {

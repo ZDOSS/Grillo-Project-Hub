@@ -375,6 +375,24 @@ class WebLocalStorageAdapter implements ProjectStoreAdapter {
       // durable handle persistence remains best-effort, matching chooseFolder().
     }
   }
+  async isSelectedFolderSameAsPrevious(): Promise<boolean> {
+    const selectedHandle = activeFolderHandle;
+    const previousHandle = this.previousFolderHandle;
+    if (!selectedHandle || !previousHandle) return false;
+    const isSameEntry = (
+      selectedHandle as FileSystemDirectoryHandle & {
+        isSameEntry?: (other: FileSystemHandle) => Promise<boolean>;
+      }
+    ).isSameEntry;
+    if (!isSameEntry) return false;
+    try {
+      return await isSameEntry.call(selectedHandle, previousHandle);
+    } catch {
+      // Display names are not identities. If the browser cannot compare handles,
+      // callers must conservatively treat an existing same-ID file as a collision.
+      return false;
+    }
+  }
   async getCurrentFolderDisplay(): Promise<string | null> {
     const handle = await readStoredFolderHandle();
     return handle?.name ?? null;
