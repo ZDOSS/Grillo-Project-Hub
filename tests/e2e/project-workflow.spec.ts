@@ -10,6 +10,12 @@ function todayDateOnly(): string {
   ].join("-");
 }
 
+function shiftDateOnly(iso: string, days: number): string {
+  const date = new Date(`${iso}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
 test("the user can create an item, change its status, and see the activity log", async ({ page }) => {
   await page.goto("/");
   await createProjectFromLauncher(page);
@@ -82,6 +88,75 @@ test("calendar creates a dated work item from a day cell", async ({ page }) => {
   const detail = page.getByRole("dialog", { name: /work item/i });
   await expect(detail).toBeVisible();
   await expect(detail.getByLabel("Due")).toHaveValue(today);
+});
+
+test("roadmap date edits, dragging, and resizing stay visually synchronized", async ({ page }) => {
+  await page.goto("/demo");
+  await page.getByRole("button", { name: "Open demo" }).click();
+  await expect(page).toHaveURL(/\/overview/);
+  await page.getByLabel("Workspace", { exact: true }).getByRole("link", { name: "Roadmap" }).click();
+  await expect(page).toHaveURL(/\/roadmap/);
+
+  const title = "Polish the first-run workspace";
+  const startInput = page.getByLabel(`Start date for ${title}`, { exact: true });
+  const dueInput = page.getByLabel(`Due date for ${title}`, { exact: true });
+  const bar = page.getByRole("group", { name: new RegExp(`${title} timeline`) });
+
+  await page.getByLabel("Anchor").fill("2026-07");
+  await startInput.fill("2026-07-01");
+  await dueInput.fill("2026-07-20");
+  await expect(bar).toHaveAttribute("data-start-date", "2026-07-01");
+  await expect(bar).toHaveAttribute("data-due-date", "2026-07-20");
+
+  const initialBox = await bar.boundingBox();
+  expect(initialBox).not.toBeNull();
+  await dueInput.fill("2026-07-31");
+  await expect(bar).toHaveAttribute("data-due-date", "2026-07-31");
+  const grownBox = await bar.boundingBox();
+  expect(grownBox).not.toBeNull();
+  expect(grownBox!.width).toBeGreaterThan(initialBox!.width + 20);
+
+  const timelineBox = await bar.locator("xpath=..").boundingBox();
+  const totalDays = Number(await bar.getAttribute("data-total-days"));
+  expect(timelineBox).not.toBeNull();
+  expect(totalDays).toBeGreaterThan(0);
+  const sevenDaysInPixels = (timelineBox!.width / totalDays) * 7;
+
+  const moveStart = {
+    x: grownBox!.x + Math.min(24, grownBox!.width / 3),
+    y: grownBox!.y + grownBox!.height / 2
+  };
+  await page.mouse.move(moveStart.x, moveStart.y);
+  await page.mouse.down();
+  await page.mouse.move(moveStart.x + sevenDaysInPixels, moveStart.y, { steps: 8 });
+  await page.mouse.up();
+
+  const movedStart = shiftDateOnly("2026-07-01", 7);
+  const movedDue = shiftDateOnly("2026-07-31", 7);
+  await expect(page).toHaveURL(/\/roadmap/);
+  await expect(startInput).toHaveValue(movedStart);
+  await expect(dueInput).toHaveValue(movedDue);
+  const movedBox = await bar.boundingBox();
+  expect(movedBox).not.toBeNull();
+  expect(Math.abs(movedBox!.width - grownBox!.width)).toBeLessThan(2);
+
+  const resizeHandle = page.getByRole("button", { name: `Adjust due date for ${title}` });
+  const handleBox = await resizeHandle.boundingBox();
+  expect(handleBox).not.toBeNull();
+  const resizeStart = {
+    x: handleBox!.x + handleBox!.width / 2,
+    y: handleBox!.y + handleBox!.height / 2
+  };
+  await page.mouse.move(resizeStart.x, resizeStart.y);
+  await page.mouse.down();
+  await page.mouse.move(resizeStart.x + sevenDaysInPixels, resizeStart.y, { steps: 8 });
+  await page.mouse.up();
+
+  await expect(startInput).toHaveValue(movedStart);
+  await expect(dueInput).toHaveValue(shiftDateOnly(movedDue, 7));
+  const resizedBox = await bar.boundingBox();
+  expect(resizedBox).not.toBeNull();
+  expect(resizedBox!.width).toBeGreaterThan(movedBox!.width + 20);
 });
 
 test("docs workflow creates and saves a project note", async ({ page }) => {

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { GripVertical, Plus } from "lucide-react";
 import {
@@ -22,8 +22,11 @@ import { useProjectStore } from "../../store/project-store";
  */
 
 type Zoom = "week" | "month" | "quarter";
+type DragMode = "move" | "resize";
 
 const MONTHS_PER_ZOOM: Record<Zoom, number> = { week: 2, month: 6, quarter: 9 };
+const MILLISECONDS_PER_DAY = 1000 * 60 * 60 * 24;
+const ROADMAP_ITEM_HEIGHT = 96;
 
 export function RoadmapView() {
   const bundle = useProjectStore((s) => s.bundle);
@@ -42,7 +45,7 @@ export function RoadmapView() {
     for (let i = 0; i < months; i += 1) {
       const d = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + i, 1));
       const next = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1));
-      const days = Math.round((next.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+      const days = Math.round((next.getTime() - d.getTime()) / MILLISECONDS_PER_DAY);
       arr.push({
         key: d.toISOString().slice(0, 7),
         label: d.toLocaleString("en-US", { month: "short", year: "numeric", timeZone: "UTC" }),
@@ -61,12 +64,6 @@ export function RoadmapView() {
   ];
 
   const items = bundle.core.items.filter((i) => !i.trashedAt && !i.archived && (i.startDate || i.dueDate));
-
-  const dayToX = (date: string) => {
-    const d = new Date(date + "T00:00:00Z");
-    const start = new Date(startDate + "T00:00:00Z");
-    return Math.max(0, Math.round(((d.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) / totalDays * 1000));
-  };
 
   const setItemRange = (item: WorkItem, start: string, due: string) => {
     const nextStart = start || null;
@@ -136,7 +133,10 @@ export function RoadmapView() {
           </InlineAlert>
         </div>
       ) : null}
-      <div className="roadmap-grid" style={{ gridTemplateColumns: `220px repeat(${months}, 1fr)` }}>
+      <div
+        className="roadmap-grid"
+        style={{ gridTemplateColumns: `220px ${monthStarts.map((month) => `${month.days}fr`).join(" ")}` }}
+      >
         <div className="roadmap-row-lane">Item</div>
         {monthStarts.map((m) => (
           <div key={m.key} className="roadmap-month">{m.label}</div>
@@ -157,21 +157,19 @@ export function RoadmapView() {
                   <span>{progress.percent}%</span>
                 </div>
               </div>
-              <div className="roadmap-row-cell" style={{ gridColumn: `span ${months}`, position: "relative", height: laneItems.length > 0 ? Math.max(88, laneItems.length * 84 + 16) : 64, padding: 0 }}>
+              <div className="roadmap-row-cell" style={{ gridColumn: `span ${months}`, position: "relative", height: laneItems.length > 0 ? Math.max(104, laneItems.length * ROADMAP_ITEM_HEIGHT + 16) : 64, padding: 0 }}>
                 {laneItems.length === 0 ? <span className="text-xs text-muted" style={{ padding: 8 }}>-</span> : null}
                 {laneItems.map((item, idx) => {
                   const status = bundle.core.statuses.find((s) => s.id === item.statusId);
                   const relationshipSummary = relationshipsForItem(bundle.core.relationships, item.id);
-                  const startX = dayToX(item.startDate ?? item.dueDate!);
-                  const endX = dayToX(item.dueDate ?? item.startDate!);
                   return (
                     <RoadmapBar
                       key={item.id}
                       item={item}
                       statusCategory={status?.category ?? "planned"}
-                      startX={startX}
-                      endX={Math.max(endX, startX + 5)}
-                      top={8 + idx * 84}
+                      timelineStartDate={startDate}
+                      timelineDays={totalDays}
+                      top={8 + idx * ROADMAP_ITEM_HEIGHT}
                       milestones={bundle.core.milestones}
                       blockedByCount={relationshipSummary.blockedBy.length}
                       blocksCount={relationshipSummary.blocks.length}
@@ -192,8 +190,8 @@ export function RoadmapView() {
 function RoadmapBar({
   item,
   statusCategory,
-  startX,
-  endX,
+  timelineStartDate,
+  timelineDays,
   top,
   milestones,
   blockedByCount,
@@ -203,8 +201,8 @@ function RoadmapBar({
 }: {
   item: WorkItem;
   statusCategory: "planned" | "active" | "completed" | "canceled";
-  startX: number;
-  endX: number;
+  timelineStartDate: string;
+  timelineDays: number;
   top: number;
   milestones: Milestone[];
   blockedByCount: number;
@@ -212,56 +210,126 @@ function RoadmapBar({
   onChange: (start: string, due: string) => void;
   onMilestoneChange: (milestoneId: string) => void;
 }) {
-  const [dragging, setDragging] = useState<"move" | "resize" | null>(null);
-  const [origin, setOrigin] = useState<{ x: number; start: string; due: string } | null>(null);
+  const [dragging, setDragging] = useState<DragMode | null>(null);
+  const [previewDayShift, setPreviewDayShift] = useState(0);
+  const dragRef = useRef<{
+    mode: DragMode;
+    pointerId: number;
+    originX: number;
+    timelineWidth: number;
+    start: string;
+    due: string;
+    hadStart: boolean;
+    hadDue: boolean;
+    dayShift: number;
+    bar: HTMLElement;
+  } | null>(null);
 
-  const start = (mode: "move" | "resize") => (e: React.PointerEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const startDrag = (mode: DragMode) => (event: React.PointerEvent<HTMLElement>) => {
+    if (event.button !== 0 || event.isPrimary === false) return;
+    const bar = event.currentTarget.closest<HTMLElement>(".roadmap-bar");
+    const timelineWidth = bar?.parentElement?.getBoundingClientRect().width ?? 0;
+    if (!bar || timelineWidth <= 0) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    const start = item.startDate ?? item.dueDate!;
+    const due = item.dueDate ?? item.startDate!;
+    dragRef.current = {
+      mode,
+      pointerId: event.pointerId,
+      originX: event.clientX,
+      timelineWidth,
+      start,
+      due,
+      hadStart: Boolean(item.startDate),
+      hadDue: Boolean(item.dueDate),
+      dayShift: 0,
+      bar
+    };
+    bar.setPointerCapture?.(event.pointerId);
     setDragging(mode);
-    setOrigin({ x: e.clientX, start: item.startDate ?? item.dueDate!, due: item.dueDate ?? item.startDate! });
+    setPreviewDayShift(0);
   };
 
-  const onMove = (e: React.PointerEvent) => {
-    if (!dragging || !origin) return;
-    const dx = e.clientX - origin.x;
-    const dayShift = Math.round(dx / 8);
-    if (dayShift === 0) return;
-    const startDate = shiftDate(origin.start, dayShift);
-    const dueDate = shiftDate(origin.due, dayShift);
-    if (dragging === "resize") {
-      onChange(origin.start, dueDate);
-    } else {
-      onChange(startDate, dueDate);
+  const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    const rawDayShift = Math.round(((event.clientX - drag.originX) / drag.timelineWidth) * timelineDays);
+    const minimumResizeShift = -daysBetween(drag.start, drag.due);
+    const dayShift = drag.mode === "resize"
+      ? Math.max(rawDayShift, minimumResizeShift)
+      : rawDayShift;
+    if (dayShift === drag.dayShift) return;
+
+    drag.dayShift = dayShift;
+    setPreviewDayShift(dayShift);
+  };
+
+  const finishDrag = (event: React.PointerEvent<HTMLDivElement>, commit: boolean) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    dragRef.current = null;
+
+    if (drag.bar.hasPointerCapture?.(drag.pointerId)) {
+      drag.bar.releasePointerCapture?.(drag.pointerId);
     }
+
+    if (commit && drag.dayShift !== 0) {
+      if (drag.mode === "resize") {
+        onChange(drag.start, shiftDate(drag.due, drag.dayShift));
+      } else {
+        onChange(
+          drag.hadStart ? shiftDate(drag.start, drag.dayShift) : "",
+          drag.hadDue ? shiftDate(drag.due, drag.dayShift) : ""
+        );
+      }
+    }
+
+    setDragging(null);
+    setPreviewDayShift(0);
   };
 
-  const onUp = () => {
-    setDragging(null);
-    setOrigin(null);
-  };
+  const baseStart = item.startDate ?? item.dueDate!;
+  const baseDue = item.dueDate ?? item.startDate!;
+  const displayStart = dragging === "move" ? shiftDate(baseStart, previewDayShift) : baseStart;
+  const displayDue = dragging ? shiftDate(baseDue, previewDayShift) : baseDue;
+  const geometry = getTimelineGeometry(displayStart, displayDue, timelineStartDate, timelineDays);
 
   return (
-    <div
-      className="roadmap-bar"
-      data-status={statusCategory}
-      style={{ left: startX, width: Math.max(endX - startX, 5), top }}
-      onPointerDown={start("move")}
-      onPointerMove={onMove}
-      onPointerUp={onUp}
-      onPointerLeave={onUp}
-      title={`${item.startDate ?? ""} -> ${item.dueDate ?? ""}`}
-    >
-      <div className="roadmap-bar-main">
-        <Link to={`/item/${item.id}`} style={{ color: "inherit", textDecoration: "none", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {item.title}
-        </Link>
-        {blockedByCount > 0 ? <MetadataBadge tone="danger">Blocked by {blockedByCount}</MetadataBadge> : null}
-        {blocksCount > 0 ? <MetadataBadge>Blocks {blocksCount}</MetadataBadge> : null}
+    <div className="roadmap-item" style={{ top }}>
+      <div
+        aria-label={`${item.title} timeline from ${displayStart} to ${displayDue}`}
+        aria-roledescription="roadmap item"
+        className="roadmap-bar"
+        data-dragging={dragging ?? undefined}
+        data-due-date={displayDue}
+        data-start-date={displayStart}
+        data-status={statusCategory}
+        data-total-days={timelineDays}
+        role="group"
+        style={{
+          left: `${geometry.leftPercent}%`,
+          visibility: geometry.visible ? "visible" : "hidden",
+          width: `${geometry.widthPercent}%`
+        }}
+        onPointerDown={startDrag("move")}
+        onPointerMove={onPointerMove}
+        onPointerUp={(event) => finishDrag(event, true)}
+        onPointerCancel={(event) => finishDrag(event, false)}
+        onLostPointerCapture={(event) => finishDrag(event, true)}
+        title={`${displayStart} -> ${displayDue}`}
+      >
+        <span className="roadmap-bar-label">{item.title}</span>
         <button
           type="button"
           className="roadmap-resize-handle"
-          onPointerDown={start("resize")}
+          onPointerDown={startDrag("resize")}
           onKeyDown={(event) => {
             if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
             event.preventDefault();
@@ -277,7 +345,12 @@ function RoadmapBar({
           <GripVertical aria-hidden="true" size={14} />
         </button>
       </div>
-      <div className="roadmap-bar-controls" onPointerDown={(event) => event.stopPropagation()}>
+      <div className="roadmap-bar-controls">
+        <Link className="roadmap-item-link" to={`/item/${item.id}`}>{item.title}</Link>
+        <div className="roadmap-bar-badges">
+          {blockedByCount > 0 ? <MetadataBadge tone="danger">Blocked by {blockedByCount}</MetadataBadge> : null}
+          {blocksCount > 0 ? <MetadataBadge>Blocks {blocksCount}</MetadataBadge> : null}
+        </div>
         <label>
           <span className="text-xs text-muted">Start</span>
           <input
@@ -321,4 +394,22 @@ function shiftDate(iso: string, days: number): string {
   const d = new Date(iso + "T00:00:00Z");
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
+}
+
+function daysBetween(start: string, end: string): number {
+  const startDate = new Date(start + "T00:00:00Z");
+  const endDate = new Date(end + "T00:00:00Z");
+  return Math.round((endDate.getTime() - startDate.getTime()) / MILLISECONDS_PER_DAY);
+}
+
+function getTimelineGeometry(start: string, due: string, timelineStart: string, timelineDays: number) {
+  const rawStartDay = daysBetween(timelineStart, start);
+  const rawEndDay = daysBetween(timelineStart, due) + 1;
+  const visibleStartDay = Math.max(0, Math.min(timelineDays, rawStartDay));
+  const visibleEndDay = Math.max(0, Math.min(timelineDays, rawEndDay));
+  return {
+    leftPercent: (visibleStartDay / timelineDays) * 100,
+    visible: visibleEndDay > visibleStartDay,
+    widthPercent: (Math.max(0, visibleEndDay - visibleStartDay) / timelineDays) * 100
+  };
 }

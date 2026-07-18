@@ -1,12 +1,25 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { buildProjectFromTemplate } from "@gph/core";
 import { closeCreateItem } from "../../commands/palette-bus";
 import { useProjectStore } from "../../store/project-store";
 import { CreateItemDialog } from "../../work-item";
 import { RoadmapView } from "./RoadmapView";
+
+class MockPointerEvent extends MouseEvent {
+  readonly pointerId: number;
+  readonly isPrimary: boolean;
+
+  constructor(type: string, init: PointerEventInit = {}) {
+    super(type, init);
+    this.pointerId = init.pointerId ?? 0;
+    this.isPrimary = init.isPrimary ?? true;
+  }
+}
+
+vi.stubGlobal("PointerEvent", MockPointerEvent);
 
 describe("RoadmapView", () => {
   beforeEach(() => {
@@ -114,6 +127,98 @@ describe("RoadmapView", () => {
     expect(updated.startDate).toBe("2026-07-03");
     expect(updated.dueDate).toBe("2026-07-19");
     expect(updated.milestoneId).toBe(secondMilestone.id);
+  });
+
+  it("keeps the rendered bar width synchronized with the inclusive date range", () => {
+    const bundle = buildProjectFromTemplate("software-project", "Roadmap geometry");
+    useProjectStore.setState({ bundle });
+    useProjectStore.getState().applyCommand({
+      type: "item.create",
+      projectId: bundle.project.id,
+      typeId: "task",
+      title: "Resizable roadmap item",
+      statusId: "ready",
+      startDate: "2026-07-01",
+      dueDate: "2026-07-10"
+    });
+
+    render(<MemoryRouter><RoadmapView /></MemoryRouter>);
+    fireEvent.change(screen.getByLabelText("Anchor"), { target: { value: "2026-07" } });
+
+    const bar = screen.getByRole("group", { name: /Resizable roadmap item timeline/ });
+    const grid = bar.closest<HTMLElement>(".roadmap-grid")!;
+    expect(grid.style.gridTemplateColumns).toBe("220px 31fr 31fr 30fr 31fr 30fr 31fr");
+    expect(parseFloat(bar.style.width)).toBeCloseTo((10 / 184) * 100);
+
+    fireEvent.change(screen.getByLabelText("Due date for Resizable roadmap item"), {
+      target: { value: "2026-07-20" }
+    });
+
+    expect(parseFloat(bar.style.width)).toBeCloseTo((20 / 184) * 100);
+    expect(bar).toHaveAttribute("data-due-date", "2026-07-20");
+  });
+
+  it("moves and resizes with the measured timeline scale and pointer capture", () => {
+    const bundle = buildProjectFromTemplate("software-project", "Roadmap pointers");
+    useProjectStore.setState({ bundle });
+    useProjectStore.getState().applyCommand({
+      type: "item.create",
+      projectId: bundle.project.id,
+      typeId: "task",
+      title: "Pointer roadmap item",
+      statusId: "ready",
+      startDate: "2026-07-01",
+      dueDate: "2026-07-10"
+    });
+
+    render(<MemoryRouter><RoadmapView /></MemoryRouter>);
+    fireEvent.change(screen.getByLabelText("Anchor"), { target: { value: "2026-07" } });
+
+    const bar = screen.getByRole("group", { name: /Pointer roadmap item timeline/ });
+    const timeline = bar.parentElement!;
+    vi.spyOn(timeline, "getBoundingClientRect").mockReturnValue({
+      bottom: 88,
+      height: 88,
+      left: 0,
+      right: 1840,
+      top: 0,
+      width: 1840,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
+    });
+    const setPointerCapture = vi.fn();
+    const releasePointerCapture = vi.fn();
+    Object.assign(bar, {
+      hasPointerCapture: vi.fn(() => true),
+      releasePointerCapture,
+      setPointerCapture
+    });
+
+    fireEvent.pointerDown(bar, { button: 0, clientX: 100, isPrimary: true, pointerId: 7 });
+    fireEvent.pointerMove(bar, { clientX: 130, isPrimary: true, pointerId: 7 });
+    fireEvent.pointerUp(bar, { clientX: 130, isPrimary: true, pointerId: 7 });
+
+    let updated = useProjectStore.getState().bundle!.core.items.find((item) =>
+      item.title === "Pointer roadmap item"
+    )!;
+    expect(updated).toMatchObject({ startDate: "2026-07-04", dueDate: "2026-07-13" });
+    expect(setPointerCapture).toHaveBeenCalledWith(7);
+    expect(releasePointerCapture).toHaveBeenCalledWith(7);
+
+    const resizeHandle = screen.getByRole("button", { name: "Adjust due date for Pointer roadmap item" });
+    fireEvent.pointerDown(resizeHandle, { button: 0, clientX: 200, isPrimary: true, pointerId: 8 });
+    fireEvent.pointerMove(bar, { clientX: 270, isPrimary: true, pointerId: 8 });
+    fireEvent.pointerUp(bar, { clientX: 270, isPrimary: true, pointerId: 8 });
+
+    updated = useProjectStore.getState().bundle!.core.items.find((item) =>
+      item.title === "Pointer roadmap item"
+    )!;
+    expect(updated).toMatchObject({ startDate: "2026-07-04", dueDate: "2026-07-20" });
+    expect(screen.getByRole("group", { name: /Pointer roadmap item timeline/ })).toHaveAttribute(
+      "data-due-date",
+      "2026-07-20"
+    );
   });
 
   it("clears only the edited side of a roadmap date range", () => {
