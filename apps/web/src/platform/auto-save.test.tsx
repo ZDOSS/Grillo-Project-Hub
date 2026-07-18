@@ -82,4 +82,53 @@ describe("web auto-save", () => {
       saveStatus: "saved"
     });
   });
+
+  it("ignores an in-flight failure after the active storage target changes", async () => {
+    let rejectSave!: (reason: Error) => void;
+    const pendingSave = new Promise<StorageMetadata>((_resolve, reject) => {
+      rejectSave = reject;
+    });
+    const save = vi.spyOn(WebStorageAdapter.adapter, "save").mockReturnValue(pendingSave);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const projectId = useProjectStore.getState().bundle!.project.id;
+
+    render(<AutoSaveHarness />);
+
+    await act(async () => {
+      vi.advanceTimersByTime(251);
+      await Promise.resolve();
+    });
+    expect(save).toHaveBeenCalledOnce();
+
+    const current = useProjectStore.getState().bundle!;
+    act(() => {
+      useProjectStore.setState({
+        bundle: {
+          ...current,
+          projectSettings: { ...current.projectSettings, storageTrust: "folder" }
+        },
+        storagePath: `Client Work/.pm-suite/${projectId}.pms.json`,
+        storageTrust: "folder",
+        externalRevision: 909,
+        isDirty: false,
+        saveStatus: "saved",
+        saveError: null
+      });
+    });
+
+    await act(async () => {
+      rejectSave(new Error("Old browser write failed"));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(useProjectStore.getState()).toMatchObject({
+      storagePath: `Client Work/.pm-suite/${projectId}.pms.json`,
+      storageTrust: "folder",
+      externalRevision: 909,
+      isDirty: false,
+      saveStatus: "saved",
+      saveError: null
+    });
+  });
 });

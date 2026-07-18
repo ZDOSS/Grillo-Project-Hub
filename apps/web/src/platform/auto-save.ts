@@ -42,7 +42,7 @@ export function useAutoSave() {
           }
         } catch (err) {
           const latest = useProjectStore.getState();
-          if (latest.storageKey === key) {
+          if (latest.storageKey === key && latest.storageTrust === targetTrust) {
             latest.markSaveFailed(err instanceof Error ? err.message : "Auto-save failed.");
           }
           console.warn("Auto-save failed:", err);
