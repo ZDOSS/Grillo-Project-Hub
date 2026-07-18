@@ -125,6 +125,28 @@ describe("WebStorageAdapter folder mode", () => {
     await expect(adapter.getCurrentFolderDisplay?.()).resolves.toBeNull();
   });
 
+  it("restores the previous folder after a newly picked folder is rejected", async () => {
+    const accepted = createFakeFolder("Accepted Work", { "accepted.pms.json": "{}" });
+    const rejected = createFakeFolder("Rejected Work", { "rejected.pms.json": "{}" });
+    Object.defineProperty(window, "showDirectoryPicker", {
+      configurable: true,
+      value: vi.fn()
+        .mockResolvedValueOnce(accepted.handle)
+        .mockResolvedValueOnce(rejected.handle)
+    });
+    const adapter = await getAdapter();
+
+    await expect(adapter.chooseFolder?.()).resolves.toBe("Accepted Work");
+    await expect(adapter.chooseFolder?.()).resolves.toBe("Rejected Work");
+    await expect(adapter.getCurrentFolderDisplay?.()).resolves.toBe("Rejected Work");
+    await expect(adapter.listFolderProjects?.()).resolves.toEqual(["rejected.pms.json"]);
+
+    await adapter.restorePreviousFolder?.();
+
+    await expect(adapter.getCurrentFolderDisplay?.()).resolves.toBe("Accepted Work");
+    await expect(adapter.listFolderProjects?.()).resolves.toEqual(["accepted.pms.json"]);
+  });
+
   it("rejects a stale folder save after the project file changes externally", async () => {
     const bundle = buildProjectFromTemplate("software-project", "Original");
     const originalJson = exportProjectJson(bundle);

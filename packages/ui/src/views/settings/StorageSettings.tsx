@@ -121,6 +121,7 @@ export function StorageSettings() {
           lastOpenedAt: new Date().toISOString()
         });
       }
+      if (!isStillActive) return false;
       const destination = targetTrust === "folder"
         ? `local folder${folderName ? ` ${folderName}` : ""}`
         : "browser storage";
@@ -148,6 +149,12 @@ export function StorageSettings() {
     if (!adapter?.chooseFolder) return;
     setOperation("folder");
     setFeedback(null);
+    let folderWasSelected = false;
+    const restoreRejectedFolder = async () => {
+      if (!folderWasSelected) return;
+      folderWasSelected = false;
+      await adapter.restorePreviousFolder?.();
+    };
     try {
       const folderName = await adapter.chooseFolder();
       if (!folderName) {
@@ -157,6 +164,7 @@ export function StorageSettings() {
         });
         return;
       }
+      folderWasSelected = true;
 
       const current = useProjectStore.getState();
       const key = current.storageKey ?? current.bundle?.project.id ?? bundle.project.id;
@@ -166,6 +174,7 @@ export function StorageSettings() {
       );
       const currentTarget = current.storageTrust === "folder" && isCurrentFolderTarget(current.storagePath, folderName, key);
       if (projectAlreadyExists && !currentTarget) {
+        await restoreRejectedFolder();
         setFeedback({
           message: `That folder already contains ${key}.pms.json. Grillo did not overwrite it; open that project from the workspace launcher or choose a different folder.`,
           tone: "warning"
@@ -173,8 +182,10 @@ export function StorageSettings() {
         return;
       }
 
-      await persistTo("folder", folderName);
+      const activated = await persistTo("folder", folderName);
+      if (!activated) await restoreRejectedFolder();
     } catch (error) {
+      await restoreRejectedFolder();
       if (isFolderPickerDismissal(error)) return;
       const detail = error instanceof Error ? error.message : "Folder access did not complete.";
       showFailure(`Folder access failed: ${detail}`);

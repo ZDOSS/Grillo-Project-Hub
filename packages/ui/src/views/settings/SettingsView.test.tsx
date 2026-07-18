@@ -356,6 +356,7 @@ describe("SettingsView", () => {
   it("does not overwrite an existing folder project or treat picker cancellation as a save error", async () => {
     const bundle = useProjectStore.getState().bundle!;
     const save = vi.fn();
+    const restorePreviousFolder = vi.fn(async () => undefined);
     const chooseFolder = vi
       .fn<() => Promise<string | null>>()
       .mockResolvedValueOnce("Existing Work")
@@ -368,6 +369,7 @@ describe("SettingsView", () => {
       save,
       delete: async () => undefined,
       chooseFolder,
+      restorePreviousFolder,
       listFolderProjects: async () => [`${bundle.project.id}.pms.json`]
     };
     (window as typeof window & { __gph_store?: ProjectStoreAdapter }).__gph_store = adapter;
@@ -387,12 +389,54 @@ describe("SettingsView", () => {
 
     expect(await within(panel).findByText(/already contains .*\.pms\.json/i)).toBeInTheDocument();
     expect(save).not.toHaveBeenCalled();
+    expect(restorePreviousFolder).toHaveBeenCalledOnce();
     expect(useProjectStore.getState()).toMatchObject({ storageTrust: "browser", saveStatus: "idle" });
 
     await userEvent.click(saveToFolder);
     await waitFor(() => expect(chooseFolder).toHaveBeenCalledTimes(2));
     expect(save).not.toHaveBeenCalled();
+    expect(restorePreviousFolder).toHaveBeenCalledOnce();
     expect(useProjectStore.getState()).toMatchObject({ storageTrust: "browser", saveError: null });
+  });
+
+  it("restores the previous folder when saving to a newly selected folder fails", async () => {
+    const restorePreviousFolder = vi.fn(async () => undefined);
+    const adapter: ProjectStoreAdapter = {
+      capabilities: { folderBacked: true, fileWatch: false, attachments: true },
+      list: async () => [],
+      has: async () => true,
+      load: async () => null,
+      save: async () => {
+        throw new Error("Folder write failed");
+      },
+      delete: async () => undefined,
+      chooseFolder: async () => "Unavailable Work",
+      restorePreviousFolder,
+      listFolderProjects: async () => []
+    };
+    (window as typeof window & { __gph_store?: ProjectStoreAdapter }).__gph_store = adapter;
+
+    render(
+      <ThemeProvider>
+        <MemoryRouter>
+          <SettingsView />
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    await userEvent.click(screen.getByRole("tab", { name: "Storage" }));
+    const panel = screen.getByRole("tabpanel", { name: "Storage" });
+    await userEvent.click(within(panel).getByRole("button", { name: "Save to local folder" }));
+
+    expect(await within(panel).findByText(/Storage change failed: Folder write failed/i)).toBeInTheDocument();
+    expect(restorePreviousFolder).toHaveBeenCalledOnce();
+    expect(useProjectStore.getState()).toMatchObject({
+      storageTrust: "browser",
+      storagePath: null,
+      isDirty: true,
+      saveStatus: "error",
+      saveError: "Folder write failed"
+    });
   });
 
   it("supports keyboard navigation across settings sections", async () => {
