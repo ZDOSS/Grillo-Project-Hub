@@ -55,6 +55,11 @@ describe("responsive shell CSS", () => {
 });
 
 describe("theme contract CSS", () => {
+  it("scopes dark fallback tokens to the document root", () => {
+    expect(tokens).toContain(':root[data-theme="dark"]');
+    expect(tokens).not.toMatch(/(^|\n)\[data-theme="dark"\]\s*\{/);
+  });
+
   it("routes authored component colors through semantic variables", () => {
     expect(css).not.toMatch(/#[0-9a-f]{3,8}/i);
     expect(css).not.toMatch(/rgba?\(/i);

@@ -58,12 +58,12 @@ export function RoadmapView() {
   const totalDays = monthStarts.reduce((acc, m) => acc + m.days, 0);
   const startDate = `${monthStarts[0]?.key}-01`;
 
+  const items = bundle.core.items.filter((i) => !i.trashedAt && !i.archived && (i.startDate || i.dueDate));
+  const usedMilestoneIds = new Set(items.map((item) => item.milestoneId).filter(Boolean));
   const lanes: Array<Milestone | { id: "_none"; name: string; targetDate: null }> = [
-    ...bundle.core.milestones,
+    ...bundle.core.milestones.filter((milestone) => !milestone.archived || usedMilestoneIds.has(milestone.id)),
     { id: "_none", name: "No milestone", targetDate: null }
   ];
-
-  const items = bundle.core.items.filter((i) => !i.trashedAt && !i.archived && (i.startDate || i.dueDate));
 
   const setItemRange = (item: WorkItem, start: string, due: string) => {
     const nextStart = start || null;
@@ -380,7 +380,7 @@ function RoadmapBar({
             onChange={(event) => onMilestoneChange(event.target.value)}
           >
             <option value="">No milestone</option>
-            {milestones.map((milestone) => (
+            {milestones.filter((milestone) => !milestone.archived || milestone.id === item.milestoneId).map((milestone) => (
               <option key={milestone.id} value={milestone.id}>{milestone.name}</option>
             ))}
           </select>
