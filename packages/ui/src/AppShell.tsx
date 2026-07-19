@@ -466,7 +466,6 @@ function AppShellFrame({ appMode, appDistribution = "local", children }: AppShel
       className="app-shell"
       data-mode={appMode}
       data-sidebar-state={desktopSidebarExpanded ? "expanded" : "collapsed"}
-      data-theme={resolved}
     >
       <nav className="app-sidebar" aria-label="Workspace" id="workspace-sidebar">
         <ShellNavContent

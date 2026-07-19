@@ -3032,6 +3032,44 @@ a.btn {
 .settings-grid-type-add {
   grid-template-columns: minmax(220px, 1fr) auto;
 }
+.settings-grid-label-add,
+.settings-grid-milestone-add {
+  grid-template-columns: minmax(180px, 0.8fr) minmax(140px, 0.45fr) minmax(220px, 1fr) auto;
+}
+.settings-grid-custom-field-add {
+  grid-template-columns: repeat(2, minmax(240px, 1fr));
+  align-items: start;
+}
+.settings-checkbox-control {
+  min-height: 100%;
+}
+.settings-form-submit {
+  align-self: end;
+  justify-self: start;
+}
+.settings-applicability {
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-muted);
+}
+.settings-applicability legend {
+  padding: 0 var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+}
+.settings-applicability-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--space-1) var(--space-2);
+  margin-top: var(--space-2);
+}
+.settings-applicability-compact {
+  padding: var(--space-2);
+}
 .settings-panel {
   padding: var(--space-4);
   border: 1px solid var(--color-border-subtle);
@@ -3087,6 +3125,21 @@ a.btn {
 .settings-table-row-automation {
   grid-template-columns: minmax(240px, 1fr) minmax(90px, 0.3fr) minmax(220px, 0.8fr);
 }
+.settings-table-header-label,
+.settings-table-row-label {
+  grid-template-columns: minmax(150px, 0.9fr) minmax(140px, 1.1fr) minmax(72px, 0.35fr) minmax(170px, 0.8fr);
+}
+.settings-table-header-milestone,
+.settings-table-row-milestone {
+  grid-template-columns: minmax(160px, 1.1fr) minmax(100px, 0.55fr) minmax(110px, 0.55fr) minmax(72px, 0.4fr) minmax(170px, 0.8fr);
+}
+.settings-table-header-custom-field,
+.settings-table-row-custom-field {
+  grid-template-columns: minmax(180px, 1.2fr) minmax(150px, 0.9fr) minmax(72px, 0.35fr) minmax(170px, 0.8fr);
+}
+.settings-table-row-label > .board-card-label {
+  justify-self: start;
+}
 .settings-table-empty {
   padding: 12px;
   color: var(--color-text-secondary);
@@ -3100,6 +3153,11 @@ a.btn {
   align-items: center;
   gap: var(--space-2);
   flex-wrap: wrap;
+}
+.settings-table-row-custom-field > .settings-row-field,
+.settings-table-row-milestone > .settings-row-field {
+  align-items: flex-start;
+  flex-direction: column;
 }
 .settings-row-actions {
   display: flex;
@@ -3570,8 +3628,16 @@ a.btn {
   .settings-table-row-type,
   .settings-table-row-sidebar,
   .settings-table-row-automation,
+  .settings-table-row-label,
+  .settings-table-row-milestone,
+  .settings-table-row-custom-field,
   .settings-grid-automation,
   .bugs-context-actions {
+    grid-template-columns: 1fr;
+  }
+  .settings-grid-label-add,
+  .settings-grid-milestone-add,
+  .settings-grid-custom-field-add {
     grid-template-columns: 1fr;
   }
   .workspace-recent {

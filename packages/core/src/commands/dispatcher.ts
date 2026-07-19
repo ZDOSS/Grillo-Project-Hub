@@ -30,7 +30,7 @@ import {
 } from "../domain/workflow";
 import { createWorkItemType } from "../domain/work-item-type";
 import { createDocument, createDocumentFromTemplate, createFolder } from "../domain/document";
-import { createCustomField, isFieldApplicableToType, validateCustomFieldValue, type CustomFieldValue } from "../domain/custom-field";
+import { createCustomField, isFieldApplicableToType, validateCustomFieldValue, type CustomFieldValue, type CustomFieldType } from "../domain/custom-field";
 import { createReminder, type Reminder } from "../domain/reminder";
 import { createAttachment, type Attachment } from "../domain/attachment";
 import { createEvent } from "../domain/event";
@@ -148,6 +148,7 @@ const dispatchers: Record<string, (b: ProjectBundle, env: CommandEnvelope) => Di
   "docFolder.create": (b, env) => createDocFolderCommand(b, env.payload as Parameters<typeof createDocFolderCommand>[1]),
   "docFolder.update": (b, env) => updateDocFolderCommand(b, env.payload as Parameters<typeof updateDocFolderCommand>[1]),
   "customField.define": (b, env) => defineCustomFieldCommand(b, env.payload as Parameters<typeof defineCustomFieldCommand>[1]),
+  "customField.update": (b, env) => updateCustomFieldCommand(b, env.payload as Parameters<typeof updateCustomFieldCommand>[1]),
   "reminder.create": (b, env) => createReminderCommand(b, env.payload as Parameters<typeof createReminderCommand>[1]),
   "reminder.update": (b, env) => updateReminderCommand(b, env.payload as Parameters<typeof updateReminderCommand>[1]),
   "reminder.delete": (b, env) => deleteReminderCommand(b, env.payload as Parameters<typeof deleteReminderCommand>[1]),
@@ -849,17 +850,35 @@ function deleteCommentCommand(bundle: ProjectBundle, payload: { projectId: strin
 
 function createMilestoneCommand(bundle: ProjectBundle, payload: { projectId: string; name: string; description?: string; targetDate?: string | null }): DispatchResult {
   assertProjectId(bundle, payload.projectId);
-  const milestone = createMilestone({ name: payload.name, description: payload.description ?? null, targetDate: (payload.targetDate as never) ?? null });
+  const name = payload.name.trim();
+  if (!name) throw new Error("Milestone name must not be empty");
+  const milestone = createMilestone({ name, description: payload.description ?? null, targetDate: (payload.targetDate as never) ?? null });
   const nextBundle = withCore(bundle, (c) => ({ ...c, milestones: [...c.milestones, milestone] }));
   return { bundle: nextBundle, events: [] };
 }
 
-function updateMilestoneCommand(bundle: ProjectBundle, payload: { projectId: string; milestoneId: string; patch: Record<string, unknown> }): DispatchResult {
+function updateMilestoneCommand(bundle: ProjectBundle, payload: {
+  projectId: string;
+  milestoneId: string;
+  patch: { name?: string; description?: string | null; targetDate?: string | null; archived?: boolean };
+}): DispatchResult {
   assertProjectId(bundle, payload.projectId);
-  findRecordOrThrow(bundle.core.milestones, payload.milestoneId, "Milestone");
+  const current = findRecordOrThrow(bundle.core.milestones, payload.milestoneId, "Milestone");
+  const name = payload.patch.name === undefined ? current.name : payload.patch.name.trim();
+  if (!name) throw new Error("Milestone name must not be empty");
+  const validated = createMilestone({
+    id: current.id,
+    name,
+    description: payload.patch.description === undefined ? current.description : payload.patch.description,
+    targetDate: (payload.patch.targetDate === undefined ? current.targetDate : payload.patch.targetDate) as never
+  });
+  const nextMilestone = {
+    ...validated,
+    archived: payload.patch.archived === undefined ? current.archived : payload.patch.archived
+  };
   const nextBundle = withCore(bundle, (c) => ({
     ...c,
-    milestones: c.milestones.map((m) => (m.id === payload.milestoneId ? { ...m, ...stripReadOnly(payload.patch) } : m))
+    milestones: c.milestones.map((milestone) => milestone.id === payload.milestoneId ? nextMilestone : milestone)
   }));
   return { bundle: nextBundle, events: [] };
 }
@@ -868,15 +887,33 @@ function updateMilestoneCommand(bundle: ProjectBundle, payload: { projectId: str
 
 function createLabelCommand(bundle: ProjectBundle, payload: { projectId: string; name: string; color?: string | null; description?: string | null }): DispatchResult {
   assertProjectId(bundle, payload.projectId);
-  const label = createLabel({ name: payload.name, color: payload.color ?? null, description: payload.description ?? null });
+  const name = payload.name.trim();
+  if (!name) throw new Error("Label name must not be empty");
+  const label = createLabel({ name, color: payload.color ?? null, description: payload.description ?? null });
   const nextBundle = withCore(bundle, (c) => ({ ...c, labels: [...c.labels, label] }));
   return { bundle: nextBundle, events: [] };
 }
 
-function updateLabelCommand(bundle: ProjectBundle, payload: { projectId: string; labelId: string; patch: Record<string, unknown> }): DispatchResult {
+function updateLabelCommand(bundle: ProjectBundle, payload: {
+  projectId: string;
+  labelId: string;
+  patch: { name?: string; color?: string | null; description?: string | null; archived?: boolean };
+}): DispatchResult {
   assertProjectId(bundle, payload.projectId);
-  findRecordOrThrow(bundle.core.labels, payload.labelId, "Label");
-  const nextBundle = withCore(bundle, (c) => ({ ...c, labels: c.labels.map((l) => (l.id === payload.labelId ? { ...l, ...stripReadOnly(payload.patch) } : l)) }));
+  const current = findRecordOrThrow(bundle.core.labels, payload.labelId, "Label");
+  const name = payload.patch.name === undefined ? current.name : payload.patch.name.trim();
+  if (!name) throw new Error("Label name must not be empty");
+  const nextLabel = createLabel({
+    id: current.id,
+    name,
+    color: payload.patch.color === undefined ? current.color : payload.patch.color,
+    description: payload.patch.description === undefined ? current.description : payload.patch.description
+  });
+  nextLabel.archived = payload.patch.archived === undefined ? current.archived : payload.patch.archived;
+  const nextBundle = withCore(bundle, (c) => ({
+    ...c,
+    labels: c.labels.map((label) => label.id === payload.labelId ? nextLabel : label)
+  }));
   return { bundle: nextBundle, events: [] };
 }
 
@@ -1197,23 +1234,99 @@ function defineCustomFieldCommand(
       options?: string[];
       applicableTypeIds?: string[] | null;
       required?: boolean;
+      description?: string | null;
     };
   }
 ): DispatchResult {
   assertProjectId(bundle, payload.projectId);
-  if (payload.field.applicableTypeIds) {
-    for (const typeId of payload.field.applicableTypeIds) {
+  const name = payload.field.name.trim();
+  if (!name) throw new Error("Custom field name must not be empty");
+  const requestedApplicableTypeIds = payload.field.applicableTypeIds
+    ? [...new Set(payload.field.applicableTypeIds)]
+    : null;
+  const applicableTypeIds = requestedApplicableTypeIds?.length ? requestedApplicableTypeIds : null;
+  if (applicableTypeIds) {
+    for (const typeId of applicableTypeIds) {
       findRecordOrThrow(bundle.core.itemTypes, typeId, "Type");
     }
   }
+  const supportsOptions = payload.field.type === "select" || payload.field.type === "multi-select";
+  const options = supportsOptions
+    ? [...new Set((payload.field.options ?? []).map((option) => option.trim()).filter(Boolean))]
+    : undefined;
   const field = createCustomField({
-    name: payload.field.name,
+    name,
     type: payload.field.type,
-    options: payload.field.options,
-    applicableTypeIds: payload.field.applicableTypeIds ?? null,
-    required: payload.field.required ?? false
+    options,
+    applicableTypeIds,
+    required: payload.field.required ?? false,
+    description: payload.field.description ?? null
   });
   const nextBundle = withCore(bundle, (c) => ({ ...c, customFields: [...c.customFields, field] }));
+  return { bundle: nextBundle, events: [] };
+}
+
+function updateCustomFieldCommand(
+  bundle: ProjectBundle,
+  payload: {
+    projectId: string;
+    fieldId: string;
+    patch: {
+      name?: string;
+      type?: CustomFieldType;
+      options?: string[];
+      applicableTypeIds?: string[] | null;
+      required?: boolean;
+      description?: string | null;
+      archived?: boolean;
+    };
+  }
+): DispatchResult {
+  assertProjectId(bundle, payload.projectId);
+  const current = findRecordOrThrow(bundle.core.customFields, payload.fieldId, "Custom field");
+  const name = payload.patch.name === undefined ? current.name : payload.patch.name.trim();
+  if (!name) throw new Error("Custom field name must not be empty");
+
+  const type = payload.patch.type ?? current.type;
+  const supportsOptions = type === "select" || type === "multi-select";
+  const requestedOptions = payload.patch.options ?? (type === current.type ? current.options : undefined);
+  const options = supportsOptions
+    ? [...new Set((requestedOptions ?? []).map((option) => option.trim()).filter(Boolean))]
+    : undefined;
+  const requestedApplicableTypeIds = payload.patch.applicableTypeIds === undefined
+    ? current.applicableTypeIds
+    : payload.patch.applicableTypeIds;
+  const applicableTypeIds = requestedApplicableTypeIds?.length
+    ? [...new Set(requestedApplicableTypeIds)]
+    : null;
+  if (applicableTypeIds) validateFilterIds(bundle.core.itemTypes, applicableTypeIds, "Custom field type");
+
+  const nextField = createCustomField({
+    id: current.id,
+    name,
+    type,
+    options,
+    applicableTypeIds,
+    required: payload.patch.required ?? current.required,
+    description: payload.patch.description === undefined ? current.description : payload.patch.description,
+    order: current.order
+  });
+  nextField.archived = payload.patch.archived === undefined ? current.archived : payload.patch.archived;
+
+  const optionsChanged = payload.patch.options !== undefined
+    && JSON.stringify(options ?? []) !== JSON.stringify(current.options ?? []);
+  if (type !== current.type || optionsChanged) {
+    const valueShape = { ...nextField, required: false };
+    for (const item of bundle.core.items) {
+      if (!Object.prototype.hasOwnProperty.call(item.customFields ?? {}, current.id)) continue;
+      validateCustomFieldValue(valueShape, item.customFields?.[current.id] as CustomFieldValue);
+    }
+  }
+
+  const nextBundle = withCore(bundle, (core) => ({
+    ...core,
+    customFields: core.customFields.map((field) => field.id === current.id ? nextField : field)
+  }));
   return { bundle: nextBundle, events: [] };
 }
 

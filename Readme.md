@@ -55,9 +55,10 @@ Grillo is past the skeleton stage. The current app includes:
 - Responsive modal-style work item detail with mobile-friendly metadata fields, explicit label checkboxes, comments, checklist/subtasks, relationships, custom fields, attachments, reminders, activity, automation previews, archive/trash/delete, and a pinned action footer.
 - Docs with explicit view/edit sessions, Markdown preview, document templates, internal links, linked work, backlinks, dirty navigation confirmation, and safe deletion behavior.
 - Bug triage with readable lanes, severity/priority/source/context fields, intake gates, accept/decline/snooze/assign actions, and a searchable duplicate-link picker.
-- Automation rules with command-backed create/update/delete/enable/disable, dry-run previews, item-event triggers, and audited action failures.
+- Automation rules with command-backed create/edit/enable/disable, confirmed deletion, dry-run previews, item-event triggers, and audited action failures.
 - JSON, Markdown, and CSV import/export, plus clean print preview.
 - A full Appearance studio with light/dark/system modes, Grillo Adaptive, Graphite, Warm Sand, and High Contrast presets, seed-based custom theme creation, every authored UI color exposed as a semantic role, live preview, contrast checks, safe JSON import/export, per-project personal overrides, and a shared project accent.
+- Complete Settings management for members, workflow registries, labels, milestones, and custom fields, including inline edit/save/cancel, hide/restore, field applicability and required-state controls, and safety checks that keep referenced project history intact while removing hidden definitions from new assignment choices.
 - A remembered desktop sidebar that toggles between full navigation and an icon rail, context-aware no-project navigation, responsive mobile navigation and project tabs, offline status, and local/self-hosted PWA install support when the browser exposes it.
 - Planning-surface UX polish including aligned Backlog rows, progressive Table controls, and a day-accurate Roadmap whose bars resize with their dates and support pointer-captured move/resize plus keyboard adjustment; Calendar keeps all seven days beside its agenda, and item links retain useful assistive names.
 - A realistic, non-persistent demo workspace with active and completed work, bug intake, comments, members, dates, milestones, and linked docs.
@@ -65,6 +66,8 @@ Grillo is past the skeleton stage. The current app includes:
 ## Appearance and themes
 
 Open **Settings -> Appearance** to choose a preset or build your own. Grillo stores light and dark values together, so a custom theme remains coherent when the operating system changes modes.
+
+Preset and custom palettes propagate through the whole shell—canvas, sidebar, header, controls, tables, cards, borders, labels, feedback, and focus states—not just the page background.
 
 - Color mode, contrast, motion, selected theme, custom themes, and per-project theme bindings stay local to the current device and browser profile.
 - The optional project accent is different: it is stored in the project bundle and shared with collaborators. Grillo derives its hover, pressed, soft, focus, and readable foreground states automatically.

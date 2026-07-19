@@ -71,6 +71,7 @@ export type CommandPayload =
   | DocFolderCreatePayload
   | DocFolderUpdatePayload
   | CustomFieldDefinePayload
+  | CustomFieldUpdatePayload
   | ReminderCreatePayload
   | ReminderUpdatePayload
   | ReminderDeletePayload
@@ -252,7 +253,12 @@ export type MilestoneUpdatePayload = {
   type: "milestone.update";
   projectId: ProjectId;
   milestoneId: string;
-  patch: Record<string, unknown>;
+  patch: {
+    name?: string;
+    description?: string | null;
+    targetDate?: string | null;
+    archived?: boolean;
+  };
 };
 
 /* Label */
@@ -267,7 +273,12 @@ export type LabelUpdatePayload = {
   type: "label.update";
   projectId: ProjectId;
   labelId: string;
-  patch: Record<string, unknown>;
+  patch: {
+    name?: string;
+    color?: string | null;
+    description?: string | null;
+    archived?: boolean;
+  };
 };
 
 /* Member */
@@ -404,6 +415,21 @@ export type CustomFieldDefinePayload = {
     options?: string[];
     applicableTypeIds?: string[] | null;
     required?: boolean;
+    description?: string | null;
+  };
+};
+export type CustomFieldUpdatePayload = {
+  type: "customField.update";
+  projectId: ProjectId;
+  fieldId: string;
+  patch: {
+    name?: string;
+    type?: "text" | "number" | "select" | "multi-select" | "date" | "checkbox";
+    options?: string[];
+    applicableTypeIds?: string[] | null;
+    required?: boolean;
+    description?: string | null;
+    archived?: boolean;
   };
 };
 

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildProjectFromTemplate, type CustomFieldValue } from "@gph/core";
@@ -170,6 +170,42 @@ describe("WorkItemModal", () => {
         .bundle?.core.items.find((entry) => entry.id === item.id);
       expect(updated?.labelIds).toContain(label.id);
     });
+  });
+
+  it("preserves hidden assignments without offering hidden definitions for new use", () => {
+    const item = seedItem();
+    const store = useProjectStore.getState();
+    const projectId = store.bundle!.project.id;
+    store.applyCommand({ type: "label.create", projectId, name: "Assigned hidden label" });
+    store.applyCommand({ type: "label.create", projectId, name: "Unused hidden label" });
+    store.applyCommand({ type: "milestone.create", projectId, name: "Assigned hidden milestone" });
+    store.applyCommand({ type: "milestone.create", projectId, name: "Unused hidden milestone" });
+
+    const configured = useProjectStore.getState().bundle!;
+    const assignedLabel = configured.core.labels.find((label) => label.name === "Assigned hidden label")!;
+    const unusedLabel = configured.core.labels.find((label) => label.name === "Unused hidden label")!;
+    const assignedMilestone = configured.core.milestones.find((milestone) => milestone.name === "Assigned hidden milestone")!;
+    const unusedMilestone = configured.core.milestones.find((milestone) => milestone.name === "Unused hidden milestone")!;
+
+    store.applyCommand({
+      type: "item.update",
+      projectId,
+      itemId: item.id,
+      patch: { labelIds: [assignedLabel.id], milestoneId: assignedMilestone.id }
+    });
+    store.applyCommand({ type: "label.update", projectId, labelId: assignedLabel.id, patch: { archived: true } });
+    store.applyCommand({ type: "label.update", projectId, labelId: unusedLabel.id, patch: { archived: true } });
+    store.applyCommand({ type: "milestone.update", projectId, milestoneId: assignedMilestone.id, patch: { archived: true } });
+    store.applyCommand({ type: "milestone.update", projectId, milestoneId: unusedMilestone.id, patch: { archived: true } });
+
+    renderModal(item.id);
+
+    expect(screen.getByRole("checkbox", { name: assignedLabel.name })).toBeChecked();
+    expect(screen.queryByRole("checkbox", { name: unusedLabel.name })).not.toBeInTheDocument();
+    const milestoneSelect = screen.getByLabelText("Milestone");
+    expect(milestoneSelect).toHaveValue(assignedMilestone.id);
+    expect(within(milestoneSelect).getByRole("option", { name: assignedMilestone.name })).toBeInTheDocument();
+    expect(within(milestoneSelect).queryByRole("option", { name: unusedMilestone.name })).not.toBeInTheDocument();
   });
 
   it("edits applicable custom fields in the work item detail", async () => {

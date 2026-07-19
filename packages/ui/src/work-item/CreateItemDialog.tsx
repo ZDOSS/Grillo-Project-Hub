@@ -76,12 +76,34 @@ export function CreateItemDialog() {
 
   if (!open || !bundle) return null;
 
-  const types = bundle.core.itemTypes;
-  const statuses = bundle.core.statuses;
-  const priorities = bundle.core.priorities;
+  const types = bundle.core.itemTypes.filter((type) => !type.archived);
+  const statuses = bundle.core.statuses.filter((status) => !status.archived);
+  const priorities = bundle.core.priorities.filter((priority) => !priority.archived);
   const members = bundle.core.members.filter((member) => !member.archived);
-  const milestones = bundle.core.milestones;
+  const milestones = bundle.core.milestones.filter((milestone) => !milestone.archived);
+  const selectedTypeId = types.some((type) => type.id === typeId) ? typeId : (types[0]?.id ?? "");
+  const typeWasReplaced = selectedTypeId !== typeId;
+  const fallbackStatusId = defaultStatusIdForType(selectedTypeId);
+  const preferredStatusId = typeWasReplaced ? fallbackStatusId : statusId;
+  const selectedStatusId = statuses.some((status) => status.id === preferredStatusId)
+    ? preferredStatusId
+    : statuses.some((status) => status.id === fallbackStatusId)
+      ? fallbackStatusId
+      : (statuses[0]?.id ?? "");
+  const fallbackPriorityId = defaultPriorityIdForType(selectedTypeId);
+  const preferredPriorityId = typeWasReplaced ? fallbackPriorityId : priorityId;
+  const selectedPriorityId = priorities.some((priority) => priority.id === preferredPriorityId)
+    ? preferredPriorityId
+    : priorities.some((priority) => priority.id === fallbackPriorityId)
+      ? fallbackPriorityId
+      : "";
+  const selectedAssigneeId = members.some((member) => member.id === assigneeId) ? assigneeId : "";
+  const selectedMilestoneId = milestones.some((milestone) => milestone.id === milestoneId)
+    ? milestoneId
+    : "";
   const invalidDateRange = Boolean(startDate && dueDate && startDate > dueDate);
+  const missingWorkflowChoice = !selectedTypeId || !selectedStatusId;
+  const canCreate = Boolean(title.trim()) && !invalidDateRange && !missingWorkflowChoice;
 
   const changeType = (nextTypeId: string) => {
     setTypeId(nextTypeId);
@@ -89,18 +111,25 @@ export function CreateItemDialog() {
     setPriorityId(defaultPriorityIdForType(nextTypeId));
   };
 
+  const commitFallbackType = () => {
+    if (!typeWasReplaced) return;
+    setTypeId(selectedTypeId);
+    setStatusId(selectedStatusId);
+    setPriorityId(selectedPriorityId);
+  };
+
   const submit = () => {
-    if (!title.trim() || invalidDateRange) return;
+    if (!canCreate) return;
     const r = applyCommand({
       type: "item.create",
       projectId: bundle.project.id,
-      typeId,
+      typeId: selectedTypeId,
       title: title.trim(),
       description: description.trim(),
-      statusId: statusId || undefined,
-      priorityId: priorityId || null,
-      assigneeId: assigneeId || null,
-      milestoneId: milestoneId || null,
+      statusId: selectedStatusId,
+      priorityId: selectedPriorityId || null,
+      assigneeId: selectedAssigneeId || null,
+      milestoneId: selectedMilestoneId || null,
       startDate: startDate || null,
       dueDate: dueDate || null
     });
@@ -120,7 +149,7 @@ export function CreateItemDialog() {
           <div className="col">
             <label className="label label-row">
               Type
-              <select className="select" value={typeId} onChange={(e) => changeType(e.target.value)}>
+              <select className="select" value={selectedTypeId} onChange={(e) => changeType(e.target.value)}>
                 {types.map((t) => (
                   <option key={t.id} value={t.id}>{t.name}</option>
                 ))}
@@ -128,7 +157,10 @@ export function CreateItemDialog() {
             </label>
             <label className="label label-row">
               Status
-              <select className="select" value={statusId} onChange={(e) => setStatusId(e.target.value)}>
+              <select className="select" value={selectedStatusId} onChange={(e) => {
+                commitFallbackType();
+                setStatusId(e.target.value);
+              }}>
                 {statuses.map((status) => (
                   <option key={status.id} value={status.id}>{status.name}</option>
                 ))}
@@ -152,7 +184,10 @@ export function CreateItemDialog() {
             </label>
             <label className="label label-row">
               Priority
-              <select className="select" value={priorityId} onChange={(e) => setPriorityId(e.target.value)}>
+              <select className="select" value={selectedPriorityId} onChange={(e) => {
+                commitFallbackType();
+                setPriorityId(e.target.value);
+              }}>
                 <option value="">No priority</option>
                 {priorities.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
@@ -172,9 +207,12 @@ export function CreateItemDialog() {
             {invalidDateRange ? (
               <div className="form-error">Start date must not be later than due date.</div>
             ) : null}
+            {missingWorkflowChoice ? (
+              <div className="form-error">Restore at least one visible work item type and status in Settings before creating work.</div>
+            ) : null}
             <label className="label label-row">
               Assignee
-              <select className="select" value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)}>
+              <select className="select" value={selectedAssigneeId} onChange={(e) => setAssigneeId(e.target.value)}>
                 <option value="">Unassigned</option>
                 {members.map((member) => (
                   <option key={member.id} value={member.id}>{member.displayName}</option>
@@ -183,7 +221,7 @@ export function CreateItemDialog() {
             </label>
             <label className="label label-row">
               Milestone
-              <select className="select" value={milestoneId} onChange={(e) => setMilestoneId(e.target.value)}>
+              <select className="select" value={selectedMilestoneId} onChange={(e) => setMilestoneId(e.target.value)}>
                 <option value="">No milestone</option>
                 {milestones.map((milestone) => (
                   <option key={milestone.id} value={milestone.id}>{milestone.name}</option>
@@ -204,7 +242,7 @@ export function CreateItemDialog() {
         </div>
         <div className="modal-footer">
           <button className="btn" onClick={() => closeCreateItem()}>Cancel</button>
-          <button className="btn btn-primary" onClick={submit} disabled={!title.trim() || invalidDateRange}>Create</button>
+          <button className="btn btn-primary" onClick={submit} disabled={!canCreate}>Create</button>
         </div>
       </div>
     </div>

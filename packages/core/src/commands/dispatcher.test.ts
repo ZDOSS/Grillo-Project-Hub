@@ -609,6 +609,123 @@ describe("command dispatcher", () => {
     expect(updated.core.items[0].customFields?.[fieldId]).toBe("High");
   });
 
+  it("updates custom field definitions without invalidating stored values", () => {
+    const bundle = createProjectBundle({ name: "P" });
+    const withField = dispatchCommand(
+      bundle,
+      envelopeFor({
+        type: "customField.define",
+        projectId: bundle.project.id,
+        field: { name: "Risk", type: "select", options: ["Low", "High"] }
+      }, "ui", null)
+    ).bundle;
+    const fieldId = withField.core.customFields[0].id;
+    const withItem = dispatchCommand(
+      withField,
+      envelopeFor({ type: "item.create", projectId: withField.project.id, typeId: "task", title: "Risky work" }, "ui", null)
+    ).bundle;
+    const itemId = withItem.core.items[0].id;
+    const withValue = dispatchCommand(
+      withItem,
+      envelopeFor({
+        type: "item.update",
+        projectId: withItem.project.id,
+        itemId,
+        patch: { customFields: { [fieldId]: "High" } }
+      }, "ui", null)
+    ).bundle;
+
+    expect(() => dispatchCommand(
+      withValue,
+      envelopeFor({
+        type: "customField.update",
+        projectId: withValue.project.id,
+        fieldId,
+        patch: { options: ["Low"] }
+      }, "ui", null)
+    )).toThrow(/unknown option/i);
+
+    const withLegacyValue = {
+      ...withValue,
+      core: {
+        ...withValue.core,
+        items: withValue.core.items.map((item) => item.id === itemId
+          ? { ...item, customFields: { [fieldId]: "Legacy" } }
+          : item)
+      }
+    };
+    const renamedLegacy = dispatchCommand(
+      withLegacyValue,
+      envelopeFor({
+        type: "customField.update",
+        projectId: withLegacyValue.project.id,
+        fieldId,
+        patch: { name: "Legacy risk", type: "select", options: ["Low", "High"] }
+      }, "ui", null)
+    ).bundle;
+    expect(renamedLegacy.core.items[0].customFields?.[fieldId]).toBe("Legacy");
+
+    const updated = dispatchCommand(
+      withValue,
+      envelopeFor({
+        type: "customField.update",
+        projectId: withValue.project.id,
+        fieldId,
+        patch: {
+          name: "Delivery risk",
+          type: "select",
+          options: ["Low", "High"],
+          archived: true,
+          applicableTypeIds: ["task", "task"]
+        }
+      }, "ui", null)
+    ).bundle;
+
+    expect(updated.core.customFields[0]).toMatchObject({
+      id: fieldId,
+      name: "Delivery risk",
+      archived: true,
+      applicableTypeIds: ["task"]
+    });
+    expect(updated.core.items[0].customFields?.[fieldId]).toBe("High");
+  });
+
+  it("normalizes and validates settings registry creation at the command boundary", () => {
+    const bundle = createProjectBundle({ name: "P" });
+    const withLabel = dispatchCommand(
+      bundle,
+      envelopeFor({ type: "label.create", projectId: bundle.project.id, name: "  frontend  " }, "ui", null)
+    ).bundle;
+    const withMilestone = dispatchCommand(
+      withLabel,
+      envelopeFor({ type: "milestone.create", projectId: bundle.project.id, name: "  v1  " }, "ui", null)
+    ).bundle;
+    const withField = dispatchCommand(
+      withMilestone,
+      envelopeFor({
+        type: "customField.define",
+        projectId: bundle.project.id,
+        field: { name: "  Risk  ", type: "select", options: [" Low ", "High", "Low", " "] }
+      }, "ui", null)
+    ).bundle;
+
+    expect(withField.core.labels.at(-1)?.name).toBe("frontend");
+    expect(withField.core.milestones.at(-1)?.name).toBe("v1");
+    expect(withField.core.customFields.at(-1)).toMatchObject({ name: "Risk", options: ["Low", "High"] });
+    expect(() => dispatchCommand(
+      bundle,
+      envelopeFor({ type: "label.create", projectId: bundle.project.id, name: "   " }, "ui", null)
+    )).toThrow(/must not be empty/i);
+    expect(() => dispatchCommand(
+      bundle,
+      envelopeFor({
+        type: "customField.define",
+        projectId: bundle.project.id,
+        field: { name: "Unknown scope", type: "text", applicableTypeIds: ["missing"] }
+      }, "ui", null)
+    )).toThrow(/type not found/i);
+  });
+
   it("rejects new custom field values that do not apply to the item type", () => {
     const bundle = createProjectBundle({ name: "P" });
     const withFields = dispatchCommand(

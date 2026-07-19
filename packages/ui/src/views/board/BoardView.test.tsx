@@ -145,6 +145,40 @@ describe("BoardView", () => {
     expect(screen.getAllByTestId("location").at(-1)).toHaveTextContent(`/item/${item.id}`);
   });
 
+  it("does not move work into a board column backed by a hidden status", () => {
+    const bundle = buildProjectFromTemplate("simple-kanban", "Test");
+    useProjectStore.setState({ bundle });
+    const apply = useProjectStore.getState().applyCommand;
+    const created = apply({
+      type: "item.create",
+      projectId: bundle.project.id,
+      typeId: "task",
+      title: "Keep visible status",
+      statusId: "ready"
+    }).bundle;
+    apply({
+      type: "status.update",
+      projectId: bundle.project.id,
+      statusId: "done",
+      patch: { archived: true }
+    });
+    const view = Object.values((created.modules["builtin.kanban"].data as {
+      views?: Record<string, Parameters<typeof BoardView>[0]["view"]>;
+    }).views ?? {}).find((entry) => entry.type === "board")!;
+    const hiddenColumn = view.columns.find((column) => column.defaultDropStatusId === "done")!;
+    const item = useProjectStore.getState().bundle!.core.items.find((entry) => entry.title === "Keep visible status")!;
+
+    renderBoard(view);
+
+    const column = screen.getByLabelText(`${hiddenColumn.name} column`);
+    fireEvent.drop(column.querySelector(".board-column-body")!, {
+      dataTransfer: { getData: () => item.id }
+    });
+
+    expect(screen.getByText(/uses a hidden status/i)).toBeInTheDocument();
+    expect(useProjectStore.getState().bundle!.core.items.find((entry) => entry.id === item.id)?.statusId).toBe("ready");
+  });
+
   it("opens the work item from keyboard activation with link semantics", async () => {
     const bundle = buildProjectFromTemplate("simple-kanban", "Test");
     useProjectStore.setState({ bundle });

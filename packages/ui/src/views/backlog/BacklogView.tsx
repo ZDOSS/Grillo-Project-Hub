@@ -251,7 +251,7 @@ export function BacklogView({ view }: { view?: BacklogViewDef }) {
                     autoFocus
                   >
                     <option value="">No priority</option>
-                    {priorities.map((p) => (
+                    {priorities.filter((priority) => !priority.archived || priority.id === item.priorityId).map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name}
                       </option>

@@ -125,6 +125,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - `project.updateSettings` for plugin trust mode and left-panel visibility (`hiddenViewIds`)
   - `member.update` for inline member edits
   - `member.delete` for archiving a member and unassigning any items still assigned to them
+  - `customField.update` for editing field identity/type/options/applicability/required state and hiding/restoring definitions without discarding stored work-item values
   - `automationRule.create`, `automationRule.update`, `automationRule.delete`, `automationRule.setEnabled`, and `automationRule.dryRun` for the first command-backed automation builder
   - `bugTriage.updateConfig` for bug-workflow guardrails such as requiring severity or priority before bugs leave intake
 - dispatcher hardening added after review:
@@ -142,6 +143,8 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - `doc.delete` removes document-scoped reminders from the active reminder array, moves document-scoped attachments into attachment trash records, and stores removed document reminders with the document trash payload so restore can rehydrate them without leaving invalid active references
   - `doc.permanentlyDelete` removes document-scoped reminders plus active and trashed document-scoped attachments so hard-deleting a trashed document cannot leave dangling document references behind
   - `item.update` validates supplied custom field values against the field registry, type, applicability, options, and required rules when the patch includes `customFields`; unrelated item updates intentionally do not revalidate hidden legacy values so type changes preserve existing custom field data
+  - `customField.update` rebuilds a validated definition while preserving its stable ID/order, rejects empty names and unknown applicable type IDs, de-duplicates select options and applicability IDs, and refuses actual type/normalized-option changes that would invalidate any stored work-item value; identical type/options emitted by the editor do not revalidate legacy values, while archive/name/scope/required/description-only changes preserve values untouched
+  - label, milestone, and custom-field creation trim and reject empty names at the command boundary; select/multi-select options are trimmed, de-duplicated, and stripped of blank entries before the definition is validated
   - `item.update` and `item.moveStatus` enforce the configured bug intake gate for bug-module item types, so the "severity or priority before leaving intake" rule is not only a React-view convention
 
 ## Platform differences between web and desktop
@@ -235,11 +238,14 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - the narrow Settings navigation recomposes into a single horizontally scrollable tab strip; keep `flex-direction: row` in the responsive rule because the base tab-list contract is column-oriented and otherwise pushes the active panel below the fold
 - settings edit icons come from `lucide-react`, and import failures render as inline alerts instead of browser-native `alert()`
 - `BridgeSettings.tsx` is truth-in-UI for future AI/MCP integration: it documents real core command coverage and explicitly says no installable bridge/server binary/client config is shipped yet, so do not add setup commands until a bridge runtime exists
-- settings registry tables now follow a consistent edit flow for members/statuses/priorities/types:
+- settings registry tables now follow a consistent edit flow for members/statuses/priorities/types/labels/milestones/custom fields:
   - read-only rows by default
   - explicit edit affordance
   - save/cancel actions only while editing
   - semantic color selects instead of raw free-text color entry for those registries
+- labels and milestones retain stable records when hidden so existing item history remains readable; their Settings panel now exposes optional descriptions, label color, milestone target date/progress, visible/hidden state, and restore actions instead of create-only rows
+- hidden workflow definitions, labels, milestones, and members are excluded from new assignments. Existing items keep their currently assigned hidden value visible/removable in work-item detail, Table, Backlog, Bug triage, and Roadmap controls; Roadmap also retains a hidden milestone lane only while live scheduled items still reference it. The shared create dialog falls back from archived prefill/default values to visible type/status choices and blocks creation with an inline explanation when no visible type or status remains.
+- custom-field Settings now exposes name, type, select options, description, required state, all-vs-selected work-item type applicability, visible/hidden state, and restore actions. The command guard surfaces incompatible type/option edits inline rather than silently corrupting stored values.
 - registry edit rows now resync their local draft state when upstream bundle data changes, so import/undo/external-refresh cannot leave stale draft values or stuck edit mode on screen
 - launcher and member removal flows now use inline confirmation UI instead of `window.confirm`, which keeps the behavior testable in jsdom/Vitest and avoids blocking browser-native modal prompts
 - command palette (`Ctrl/Cmd+K`) and `C` shortcut
@@ -273,7 +279,8 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
 - bug triage cards are now `<article>` surfaces with an internal item link and real form controls, not whole-card links, so triage buttons/selects are valid and testable; accept/decline/assign dispatch `item.update`, decline resolves to an existing canceled status or completed fallback before dispatching, snooze dispatches `reminder.create`, and duplicate linking opens a picker modal before dispatching `relationship.create` with `relatesTo`
 - bug triage toolbar now includes severity and priority filters, cards can edit severity/priority plus plugin-owned source/context data stored under `moduleData.bug`, and the optional Workflow setting blocks Accept/Decline out of intake until a bug has either severity or priority
 - lane-style work surfaces use shared width tokens from `tokens.css`: `--work-lane-min` for normal board columns and `--work-lane-wide-min` for dense triage lanes. Bug triage uses a three-column grid with `minmax(var(--work-lane-wide-min), 1fr)` plus horizontal overflow so cards do not squeeze below a readable width; board columns use `--work-lane-min` instead of a route-local pixel width.
-- automation settings can create, dry-run preview, enable/disable, and delete rules; the first builder supports item-created/updated/status/due-date/milestone triggers plus set-field, add/remove-label, move-status, assign-milestone, create-subtask, and generate-doc actions
+- automation settings can create, dry-run preview, edit, enable/disable, and confirmed-delete rules; the visual editor safely reloads the one-type-condition/one-supported-action shape it creates and explicitly refuses to flatten advanced imported rule shapes
+- when an editable automation rule references a definition hidden after the rule was created, the editor keeps that current option visible with a `(hidden)` marker but blocks preview/update until the user selects a visible replacement; new rules only receive visible registry choices
 - automation rule execution is a side-effect layer after the originating item command succeeds: each action still dispatches through the validated command surface with source `automation`, but action validation failures are captured on `automation.executed.data.failedActionCount` / `failures` instead of throwing back through the user's item command
 - My Work now has a `New assigned item` action that preselects the current local member as assignee, so work created from that filtered view remains visible in the same workflow after creation
 - board-level `New item` now preselects the first board column's default drop status, which keeps newly created cards visible on boards whose first lane does not use the project/type default status
@@ -312,7 +319,7 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - `project.updateSettings.patch.accentColor` validates a six-digit hex value, writes it to `bundle.project`, and deliberately removes it from the `projectSettings` spread
   - the provider overlays a shared project accent on the active personal palette, so collaborators can keep different themes while retaining the same project identity
 - Built-ins are immutable in the UI. Users clone a built-in or active theme before editing. Draft edits can preview across the running app, persist only on Save, and may be discarded; deletion uses inline confirmation. Contrast warnings inform but do not hard-block custom themes.
-- `tokens.css` is the first-paint fallback and shared non-color token layer. It declares matching Grillo light/dark values, rem-based type/spacing, motion timing, `color-scheme`, reduced-motion behavior, and forced-color focus handling. Runtime themes override only the semantic color variables.
+- `tokens.css` is the first-paint fallback and shared non-color token layer. Its dark fallback is deliberately scoped to `:root[data-theme="dark"]`; a broad descendant selector previously re-declared Grillo defaults on `AppShell` and made preset themes appear to change only the outer canvas. `AppShell` no longer duplicates `data-theme`, so the complete runtime palette now inherits through navigation, headers, controls, tables, cards, and feedback surfaces.
 - `apps/web/index.html` and `apps/desktop/index.html` resolve the persisted light/dark/system choice before React starts to prevent the old light-mode flash. Full custom token application follows when `ThemeProvider` mounts.
 - `global.css` no longer authors component hex/rgb colors. Label colors, sidebar separators, shortcut/code surfaces, shadows, overlays, focus, feedback, and workflow colors all resolve through the theme contract. The CSS contract test fails on new component hex/rgb literals or unresolved custom-property references.
 - Accessibility guardrails include visible input focus rings, 4.5:1 text and 3:1 essential-boundary editor checks, readable generated accent foregrounds, system/explicit higher contrast, reduced motion, reduced transparency, and forced-colors handling. Low-contrast custom values remain possible by design and produce warnings rather than a lockout.
@@ -733,6 +740,14 @@ The core domain in `packages/core/src/domain/` covers the entities the plan call
   - removing the `StorageSettings` path-suffix/display-name heuristic that could mistake two distinct directories with the same basename for one folder target
   - adding optional `ProjectStoreAdapter.isSelectedFolderSameAsPrevious()` semantics and implementing the web comparison with `FileSystemHandle.isSameEntry()`; unavailable or failed identity checks conservatively remain collisions
   - covering same-name distinct handle comparisons in the web adapter plus both Settings outcomes: distinct directories retain the collision warning and restore the accepted binding, while a confirmed re-selection of the current directory performs no write
+- completed the Settings capability and theme-propagation audit by:
+  - interaction-checking all 12 Settings sections in the running hosted build and confirming that General, Storage, Views, Members, Workflow, Plugins & trust, Import & export, and AI bridge already expose functional or explicitly future-facing behavior
+  - replacing create-only Labels/Milestones and Custom fields panels with responsive registry tables that support edit/save/cancel, optional metadata, visible/hidden state, and restore without deleting referenced history
+  - adding the `customField.update` command plus migration safety that blocks type/option changes when stored values would become invalid while preserving values through name/scope/archive changes
+  - extending the simple automation builder to reload and update its supported saved-rule shape and adding inline confirmation before deletion
+  - making Hide operational outside Settings: hidden definitions no longer appear in new creation, assignment, bulk-edit, automation, or roadmap choices, while existing references remain visible so users can remove or migrate them intentionally
+  - tracing the background-only theme failure to the broad `[data-theme="dark"]` fallback token selector being re-applied by `AppShell`, scoping the fallback to the document root, and removing the redundant shell theme attribute so every semantic theme role reaches the full UI
+  - adding focused dispatcher, Settings interaction, CSS contract, and browser regressions plus running-app comparisons for the reported Table state, the new management tables, and Warm Sand propagation; the browser test now compares sidebar/header computed colors with root semantic-token probes so a descendant token override cannot pass by changing only `data-theme-id`
 
 ## Open follow-on planning
 

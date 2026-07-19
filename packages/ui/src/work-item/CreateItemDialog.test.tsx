@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { MemoryRouter } from "react-router-dom";
@@ -91,5 +91,73 @@ describe("CreateItemDialog", () => {
 
     const created = useProjectStore.getState().bundle?.core.items.find((item) => item.title === "Scope milestone work");
     expect(created?.milestoneId).toBe(milestone.id);
+  });
+
+  it("excludes hidden milestones from new item assignments", () => {
+    const current = useProjectStore.getState().bundle!;
+    const hiddenMilestone = current.core.milestones[0];
+    useProjectStore.setState({
+      ...useProjectStore.getState(),
+      bundle: {
+        ...current,
+        core: {
+          ...current.core,
+          milestones: current.core.milestones.map((milestone) =>
+            milestone.id === hiddenMilestone.id ? { ...milestone, archived: true } : milestone
+          )
+        }
+      }
+    });
+
+    render(
+      <MemoryRouter>
+        <CreateItemDialog />
+      </MemoryRouter>
+    );
+    act(() => openCreateItem({ milestoneId: hiddenMilestone.id }));
+
+    const milestoneSelect = screen.getByLabelText("Milestone");
+    expect(milestoneSelect).toHaveValue("");
+    expect(within(milestoneSelect).queryByRole("option", { name: hiddenMilestone.name })).not.toBeInTheDocument();
+  });
+
+  it("falls back from hidden type and status prefills to visible workflow choices", async () => {
+    const current = useProjectStore.getState().bundle!;
+    const hiddenType = current.core.itemTypes.find((type) => type.id === "task")!;
+    const hiddenStatus = current.core.statuses.find((status) => status.id === "inbox")!;
+    useProjectStore.setState({
+      ...useProjectStore.getState(),
+      bundle: {
+        ...current,
+        core: {
+          ...current.core,
+          itemTypes: current.core.itemTypes.map((type) =>
+            type.id === hiddenType.id ? { ...type, archived: true } : type
+          ),
+          statuses: current.core.statuses.map((status) =>
+            status.id === hiddenStatus.id ? { ...status, archived: true } : status
+          )
+        }
+      }
+    });
+
+    render(
+      <MemoryRouter>
+        <CreateItemDialog />
+      </MemoryRouter>
+    );
+    act(() => openCreateItem({ typeId: hiddenType.id, statusId: hiddenStatus.id }));
+
+    const typeSelect = screen.getByLabelText("Type");
+    const statusSelect = screen.getByLabelText("Status");
+    expect(typeSelect).not.toHaveValue(hiddenType.id);
+    expect(statusSelect).not.toHaveValue(hiddenStatus.id);
+    expect(within(typeSelect).queryByRole("option", { name: hiddenType.name })).not.toBeInTheDocument();
+    expect(within(statusSelect).queryByRole("option", { name: hiddenStatus.name })).not.toBeInTheDocument();
+
+    const chosenStatus = current.core.statuses.find((status) => status.id !== hiddenStatus.id && status.id !== (statusSelect as HTMLSelectElement).value)!;
+    await userEvent.selectOptions(statusSelect, chosenStatus.id);
+    expect(statusSelect).toHaveValue(chosenStatus.id);
+    expect(typeSelect).not.toHaveValue(hiddenType.id);
   });
 });

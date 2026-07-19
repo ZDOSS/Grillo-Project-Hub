@@ -181,12 +181,12 @@ export function WorkItemModal() {
     );
   }
 
-  const statuses = bundle.core.statuses;
-  const priorities = bundle.core.priorities;
-  const types = bundle.core.itemTypes;
-  const members = bundle.core.members;
-  const labels = bundle.core.labels;
-  const milestones = bundle.core.milestones;
+  const statuses = bundle.core.statuses.filter((status) => !status.archived || status.id === item.statusId);
+  const priorities = bundle.core.priorities.filter((priority) => !priority.archived || priority.id === item.priorityId);
+  const types = bundle.core.itemTypes.filter((type) => !type.archived || type.id === item.typeId);
+  const members = bundle.core.members.filter((member) => !member.archived || member.id === item.assigneeId);
+  const labels = bundle.core.labels.filter((label) => !label.archived || item.labelIds.includes(label.id));
+  const milestones = bundle.core.milestones.filter((milestone) => !milestone.archived || milestone.id === item.milestoneId);
   const hasCustomFields = bundle.core.customFields.some((field) => !field.archived);
 
   const bugModule = bundle.modules["builtin.bugs"];

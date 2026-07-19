@@ -300,7 +300,7 @@ export function TableView({ view }: { view?: TableViewDef }) {
           value={item.statusId}
           onChange={(event) => updateItem(item, { statusId: event.target.value })}
         >
-          {bundle.core.statuses.map((status) => (
+          {bundle.core.statuses.filter((status) => !status.archived || status.id === item.statusId).map((status) => (
             <option key={status.id} value={status.id}>{status.name}</option>
           ))}
         </select>
@@ -319,7 +319,7 @@ export function TableView({ view }: { view?: TableViewDef }) {
           onChange={(event) => updateItem(item, { priorityId: event.target.value || null })}
         >
           <option value="">None</option>
-          {bundle.core.priorities.map((priority) => (
+          {bundle.core.priorities.filter((priority) => !priority.archived || priority.id === item.priorityId).map((priority) => (
             <option key={priority.id} value={priority.id}>{priority.name}</option>
           ))}
         </select>
@@ -336,7 +336,7 @@ export function TableView({ view }: { view?: TableViewDef }) {
           onChange={(event) => updateItem(item, { assigneeId: event.target.value || null })}
         >
           <option value="">None</option>
-          {bundle.core.members.filter((member) => !member.archived).map((member) => (
+          {bundle.core.members.filter((member) => !member.archived || member.id === item.assigneeId).map((member) => (
             <option key={member.id} value={member.id}>{member.displayName}</option>
           ))}
         </select>
@@ -353,7 +353,7 @@ export function TableView({ view }: { view?: TableViewDef }) {
           onChange={(event) => updateItem(item, { milestoneId: event.target.value || null })}
         >
           <option value="">None</option>
-          {bundle.core.milestones.map((milestone) => (
+          {bundle.core.milestones.filter((milestone) => !milestone.archived || milestone.id === item.milestoneId).map((milestone) => (
             <option key={milestone.id} value={milestone.id}>{milestone.name}</option>
           ))}
         </select>
@@ -590,7 +590,7 @@ export function TableView({ view }: { view?: TableViewDef }) {
               onChange={(event) => setBulkStatusId(event.target.value)}
             >
               <option value="">Leave status</option>
-              {bundle.core.statuses.map((status) => <option key={status.id} value={status.id}>{status.name}</option>)}
+              {bundle.core.statuses.filter((status) => !status.archived).map((status) => <option key={status.id} value={status.id}>{status.name}</option>)}
             </SelectField>
             <SelectField
               label="Bulk priority"
@@ -599,7 +599,7 @@ export function TableView({ view }: { view?: TableViewDef }) {
             >
               <option value="__no-change">Leave priority</option>
               <option value="__none">No priority</option>
-              {bundle.core.priorities.map((priority) => <option key={priority.id} value={priority.id}>{priority.name}</option>)}
+              {bundle.core.priorities.filter((priority) => !priority.archived).map((priority) => <option key={priority.id} value={priority.id}>{priority.name}</option>)}
             </SelectField>
             <SelectField
               label="Bulk assignee"

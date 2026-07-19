@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { dispatchCommand, envelopeFor, type AutomationAction, type AutomationCondition, type AutomationRule, type AutomationTrigger } from "@gph/core";
 import { HelpTip, InlineAlert } from "../../components";
 import { useProjectStore } from "../../store/project-store";
+import { EditIcon } from "./settings-shared";
 
 type ActionChoice = "setPriority" | "addLabel" | "removeLabel" | "moveToStatus" | "assignMilestone" | "createSubtask" | "generateDoc";
 type PreviewOutput = {
@@ -26,21 +27,57 @@ export function AutomationSettings() {
   const [previewItemId, setPreviewItemId] = useState("");
   const [preview, setPreview] = useState<PreviewOutput | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
   const activeItems = useMemo(() => bundle?.core.items.filter((item) => !item.trashedAt && !item.archived) ?? [], [bundle?.core.items]);
 
   if (!bundle) return null;
 
   const rules = (((bundle.modules["builtin.automation"]?.data as { rules?: AutomationRule[] } | undefined)?.rules) ?? []);
-  const labels = bundle.core.labels.filter((label) => !label.archived);
-  const statuses = bundle.core.statuses.filter((status) => !status.archived);
-  const milestones = bundle.core.milestones.filter((milestone) => !milestone.archived);
-  const conditionTypeValue = conditionTypeId || bundle.project.defaultTypeId;
-  const labelValue = actionLabelId || labels[0]?.id || "";
-  const statusValue = actionStatusId || bundle.project.defaultInitialStatusId;
-  const priorityValue = actionPriorityId || bundle.core.priorities.find((priority) => !priority.archived)?.id || "";
-  const milestoneValue = actionMilestoneId || milestones[0]?.id || "";
+  const itemTypes = bundle.core.itemTypes.filter((type) => !type.archived || Boolean(editingRuleId && type.id === conditionTypeId));
+  const labels = bundle.core.labels.filter((label) => !label.archived || Boolean(editingRuleId && label.id === actionLabelId));
+  const statuses = bundle.core.statuses.filter((status) => !status.archived || Boolean(editingRuleId && status.id === actionStatusId));
+  const priorities = bundle.core.priorities.filter((priority) => !priority.archived || Boolean(editingRuleId && priority.id === actionPriorityId));
+  const milestones = bundle.core.milestones.filter((milestone) => !milestone.archived || Boolean(editingRuleId && milestone.id === actionMilestoneId));
+  const defaultTypeId = bundle.core.itemTypes.find((type) => type.id === bundle.project.defaultTypeId && !type.archived)?.id
+    ?? bundle.core.itemTypes.find((type) => !type.archived)?.id
+    ?? "";
+  const defaultStatusId = bundle.core.statuses.find((status) => status.id === bundle.project.defaultInitialStatusId && !status.archived)?.id
+    ?? bundle.core.statuses.find((status) => !status.archived)?.id
+    ?? "";
+  const conditionTypeValue = itemTypes.some((type) => type.id === conditionTypeId) ? conditionTypeId : defaultTypeId;
+  const labelValue = labels.some((label) => label.id === actionLabelId) ? actionLabelId : (labels.find((label) => !label.archived)?.id ?? "");
+  const statusValue = statuses.some((status) => status.id === actionStatusId) ? actionStatusId : defaultStatusId;
+  const priorityValue = priorities.some((priority) => priority.id === actionPriorityId)
+    ? actionPriorityId
+    : (priorities.find((priority) => !priority.archived)?.id ?? "");
+  const milestoneValue = milestones.some((milestone) => milestone.id === actionMilestoneId)
+    ? actionMilestoneId
+    : (milestones.find((milestone) => !milestone.archived)?.id ?? "");
   const previewValue = previewItemId || activeItems[0]?.id || "";
+  const actionTargetValue = actionChoice === "addLabel" || actionChoice === "removeLabel"
+    ? labelValue
+    : actionChoice === "moveToStatus"
+      ? statusValue
+      : actionChoice === "setPriority"
+        ? priorityValue
+        : actionChoice === "assignMilestone"
+          ? milestoneValue
+          : "text-action";
+  const actionDefinitionIsHidden = actionChoice === "addLabel" || actionChoice === "removeLabel"
+    ? labels.find((label) => label.id === labelValue)?.archived
+    : actionChoice === "moveToStatus"
+      ? statuses.find((status) => status.id === statusValue)?.archived
+      : actionChoice === "setPriority"
+        ? priorities.find((priority) => priority.id === priorityValue)?.archived
+        : actionChoice === "assignMilestone"
+          ? milestones.find((milestone) => milestone.id === milestoneValue)?.archived
+          : false;
+  const selectedDefinitionIsHidden = Boolean(
+    itemTypes.find((type) => type.id === conditionTypeValue)?.archived || actionDefinitionIsHidden
+  );
+  const canSaveRule = Boolean(name.trim() && conditionTypeValue && actionTargetValue && !selectedDefinitionIsHidden);
 
   const buildRule = () => {
     const conditions: AutomationCondition[] = conditionTypeValue
@@ -83,23 +120,70 @@ export function AutomationSettings() {
   const saveRule = () => {
     setError(null);
     try {
-      applyCommand({
-        type: "automationRule.create",
-        projectId: bundle.project.id,
-        rule: buildRule()
-      });
-      setName("");
-      setPreview(null);
+      const rule = buildRule();
+      if (editingRuleId) {
+        applyCommand({
+          type: "automationRule.update",
+          projectId: bundle.project.id,
+          ruleId: editingRuleId,
+          patch: rule
+        });
+      } else {
+        applyCommand({
+          type: "automationRule.create",
+          projectId: bundle.project.id,
+          rule
+        });
+      }
+      resetRuleForm();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to save automation rule.");
+      setError(err instanceof Error ? err.message : `Unable to ${editingRuleId ? "update" : "save"} automation rule.`);
     }
+  };
+
+  const resetRuleForm = () => {
+    setName("");
+    setTriggerType("item.created");
+    setConditionTypeId("");
+    setActionChoice("addLabel");
+    setActionLabelId("");
+    setActionStatusId("");
+    setActionPriorityId("");
+    setActionMilestoneId("");
+    setActionTitle("");
+    setPreview(null);
+    setError(null);
+    setEditingRuleId(null);
+  };
+
+  const editRule = (rule: AutomationRule) => {
+    const action = rule.actions.length === 1 ? editableAction(rule.actions[0]) : null;
+    const condition = rule.conditions.length === 1 && rule.conditions[0].type === "type.isOneOf" && rule.conditions[0].typeIds.length === 1
+      ? rule.conditions[0]
+      : null;
+    if (!action || !condition || Object.keys(rule.trigger).length !== 1) {
+      setError(`${rule.name} uses an advanced rule shape that this visual editor cannot safely flatten.`);
+      return;
+    }
+    setName(rule.name);
+    setTriggerType(rule.trigger.type);
+    setConditionTypeId(condition.typeIds[0]);
+    setActionChoice(action.choice);
+    setActionLabelId(action.labelId ?? "");
+    setActionStatusId(action.statusId ?? "");
+    setActionPriorityId(action.priorityId ?? "");
+    setActionMilestoneId(action.milestoneId ?? "");
+    setActionTitle(action.title ?? "");
+    setPreview(null);
+    setError(null);
+    setEditingRuleId(rule.id);
   };
 
   return (
     <div className="col" style={{ gap: 16, maxWidth: 980 }}>
       <div className="settings-panel">
         <h3>
-          Automation rules
+          {editingRuleId ? "Edit automation rule" : "Automation rules"}
           <HelpTip label="Automation rules">
             Automation previews use the same command dispatcher as saved rules, so a dry run should match what the rule will do later.
           </HelpTip>
@@ -125,8 +209,8 @@ export function AutomationSettings() {
           <label className="label">
             Condition type
             <select className="select" value={conditionTypeValue} onChange={(event) => setConditionTypeId(event.target.value)}>
-              {bundle.core.itemTypes.filter((type) => !type.archived).map((type) => (
-                <option key={type.id} value={type.id}>{type.name}</option>
+              {itemTypes.map((type) => (
+                <option key={type.id} value={type.id}>{type.name}{type.archived ? " (hidden)" : ""}</option>
               ))}
             </select>
           </label>
@@ -147,7 +231,7 @@ export function AutomationSettings() {
               Action label
               <select className="select" value={labelValue} onChange={(event) => setActionLabelId(event.target.value)}>
                 {labels.map((label) => (
-                  <option key={label.id} value={label.id}>{label.name}</option>
+                  <option key={label.id} value={label.id}>{label.name}{label.archived ? " (hidden)" : ""}</option>
                 ))}
               </select>
             </label>
@@ -157,7 +241,7 @@ export function AutomationSettings() {
               Action status
               <select className="select" value={statusValue} onChange={(event) => setActionStatusId(event.target.value)}>
                 {statuses.map((status) => (
-                  <option key={status.id} value={status.id}>{status.name}</option>
+                  <option key={status.id} value={status.id}>{status.name}{status.archived ? " (hidden)" : ""}</option>
                 ))}
               </select>
             </label>
@@ -166,8 +250,8 @@ export function AutomationSettings() {
             <label className="label">
               Action priority
               <select className="select" value={priorityValue} onChange={(event) => setActionPriorityId(event.target.value)}>
-                {bundle.core.priorities.filter((priority) => !priority.archived).map((priority) => (
-                  <option key={priority.id} value={priority.id}>{priority.name}</option>
+                {priorities.map((priority) => (
+                  <option key={priority.id} value={priority.id}>{priority.name}{priority.archived ? " (hidden)" : ""}</option>
                 ))}
               </select>
             </label>
@@ -177,7 +261,7 @@ export function AutomationSettings() {
               Action milestone
               <select className="select" value={milestoneValue} onChange={(event) => setActionMilestoneId(event.target.value)}>
                 {milestones.map((milestone) => (
-                  <option key={milestone.id} value={milestone.id}>{milestone.name}</option>
+                  <option key={milestone.id} value={milestone.id}>{milestone.name}{milestone.archived ? " (hidden)" : ""}</option>
                 ))}
               </select>
             </label>
@@ -198,9 +282,15 @@ export function AutomationSettings() {
           </label>
         </div>
         <div className="row" style={{ marginTop: 12 }}>
-          <button className="btn" onClick={previewRule}>Preview rule</button>
-          <button className="btn btn-primary" onClick={saveRule}>Save automation rule</button>
+          <button className="btn" disabled={!canSaveRule} onClick={previewRule}>Preview rule</button>
+          <button className="btn btn-primary" disabled={!canSaveRule} onClick={saveRule}>
+            {editingRuleId ? "Update automation rule" : "Save automation rule"}
+          </button>
+          {editingRuleId ? <button className="btn" onClick={resetRuleForm}>Cancel editing</button> : null}
         </div>
+        {selectedDefinitionIsHidden ? (
+          <InlineAlert tone="warning">This rule references a hidden definition. Choose a visible replacement before previewing or updating it.</InlineAlert>
+        ) : null}
         {error ? <InlineAlert tone="danger">{error}</InlineAlert> : null}
         {preview ? (
           <div className="workspace-inline-note">
@@ -228,6 +318,9 @@ export function AutomationSettings() {
             </div>
             <span className={`tag ${rule.enabled ? "tag-ok" : "tag-warn"}`}>{rule.enabled ? "Enabled" : "Disabled"}</span>
             <div className="settings-row-actions">
+              <button className="btn btn-sm" aria-label={`Edit ${rule.name}`} onClick={() => editRule(rule)}>
+                <EditIcon /> Edit
+              </button>
               <button
                 className="btn btn-sm"
                 onClick={() => applyCommand({
@@ -239,22 +332,49 @@ export function AutomationSettings() {
               >
                 {rule.enabled ? `Disable ${rule.name}` : `Enable ${rule.name}`}
               </button>
-              <button
-                className="btn btn-sm btn-danger"
-                onClick={() => applyCommand({
-                  type: "automationRule.delete",
-                  projectId: bundle.project.id,
-                  ruleId: rule.id
-                })}
-              >
-                Delete {rule.name}
-              </button>
+              {confirmingDeleteId === rule.id ? (
+                <>
+                  <button
+                    className="btn btn-sm btn-danger"
+                    onClick={() => {
+                      applyCommand({ type: "automationRule.delete", projectId: bundle.project.id, ruleId: rule.id });
+                      if (editingRuleId === rule.id) resetRuleForm();
+                      setConfirmingDeleteId(null);
+                    }}
+                  >
+                    Confirm delete
+                  </button>
+                  <button className="btn btn-sm" onClick={() => setConfirmingDeleteId(null)}>Cancel</button>
+                </>
+              ) : (
+                <button className="btn btn-sm btn-danger" onClick={() => setConfirmingDeleteId(rule.id)}>Delete {rule.name}</button>
+              )}
             </div>
           </div>
         ))}
       </div>
     </div>
   );
+}
+
+function editableAction(action: AutomationAction): {
+  choice: ActionChoice;
+  labelId?: string;
+  statusId?: string;
+  priorityId?: string;
+  milestoneId?: string;
+  title?: string;
+} | null {
+  if (action.type === "addLabel") return { choice: "addLabel", labelId: action.labelId };
+  if (action.type === "removeLabel") return { choice: "removeLabel", labelId: action.labelId };
+  if (action.type === "moveToStatus") return { choice: "moveToStatus", statusId: action.statusId };
+  if (action.type === "assignMilestone") return { choice: "assignMilestone", milestoneId: action.milestoneId };
+  if (action.type === "createSubtask") return { choice: "createSubtask", title: action.title };
+  if (action.type === "generateDoc") return { choice: "generateDoc", title: action.title };
+  if (action.type === "setField" && action.field === "priorityId" && typeof action.value === "string") {
+    return { choice: "setPriority", priorityId: action.value };
+  }
+  return null;
 }
 
 function buildAction(

@@ -51,6 +51,21 @@ test("appearance presets apply through the semantic theme runtime", async ({ pag
   await page.getByRole("radio", { name: /Graphite/i }).click();
   await expect.poll(() => page.evaluate(() => document.documentElement.dataset.themeId)).toBe("graphite");
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("gph.appearance.v2") ?? "{}").selectedThemeId)).toBe("graphite");
+  await expect.poll(() => page.evaluate(() => {
+    const sidebar = document.querySelector<HTMLElement>(".app-sidebar");
+    const header = document.querySelector<HTMLElement>(".app-header");
+    if (!sidebar || !header) return false;
+    const probe = document.createElement("span");
+    probe.style.position = "fixed";
+    probe.style.backgroundColor = "var(--color-bg-sidebar)";
+    document.body.append(probe);
+    const expectedSidebar = getComputedStyle(probe).backgroundColor;
+    probe.style.backgroundColor = "var(--color-bg-surface)";
+    const expectedHeader = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return getComputedStyle(sidebar).backgroundColor === expectedSidebar
+      && getComputedStyle(header).backgroundColor === expectedHeader;
+  })).toBe(true);
 });
 
 test("mobile shell exposes workspace navigation from the header", async ({ page }) => {

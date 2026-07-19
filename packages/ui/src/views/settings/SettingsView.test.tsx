@@ -133,11 +133,110 @@ describe("SettingsView", () => {
     expect(screen.getByText("Tag new bugs")).toBeInTheDocument();
     expect(((useProjectStore.getState().bundle!.modules["builtin.automation"].data as { rules?: unknown[] }).rules ?? [])).toHaveLength(1);
 
-    await userEvent.click(screen.getByRole("button", { name: "Disable Tag new bugs" }));
+    const frontend = useProjectStore.getState().bundle!.core.labels.find((label) => label.name === "frontend")!;
+    useProjectStore.getState().applyCommand({
+      type: "label.update",
+      projectId: bundle.project.id,
+      labelId: frontend.id,
+      patch: { archived: true }
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Edit Tag new bugs" }));
+    expect(screen.getByText(/references a hidden definition/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Update automation rule" })).toBeDisabled();
+    await userEvent.selectOptions(screen.getByLabelText("Action label"), screen.getByRole("option", { name: "backend" }).getAttribute("value") ?? "");
+    expect(screen.queryByText(/references a hidden definition/i)).not.toBeInTheDocument();
+    const editingName = screen.getByLabelText("Rule name");
+    await userEvent.clear(editingName);
+    await userEvent.type(editingName, "Tag incoming bugs");
+    await userEvent.click(screen.getByRole("button", { name: "Update automation rule" }));
+    expect(screen.getByText("Tag incoming bugs")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Disable Tag incoming bugs" }));
     expect(((useProjectStore.getState().bundle!.modules["builtin.automation"].data as { rules?: Array<{ enabled: boolean }> }).rules ?? [])[0].enabled).toBe(false);
 
-    await userEvent.click(screen.getByRole("button", { name: "Delete Tag new bugs" }));
+    await userEvent.click(screen.getByRole("button", { name: "Delete Tag incoming bugs" }));
+    expect(screen.getByRole("button", { name: "Confirm delete" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Confirm delete" }));
     expect(((useProjectStore.getState().bundle!.modules["builtin.automation"].data as { rules?: unknown[] }).rules ?? [])).toHaveLength(0);
+  });
+
+  it("edits hides and restores labels and milestones", async () => {
+    const initial = useProjectStore.getState().bundle!;
+    const label = initial.core.labels.find((entry) => entry.name === "frontend")!;
+    const milestone = initial.core.milestones[0];
+
+    render(
+      <ThemeProvider>
+        <MemoryRouter>
+          <SettingsView />
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    await userEvent.click(screen.getByRole("tab", { name: "Labels & milestones" }));
+    await userEvent.click(screen.getByRole("button", { name: "Edit frontend" }));
+    const labelName = screen.getByLabelText("Name for frontend");
+    await userEvent.clear(labelName);
+    await userEvent.type(labelName, "client UI");
+    await userEvent.selectOptions(screen.getByLabelText("Color for frontend"), "orange");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(useProjectStore.getState().bundle?.core.labels.find((entry) => entry.id === label.id)).toMatchObject({
+      name: "client UI",
+      color: "orange",
+      archived: false
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Hide client UI" }));
+    expect(useProjectStore.getState().bundle?.core.labels.find((entry) => entry.id === label.id)?.archived).toBe(true);
+    await userEvent.click(screen.getByRole("button", { name: "Restore client UI" }));
+    expect(useProjectStore.getState().bundle?.core.labels.find((entry) => entry.id === label.id)?.archived).toBe(false);
+
+    await userEvent.click(screen.getByRole("button", { name: `Edit ${milestone.name}` }));
+    const milestoneName = screen.getByLabelText(`Name for ${milestone.name}`);
+    await userEvent.clear(milestoneName);
+    await userEvent.type(milestoneName, "Launch candidate");
+    await userEvent.type(screen.getByLabelText(`Target date for ${milestone.name}`), "2026-09-12");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(useProjectStore.getState().bundle?.core.milestones.find((entry) => entry.id === milestone.id)).toMatchObject({
+      name: "Launch candidate",
+      targetDate: "2026-09-12"
+    });
+  });
+
+  it("creates edits scopes hides and restores custom fields", async () => {
+    render(
+      <ThemeProvider>
+        <MemoryRouter>
+          <SettingsView />
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+
+    await userEvent.click(screen.getByRole("tab", { name: "Custom fields" }));
+    await userEvent.type(screen.getByLabelText("Field name"), "Risk band");
+    await userEvent.selectOptions(screen.getByLabelText("Field type"), "select");
+    await userEvent.type(screen.getByLabelText("Options"), "Low, Medium, High");
+    await userEvent.click(screen.getByRole("button", { name: "Add field" }));
+
+    const created = useProjectStore.getState().bundle!.core.customFields.find((entry) => entry.name === "Risk band")!;
+    expect(created).toMatchObject({ type: "select", options: ["Low", "Medium", "High"], archived: false });
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit Risk band" }));
+    const fieldName = screen.getByLabelText("Name for Risk band");
+    await userEvent.clear(fieldName);
+    await userEvent.type(fieldName, "Delivery risk");
+    await userEvent.click(screen.getAllByRole("radio", { name: "Selected types" }).at(-1)!);
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(useProjectStore.getState().bundle!.core.customFields.find((entry) => entry.id === created.id)).toMatchObject({
+      name: "Delivery risk",
+      applicableTypeIds: ["task"]
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Hide Delivery risk" }));
+    expect(useProjectStore.getState().bundle!.core.customFields.find((entry) => entry.id === created.id)?.archived).toBe(true);
+    await userEvent.click(screen.getByRole("button", { name: "Restore Delivery risk" }));
+    expect(useProjectStore.getState().bundle!.core.customFields.find((entry) => entry.id === created.id)?.archived).toBe(false);
   });
 
   it("updates workflow triage gate settings", async () => {
@@ -609,6 +708,12 @@ describe("SettingsView", () => {
     await userEvent.click(within(panel).getByRole("radio", { name: /Graphite/i }));
     await waitFor(() => expect(document.documentElement).toHaveAttribute("data-theme-id", "graphite"));
     expect(JSON.parse(localStorage.getItem("gph.appearance.v2") ?? "{}")).toMatchObject({ selectedThemeId: "graphite" });
+
+    await userEvent.click(within(panel).getByRole("radio", { name: /Warm Sand/i }));
+    await waitFor(() => expect(document.documentElement).toHaveAttribute("data-theme-id", "warm-sand"));
+    expect(document.documentElement.style.getPropertyValue("--color-bg-surface")).toBe("#fffdf8");
+    expect(document.documentElement.style.getPropertyValue("--color-bg-sidebar")).toBe("#4a372d");
+    expect(document.documentElement.style.getPropertyValue("--color-text-primary")).toBe("#35251e");
   });
 
   it("creates an editable theme from a seed and exposes both mode token sets", async () => {

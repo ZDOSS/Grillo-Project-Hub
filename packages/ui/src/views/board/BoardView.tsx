@@ -104,6 +104,11 @@ export function BoardView({ view }: BoardViewProps) {
       console.warn("Invalid drop target: default drop status not in column");
       return;
     }
+    const targetStatusDefinition = bundle.core.statuses.find((status) => status.id === targetStatus);
+    if (!targetStatusDefinition || targetStatusDefinition.archived) {
+      setDropFeedback(`${col.name} uses a hidden status. Restore it in Settings before moving work here.`);
+      return;
+    }
     if (item.statusId === targetStatus) return;
     // WIP hard enforcement
     if (col.wipMode === "hard" && col.wipLimit != null) {
@@ -117,7 +122,9 @@ export function BoardView({ view }: BoardViewProps) {
     applyCommand({ type: "item.moveStatus", projectId: bundle.project.id, itemId, toStatusId: targetStatus });
   };
 
-  const firstColumnCreateStatusId = view.columns[0]?.defaultDropStatusId;
+  const firstColumnCreateStatusId = view.columns
+    .map((column) => column.defaultDropStatusId)
+    .find((statusId) => bundle.core.statuses.some((status) => status.id === statusId && !status.archived));
   const createPrefill = createItemPrefillFromFilter(
     cleanFilter,
     firstColumnCreateStatusId ? { statusId: firstColumnCreateStatusId } : undefined

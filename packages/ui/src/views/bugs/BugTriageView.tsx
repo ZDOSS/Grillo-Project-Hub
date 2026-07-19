@@ -263,7 +263,7 @@ export function BugTriageView() {
                         onChange={(event) => updateItem(item, { priorityId: event.target.value || null })}
                       >
                         <option value="">No priority</option>
-                        {priorities.filter((entry) => !entry.archived).map((entry) => (
+                        {priorities.filter((entry) => !entry.archived || entry.id === item.priorityId).map((entry) => (
                           <option key={entry.id} value={entry.id}>{entry.name}</option>
                         ))}
                       </select>

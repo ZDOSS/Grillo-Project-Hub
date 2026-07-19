@@ -110,7 +110,7 @@
   --work-lane-wide-min: 440px;
 }
 
-[data-theme="dark"] {
+:root[data-theme="dark"] {
   color-scheme: dark;
   --color-bg-canvas: #1c2420;
   --color-bg-surface: #232b27;
